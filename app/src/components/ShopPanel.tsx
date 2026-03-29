@@ -7,7 +7,10 @@ interface ShopPanelProps {
   onBuy: (itemId: string) => void;
   onEquip: (hatId: string | null) => void;
   ownedFurniture: string[];
+  placedFurniture: string[];
   onBuyFurniture: (itemId: string) => void;
+  onTogglePlace: (itemId: string) => void;
+  onStartPlacement: (itemId: string) => void;
 }
 
 export function ShopPanel({
@@ -17,7 +20,10 @@ export function ShopPanel({
   onBuy,
   onEquip,
   ownedFurniture,
+  placedFurniture,
   onBuyFurniture,
+  onTogglePlace,
+  onStartPlacement,
 }: ShopPanelProps) {
   return (
     <div id="shop-panel">
@@ -90,7 +96,16 @@ export function ShopPanel({
                 )}
               </span>
               {owned ? (
-                <span className="shop-owned-tag">✓ Placé</span>
+                <button
+                  className={`shop-toggle-place-btn${placedFurniture.includes(item.id) ? " placed" : ""}`}
+                  onClick={() =>
+                    placedFurniture.includes(item.id)
+                      ? onTogglePlace(item.id)
+                      : onStartPlacement(item.id)
+                  }
+                >
+                  {placedFurniture.includes(item.id) ? "📦 Ranger" : "🏠 Replacer"}
+                </button>
               ) : (
                 <button
                   className="shop-buy-btn"

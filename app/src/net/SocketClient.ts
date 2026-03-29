@@ -81,7 +81,7 @@ export type RoomCallbacks = {
   onCosmeticsState: (data: { owned: string[]; equippedHat: string | null }) => void;
   onShopBought: (data: { itemId: string; coins: number }) => void;
   onPlayerHat: (data: { id: string; hat: string | null }) => void;
-  onFurnitureState: (data: { owned: string[]; positions: Record<string, { col: number; row: number }> }) => void;
+  onFurnitureState: (data: { owned: string[]; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
   onFurnitureBought: (data: { itemId: string; coins: number }) => void;
   onAdminAnnounce: (payload: { message: string }) => void;
   onProfileData: (data: ProfileData) => void;
@@ -300,6 +300,14 @@ export class SocketClient {
 
   moveFurniture(userId: string, itemId: string, col: number, row: number): void {
     this.socket.emit("furniture:move", { userId, itemId, col, row });
+  }
+
+  toggleFurniturePlaced(userId: string, itemId: string): void {
+    this.socket.emit("furniture:toggle-place", { userId, itemId });
+  }
+
+  placeFurniture(userId: string, itemId: string, col: number, row: number): void {
+    this.socket.emit("furniture:place", { userId, itemId, col, row });
   }
 
   adminGiveCoins(targetUserId: string, amount: number): void {

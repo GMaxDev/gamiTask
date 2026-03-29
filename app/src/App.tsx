@@ -186,6 +186,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
   const [ownedItems, setOwnedItems] = useState<string[]>([]);
   const [equippedHat, setEquippedHat] = useState<string | null>(null);
   const [ownedFurniture, setOwnedFurniture] = useState<string[]>([]);
+  const [placedFurniture, setPlacedFurniture] = useState<string[]>([]);
   const [furniturePositions, setFurniturePositions] = useState<Record<string, { col: number; row: number }>>({});
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [collectivePomo, setCollectivePomo] = useState<SharedPomoState | null>(
@@ -273,6 +274,10 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       // Callback déplacement de meuble → socket
       scene.onFurnitureMoved = (itemId, col, row) => {
         socketRef.current?.moveFurniture(LOCAL_USER_ID, itemId, col, row);
+      };
+      // Callback placement fantôme → socket
+      scene.onFurniturePlaced = (itemId, col, row) => {
+        socketRef.current?.placeFurniture(LOCAL_USER_ID, itemId, col, row);
       };
       // Broadcaster l'état walking au début/fin du déplacement
       scene.onLocalStateChange = (state) => {
@@ -367,8 +372,8 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
 
   // ── Mobilier Feng Shui : sync positions → scène après re-render ─────────
   useEffect(() => {
-    sceneRef.current?.setFurniture(ownedFurniture, furniturePositions);
-  }, [ownedFurniture, furniturePositions]);
+    sceneRef.current?.setFurniture(placedFurniture, furniturePositions);
+  }, [placedFurniture, furniturePositions]);
 
   // ── Socket.IO ────────────────────────────────────────────────
   useEffect(() => {
@@ -619,10 +624,11 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       onPlayerHat: ({ id, hat }) => {
         sceneRef.current?.setRemoteHat(id, hat);
       },
-      onFurnitureState: ({ owned, positions }) => {
+      onFurnitureState: ({ owned, placed, positions }) => {
         setOwnedFurniture(owned);
+        setPlacedFurniture(placed);
         setFurniturePositions(positions);
-        sceneRef.current?.setFurniture(owned, positions);
+        sceneRef.current?.setFurniture(placed, positions);
       },
       onFurnitureBought: () => {
         // furniture:state est déjà émis après l'achat
@@ -1226,7 +1232,10 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
               onBuy={handleBuyItem}
               onEquip={handleEquipHat}
               ownedFurniture={ownedFurniture}
+              placedFurniture={placedFurniture}
               onBuyFurniture={handleBuyFurniture}
+              onTogglePlace={(itemId) => socketRef.current?.toggleFurniturePlaced(LOCAL_USER_ID, itemId)}
+              onStartPlacement={(itemId) => sceneRef.current?.startGhostPlacement(itemId)}
             />
           )}
         </div>

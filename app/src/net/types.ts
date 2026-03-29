@@ -143,6 +143,8 @@ export interface ClientToServerEvents {
   "cosmetic:equip": (payload: { userId: string; hatId: string | null }) => void;
   "furniture:buy": (payload: { userId: string; itemId: string }) => void;
   "furniture:move": (payload: { userId: string; itemId: string; col: number; row: number }) => void;
+  "furniture:toggle-place": (payload: { userId: string; itemId: string }) => void;
+  "furniture:place": (payload: { userId: string; itemId: string; col: number; row: number }) => void;
   "admin:give-coins": (payload: { targetUserId: string; amount: number }) => void;
   "admin:give-xp": (payload: { targetUserId: string; xp: number }) => void;
   "admin:set-degradation": (payload: { targetUserId: string; level: number }) => void;
@@ -237,7 +239,7 @@ export interface ServerToClientEvents {
   "cosmetics:state": (payload: { owned: string[]; equippedHat: string | null }) => void;
   "shop:bought": (payload: { itemId: string; coins: number }) => void;
   "player-hat": (payload: { id: string; hat: string | null }) => void;
-  "furniture:state": (payload: { owned: string[]; positions: Record<string, { col: number; row: number }> }) => void;
+  "furniture:state": (payload: { owned: string[]; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
   "furniture:bought": (payload: { itemId: string; coins: number }) => void;
   "admin:announce": (payload: { message: string }) => void;
   "profile:data": (data: ProfileData) => void;

@@ -57,7 +57,15 @@ export class GameScene {
   private offsetY: number;
   private resumeState: AvatarState = "idle";
   private pendingMoveItemId: string | null = null;
+  private occupiedCells = new Set<string>();
+  private currentPositions: Record<string, { col: number; row: number }> = {};
+  private ghostItemId: string | null = null;
+  private ghostSprite: FurnitureSprite | null = null;
+  private ghostHighlight: PIXI.Graphics | null = null;
+  private _ghostMoveHandler?: (e: PointerEvent) => void;
+  private _ghostEscapeHandler?: (e: KeyboardEvent) => void;
   public onFurnitureMoved?: (itemId: string, col: number, row: number) => void;
+  public onFurniturePlaced?: (itemId: string, col: number, row: number) => void;
 
   // Positions candidates pour les parchemins (hors BLOCKED, près des bureaux)
   private static readonly SCROLL_TILE_POOL: [number, number][] = [
@@ -140,6 +148,10 @@ export class GameScene {
       null;
     let isDragging = false;
     canvas.addEventListener("pointerdown", (e: PointerEvent) => {
+      if (e.button === 2 && this.ghostItemId !== null) {
+        this.cancelGhostPlacement();
+        return;
+      }
       if (e.button !== 2) return; // clic droit = pan
       dragStart = {
         x: e.clientX,
@@ -288,20 +300,48 @@ export class GameScene {
       const row = Math.round(target.row);
       if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return;
 
+      // Mode placement fantôme : clic confirme la position
+      if (this.ghostItemId !== null) {
+        if (!isBlocked(col, row) && !this.occupiedCells.has(`${col},${row}`)) {
+          const itemId = this.ghostItemId;
+          this.cancelGhostPlacement();
+          const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+          const sprite = new FurnitureSprite(itemId);
+          sprite.container.x = x;
+          sprite.container.y = y;
+          sprite.container.zIndex = isoDepth(col, row) + 0.4;
+          sprite.onSelect = () => this._selectFurnitureForMove(itemId);
+          this.spriteLayer.addChild(sprite.container);
+          this.furnitureSprites.set(itemId, sprite);
+          this.occupiedCells.add(`${col},${row}`);
+          this.currentPositions[itemId] = { col, row };
+          this.onFurniturePlaced?.(itemId, col, row);
+          this.updateSpriteDepth();
+        }
+        return;
+      }
+
       // Mode déplacement de meuble : clic sur tuile place le meuble sélectionné
       if (this.pendingMoveItemId !== null) {
         if (!isBlocked(col, row)) {
           const itemId = this.pendingMoveItemId;
-          const sprite = this.furnitureSprites.get(itemId);
-          if (sprite) {
-            const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
-            sprite.container.x = x;
-            sprite.container.y = y;
-            sprite.container.zIndex = isoDepth(col, row) + 0.4;
-            sprite.setSelected(false);
+          const oldPos = this.currentPositions[itemId];
+          const isOwnCell = !!oldPos && oldPos.col === col && oldPos.row === row;
+          if (!this.occupiedCells.has(`${col},${row}`) || isOwnCell) {
+            const sprite = this.furnitureSprites.get(itemId);
+            if (sprite) {
+              const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+              sprite.container.x = x;
+              sprite.container.y = y;
+              sprite.container.zIndex = isoDepth(col, row) + 0.4;
+              sprite.setSelected(false);
+            }
+            if (oldPos) this.occupiedCells.delete(`${oldPos.col},${oldPos.row}`);
+            this.occupiedCells.add(`${col},${row}`);
+            this.currentPositions[itemId] = { col, row };
+            this.pendingMoveItemId = null;
+            this.onFurnitureMoved?.(itemId, col, row);
           }
-          this.pendingMoveItemId = null;
-          this.onFurnitureMoved?.(itemId, col, row);
         }
         return;
       }
@@ -643,6 +683,17 @@ export class GameScene {
       this.spriteLayer.addChild(sprite.container);
       this.furnitureSprites.set(id, sprite);
     }
+
+    // Reconstruire la carte des cellules occupées
+    this.occupiedCells.clear();
+    this.currentPositions = {};
+    for (const id of ownedIds) {
+      const slot = positions[id] ?? GameScene.FURNITURE_SLOTS[id];
+      if (slot) {
+        this.occupiedCells.add(`${slot.col},${slot.row}`);
+        this.currentPositions[id] = { col: slot.col, row: slot.row };
+      }
+    }
   }
 
   private _selectFurnitureForMove(id: string): void {
@@ -656,6 +707,84 @@ export class GameScene {
       this.pendingMoveItemId = id;
       this.furnitureSprites.get(id)?.setSelected(true);
     }
+  }
+
+  startGhostPlacement(itemId: string): void {
+    this.cancelGhostPlacement();
+    this.ghostItemId = itemId;
+
+    const sprite = new FurnitureSprite(itemId);
+    sprite.container.alpha = 0.55;
+    sprite.container.zIndex = 1000;
+    this.spriteLayer.addChild(sprite.container);
+    this.ghostSprite = sprite;
+
+    const highlight = new PIXI.Graphics();
+    highlight.zIndex = 999;
+    this.spriteLayer.addChild(highlight);
+    this.ghostHighlight = highlight;
+
+    const canvas = this.app.canvas as HTMLCanvasElement;
+
+    const onMove = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const gx = e.clientX - rect.left;
+      const gy = e.clientY - rect.top;
+      const local = this.worldContainer.toLocal({ x: gx, y: gy });
+      const target = screenToGrid(local.x, local.y, 0, 0);
+      const col = Math.round(target.col);
+      const row = Math.round(target.row);
+      if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return;
+      const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+      sprite.container.x = x;
+      sprite.container.y = y;
+      sprite.container.zIndex = isoDepth(col, row) + 0.45;
+      const valid = !isBlocked(col, row) && !this.occupiedCells.has(`${col},${row}`);
+      highlight.clear();
+      highlight.poly([
+        x, y - TILE_HEIGHT / 2,
+        x + TILE_WIDTH / 2, y,
+        x, y + TILE_HEIGHT / 2,
+        x - TILE_WIDTH / 2, y,
+      ]);
+      highlight.fill({ color: valid ? 0x4ade80 : 0xef4444, alpha: 0.25 });
+      highlight.stroke({ color: valid ? 0x4ade80 : 0xef4444, width: 2, alpha: 0.8 });
+      highlight.zIndex = isoDepth(col, row) + 0.35;
+      this.spriteLayer.sortableChildren = true;
+      this.spriteLayer.sortChildren();
+    };
+
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") this.cancelGhostPlacement();
+    };
+
+    canvas.addEventListener("pointermove", onMove);
+    window.addEventListener("keydown", onEscape);
+    this._ghostMoveHandler = onMove;
+    this._ghostEscapeHandler = onEscape;
+  }
+
+  cancelGhostPlacement(): void {
+    if (!this.ghostItemId) return;
+    if (this.ghostSprite) {
+      if (this.ghostSprite.container.parent) this.spriteLayer.removeChild(this.ghostSprite.container);
+      this.ghostSprite.destroy();
+      this.ghostSprite = null;
+    }
+    if (this.ghostHighlight) {
+      if (this.ghostHighlight.parent) this.spriteLayer.removeChild(this.ghostHighlight);
+      this.ghostHighlight.destroy();
+      this.ghostHighlight = null;
+    }
+    if (this._ghostMoveHandler) {
+      (this.app.canvas as HTMLCanvasElement).removeEventListener("pointermove", this._ghostMoveHandler);
+      this._ghostMoveHandler = undefined;
+    }
+    if (this._ghostEscapeHandler) {
+      window.removeEventListener("keydown", this._ghostEscapeHandler);
+      this._ghostEscapeHandler = undefined;
+    }
+    this.ghostItemId = null;
   }
 
   showLocalChat(text: string): void {
