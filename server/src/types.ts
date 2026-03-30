@@ -135,6 +135,7 @@ export interface ClientToServerEvents {
   "profile:request": (payload: { socketId: string | null }) => void;
   "chat:typing": () => void;
   "chat:react": (payload: { msgTs: number; emoji: string }) => void;
+  "chat:emote": (payload: { emoji: string }) => void;
   "guild:create": (payload: { name: string }) => void;
   "guild:join": (payload: { guildId: string }) => void;
   "guild:leave": () => void;
@@ -201,6 +202,7 @@ export interface ServerToClientEvents {
   "task:completed-public": (payload: { socketId: string }) => void;
   "chat:typing": (payload: { id: string; name: string; color: number }) => void;
   "chat:react": (payload: { msgTs: number; emoji: string; fromId: string; fromColor: number }) => void;
+  "chat:emote": (payload: { id: string; emoji: string }) => void;
   "achievement:unlocked": (payload: {
     key: string;
     label: string;

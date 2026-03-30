@@ -238,6 +238,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
     Map<number, Map<string, Set<string>>>
   >(new Map());
   const [hoveredMsg, setHoveredMsg] = useState<number | null>(null);
+  const [showEmotePicker, setShowEmotePicker] = useState(false);
   const [roomMembers, setRoomMembers] = useState<
     Map<string, { name: string; color: number }>
   >(new Map());
@@ -625,10 +626,11 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
         sceneRef.current?.setRemoteHat(id, hat);
       },
       onFurnitureState: ({ owned, placed, positions }) => {
+        const activePlaced = placed ?? owned;
         setOwnedFurniture(owned);
-        setPlacedFurniture(placed);
+        setPlacedFurniture(activePlaced);
         setFurniturePositions(positions);
-        sceneRef.current?.setFurniture(placed, positions);
+        sceneRef.current?.setFurniture(activePlaced, positions);
       },
       onFurnitureBought: () => {
         // furniture:state est déjà émis après l'achat
@@ -656,6 +658,9 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       onGuildBossDefeated: ({ bossLevel, reward }) => {
         setGuildBossToast({ bossLevel, reward });
         setTimeout(() => setGuildBossToast(null), 6000);
+      },
+      onEmote: (id, emoji) => {
+        sceneRef.current?.showRemoteEmote(id, emoji);
       },
     });
     socketRef.current = client;
@@ -870,6 +875,14 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
     },
     [],
   );
+
+  const CHAT_EMOTES = ["😂", "😍", "😎", "🥳", "😭", "🤯"] as const;
+
+  const handleSendEmote = useCallback((emoji: string) => {
+    setShowEmotePicker(false);
+    sceneRef.current?.showLocalEmote(emoji);
+    socketRef.current?.sendEmote(emoji);
+  }, []);
 
   const handleOpenDm = useCallback(
     (id: string, name: string, color: number) => {
@@ -1387,6 +1400,26 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
               onKeyDown={handleChatKey}
               maxLength={200}
             />
+            <button
+              id="emote-btn"
+              title="Émotes"
+              onClick={() => setShowEmotePicker((v) => !v)}
+            >
+              😊
+            </button>
+            {showEmotePicker && (
+              <div id="emote-picker">
+                {CHAT_EMOTES.map((e) => (
+                  <button
+                    key={e}
+                    className="emote-option"
+                    onClick={() => handleSendEmote(e)}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1666,7 +1699,7 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem("gamitask-jwt");
     if (!token) { queueMicrotask(() => setAuthChecked(true)); return; }
-    fetch("http://localhost:3001/auth/token", {
+    fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/auth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),

@@ -88,13 +88,14 @@ export type RoomCallbacks = {
   onGuildState: (data: GuildData) => void;
   onGuildBossAttacked: (payload: { damage: number; newHp: number; maxHp: number }) => void;
   onGuildBossDefeated: (payload: { bossLevel: number; reward: number }) => void;
+  onEmote: (id: string, emoji: string) => void;
 };
 
 export class SocketClient {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
 
   constructor(callbacks: RoomCallbacks) {
-    this.socket = io("http://localhost:3001", { transports: ["websocket"] });
+    this.socket = io(import.meta.env.VITE_API_URL ?? "http://localhost:3001", { transports: ["websocket"] });
 
     this.socket.on("room-state", callbacks.onRoomState);
     this.socket.on("player-joined", callbacks.onPlayerJoined);
@@ -149,6 +150,9 @@ export class SocketClient {
     );
     this.socket.on("chat:react", ({ msgTs, emoji, fromId, fromColor }) =>
       callbacks.onChatReact(msgTs, emoji, fromId, fromColor),
+    );
+    this.socket.on("chat:emote", ({ id, emoji }) =>
+      callbacks.onEmote(id, emoji),
     );
     this.socket.on("xp:update", ({ xp, level, xpToNext, levelUp }) =>
       callbacks.onXpUpdate(xp, level, xpToNext, levelUp),
@@ -223,6 +227,10 @@ export class SocketClient {
 
   sendChatReact(msgTs: number, emoji: string): void {
     this.socket.emit("chat:react", { msgTs, emoji });
+  }
+
+  sendEmote(emoji: string): void {
+    this.socket.emit("chat:emote", { emoji });
   }
 
   sendPrivateMessage(to: string, text: string): void {

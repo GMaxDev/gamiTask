@@ -64,6 +64,11 @@ export class GameScene {
   private ghostHighlight: PIXI.Graphics | null = null;
   private _ghostMoveHandler?: (e: PointerEvent) => void;
   private _ghostEscapeHandler?: (e: KeyboardEvent) => void;
+  private _wheelHandler?: (e: WheelEvent) => void;
+  private _panDownHandler?: (e: PointerEvent) => void;
+  private _panMoveHandler?: (e: PointerEvent) => void;
+  private _panUpHandler?: () => void;
+  private _contextMenuHandler?: (e: Event) => void;
   public onFurnitureMoved?: (itemId: string, col: number, row: number) => void;
   public onFurniturePlaced?: (itemId: string, col: number, row: number) => void;
 
@@ -124,30 +129,26 @@ export class GameScene {
     });
 
     // Zoom molette vers le curseur
-    canvas.addEventListener(
-      "wheel",
-      (e: WheelEvent) => {
-        e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.1 : 0.9;
-        const prevScale = this.worldContainer.scale.x;
-        const newScale = Math.max(0.4, Math.min(4.0, prevScale * factor));
-        // Zoom centré sur le curseur
-        const mx = e.clientX;
-        const my = e.clientY;
-        this.worldContainer.x =
-          mx + (this.worldContainer.x - mx) * (newScale / prevScale);
-        this.worldContainer.y =
-          my + (this.worldContainer.y - my) * (newScale / prevScale);
-        this.worldContainer.scale.set(newScale);
-      },
-      { passive: false },
-    );
+    this._wheelHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      const prevScale = this.worldContainer.scale.x;
+      const newScale = Math.max(0.4, Math.min(4.0, prevScale * factor));
+      const mx = e.clientX;
+      const my = e.clientY;
+      this.worldContainer.x =
+        mx + (this.worldContainer.x - mx) * (newScale / prevScale);
+      this.worldContainer.y =
+        my + (this.worldContainer.y - my) * (newScale / prevScale);
+      this.worldContainer.scale.set(newScale);
+    };
+    canvas.addEventListener("wheel", this._wheelHandler, { passive: false });
 
-    // Drag to pan (clic droit ou clic gauche maintenu + glissement sans relâcher hors de la tuile)
+    // Drag to pan (clic droit)
     let dragStart: { x: number; y: number; wx: number; wy: number } | null =
       null;
     let isDragging = false;
-    canvas.addEventListener("pointerdown", (e: PointerEvent) => {
+    this._panDownHandler = (e: PointerEvent) => {
       if (e.button === 2 && this.ghostItemId !== null) {
         this.cancelGhostPlacement();
         return;
@@ -161,8 +162,8 @@ export class GameScene {
       };
       isDragging = false;
       canvas.setPointerCapture(e.pointerId);
-    });
-    canvas.addEventListener("pointermove", (e: PointerEvent) => {
+    };
+    this._panMoveHandler = (e: PointerEvent) => {
       if (!dragStart) return;
       const dx = e.clientX - dragStart.x;
       const dy = e.clientY - dragStart.y;
@@ -172,12 +173,16 @@ export class GameScene {
         this.worldContainer.x = dragStart.wx + dx;
         this.worldContainer.y = dragStart.wy + dy;
       }
-    });
-    canvas.addEventListener("pointerup", () => {
+    };
+    this._panUpHandler = () => {
       dragStart = null;
       isDragging = false;
-    });
-    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    };
+    this._contextMenuHandler = (e: Event) => e.preventDefault();
+    canvas.addEventListener("pointerdown", this._panDownHandler);
+    canvas.addEventListener("pointermove", this._panMoveHandler);
+    canvas.addEventListener("pointerup", this._panUpHandler);
+    canvas.addEventListener("contextmenu", this._contextMenuHandler);
 
     this.worldContainer.addChild(this.tileLayer);
     this.worldContainer.addChild(this.spriteLayer);
@@ -795,6 +800,10 @@ export class GameScene {
     this.localAvatar.showCoinBubble(text);
   }
 
+  showLocalEmote(emoji: string): void {
+    this.localAvatar.showEmote(emoji);
+  }
+
   showRemoteChat(id: string, text: string): void {
     this.remoteAvatars.get(id)?.showChatBubble(text);
   }
@@ -803,8 +812,20 @@ export class GameScene {
     this.remoteAvatars.get(id)?.showCoinBubble(text);
   }
 
+  showRemoteEmote(id: string, emoji: string): void {
+    this.remoteAvatars.get(id)?.showEmote(emoji);
+  }
+
   destroy(): void {
     if (!this.initialized) return;
+    const canvas = this.app.canvas as HTMLCanvasElement;
+    if (this._wheelHandler) canvas.removeEventListener("wheel", this._wheelHandler);
+    if (this._panDownHandler) canvas.removeEventListener("pointerdown", this._panDownHandler);
+    if (this._panMoveHandler) canvas.removeEventListener("pointermove", this._panMoveHandler);
+    if (this._panUpHandler) canvas.removeEventListener("pointerup", this._panUpHandler);
+    if (this._contextMenuHandler) canvas.removeEventListener("contextmenu", this._contextMenuHandler);
+    this.cancelGhostPlacement();
+    this._hideGuardianNPC();
     this.app.destroy(true);
   }
 }

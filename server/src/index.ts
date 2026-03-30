@@ -748,6 +748,7 @@ io.on("connection", (socket) => {
 
   socket.on("move", ({ col, row }) => {
     if (!allow(socket.id, "move", 30, 1000)) return;
+    if (!Number.isInteger(col) || !Number.isInteger(row) || col < 0 || col >= 12 || row < 0 || row >= 12) return;
     const p = players.get(socket.id);
     if (!p) return;
     p.col = col;
@@ -796,6 +797,15 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     if (!p) return;
     io.emit("chat:react", { msgTs, emoji, fromId: socket.id, fromColor: p.color });
+  });
+
+  const VALID_EMOTES = new Set(["😂","😍","😎","🥳","😭","🤯"]);
+  socket.on("chat:emote", ({ emoji }) => {
+    if (!allow(socket.id, "chat:emote", 5, 3000)) return;
+    if (!VALID_EMOTES.has(emoji)) return;
+    const p = players.get(socket.id);
+    if (!p) return;
+    io.emit("chat:emote", { id: socket.id, emoji });
   });
 
   socket.on("private-message", ({ to, text }) => {

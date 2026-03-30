@@ -254,6 +254,55 @@ export class AvatarSprite {
     }
   }
 
+  /** Affiche une grosse émote flottante style Dofus au-dessus de l'avatar */
+  showEmote(emoji: string): void {
+    const EMOTE_DURATION = 2800;
+    const EMOTE_FADE = 600;
+    const EMOTE_POP_MS = 400;
+    const EMOTE_FLOAT = 35;
+    const EMOTE_BASE_Y = -90;
+
+    const txt = new PIXI.Text({
+      text: emoji,
+      style: { fontSize: 28, fontFamily: "sans-serif" },
+    });
+    txt.anchor.set(0.5, 0.5);
+
+    const container = new PIXI.Container();
+    container.addChild(txt);
+    container.x = 0;
+    container.y = EMOTE_BASE_Y;
+    container.scale.set(0);
+    container.alpha = 1;
+    this.bodyWrap.addChild(container);
+
+    const now = performance.now();
+    const endAt = now + EMOTE_DURATION;
+    const fadeStart = endAt - EMOTE_FADE;
+    const startY = EMOTE_BASE_Y;
+
+    const ticker = new PIXI.Ticker();
+    ticker.add(() => {
+      const t = performance.now();
+      const elapsed = t - now;
+      // Pop-in bouncé
+      const popP = elapsed / EMOTE_POP_MS;
+      container.scale.set(popP < 1 ? samplePop(Math.min(popP, 1)) * 1.0 : 1.0);
+      // Flotte vers le haut
+      container.y = startY - EMOTE_FLOAT * easeInOut(Math.min(elapsed / EMOTE_DURATION, 1));
+      // Fade-out
+      if (t >= fadeStart) {
+        container.alpha = Math.max(0, (endAt - t) / EMOTE_FADE);
+      }
+      if (t >= endAt) {
+        ticker.destroy();
+        if (container.parent) this.bodyWrap.removeChild(container);
+        container.destroy({ children: true });
+      }
+    });
+    ticker.start();
+  }
+
   init(col: number, row: number, offsetX: number, offsetY: number): void {
     this.col = col;
     this.row = row;

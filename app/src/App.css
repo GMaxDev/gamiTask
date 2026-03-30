@@ -1050,7 +1050,59 @@
 }
 
 /* ─── Mention systeme ─────────────────────────────────────────────── */
-#chat-input-wrap { position: relative; }
+#chat-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+#chat-input-wrap #chat-input { flex: 1; }
+
+/* ─── Émote picker ───────────────────────────────────────────────── */
+#emote-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 10px;
+  line-height: 1;
+  color: var(--text-dim);
+  transition: background 0.15s, color 0.15s;
+}
+#emote-btn:hover {
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--text);
+}
+
+#emote-picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  gap: 4px;
+  background: rgba(16, 13, 36, 0.98);
+  border: 1px solid var(--border-md);
+  border-radius: 14px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  z-index: 200;
+}
+
+.emote-option {
+  background: none;
+  border: none;
+  font-size: 26px;
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 8px;
+  line-height: 1;
+  transition: transform 0.12s, background 0.12s;
+}
+.emote-option:hover {
+  transform: scale(1.3);
+  background: rgba(139, 92, 246, 0.15);
+}
 #mention-dropdown {
   position: absolute;
   bottom: calc(100% + 3px);

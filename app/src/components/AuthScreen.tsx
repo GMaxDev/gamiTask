@@ -29,7 +29,7 @@ interface Props {
   onGuest: () => void;
 }
 
-const SERVER = "http://localhost:3001";
+const SERVER = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export function AuthScreen({ onAuth, onGuest }: Props) {
   const btnRef = useRef<HTMLDivElement>(null);
