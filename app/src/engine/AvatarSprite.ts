@@ -80,6 +80,7 @@ export class AvatarSprite {
   public walkTargetCol: number = 0;
   public walkTargetRow: number = 0;
   public state: AvatarState = "idle";
+  public baseState: AvatarState = "idle"; // état réel hors marche
 
   constructor(name: string, color: number) {
     this.color = color;
@@ -373,6 +374,7 @@ export class AvatarSprite {
   }
 
   setState(state: AvatarState): void {
+    if (state !== "walking") this.baseState = state;
     this.state = state;
     this.currentBubble = STATE_CONFIG[state].bubble;
 
@@ -419,6 +421,7 @@ export class AvatarSprite {
     }
     if (!hatId) {
       this.label.y = -50; // plus de chapeau → label revient à sa position normale
+      this.drawAll(); // recalcule la position de la bulle de statut
       return;
     }
     const HAT_EMOJIS: Record<string, string> = {
@@ -440,6 +443,7 @@ export class AvatarSprite {
     this.bodyWrap.addChild(sprite);
     this.hatSprite = sprite;
     this.label.y = -70; // remonte le label au-dessus du chapeau
+    this.drawAll(); // recalcule la position de la bulle de statut
   }
   walkPath(
     path: GridPos[],
@@ -457,14 +461,21 @@ export class AvatarSprite {
       this.walkTicker = null;
     }
 
+    // Initialiser baseState depuis finalState (peut être mis à jour pendant la marche)
+    this.baseState = finalState;
     this.setState("walking");
+    // Pendant la marche, la bulle garde la couleur de l'état actif (pomo)
+    if (finalState !== "idle") {
+      this.currentBubble = STATE_CONFIG[finalState].bubble;
+      this.drawAll();
+    }
     let stepIndex = 0;
 
     const moveToNext = (): void => {
       if (myGen !== this.walkGeneration) return;
 
       if (stepIndex >= path.length) {
-        this.setState(finalState);
+        this.setState(this.baseState); // baseState peut avoir été mis à jour pendant la marche (ex: pomo démarré)
         onDone?.();
         return;
       }

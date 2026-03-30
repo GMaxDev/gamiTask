@@ -96,16 +96,31 @@ export function ShopPanel({
                 )}
               </span>
               {owned ? (
-                <button
-                  className={`shop-toggle-place-btn${placedFurniture.includes(item.id) ? " placed" : ""}`}
-                  onClick={() =>
-                    placedFurniture.includes(item.id)
-                      ? onTogglePlace(item.id)
-                      : onStartPlacement(item.id)
-                  }
-                >
-                  {placedFurniture.includes(item.id) ? "📦 Ranger" : "🏠 Replacer"}
-                </button>
+                placedFurniture.includes(item.id) ? (
+                  <div className="shop-placed-actions">
+                    <button
+                      className="shop-toggle-place-btn"
+                      onClick={() => onStartPlacement(item.id)}
+                      title="Déplacer dans la chambre"
+                    >
+                      🏠 Replacer
+                    </button>
+                    <button
+                      className="shop-toggle-place-btn placed"
+                      onClick={() => onTogglePlace(item.id)}
+                      title="Ranger dans l’inventaire"
+                    >
+                      📦 Ranger
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="shop-toggle-place-btn"
+                    onClick={() => onStartPlacement(item.id)}
+                  >
+                    🏠 Replacer
+                  </button>
+                )
               ) : (
                 <button
                   className="shop-buy-btn"

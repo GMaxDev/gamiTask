@@ -39,6 +39,7 @@ interface UserRow {
   equippedHat: string | null;
   ownedFurniture: string;
   furniturePositions: string;
+  placedFurniture: string;
   email: string | null;
   googleId: string | null;
   displayName: string | null;
@@ -131,6 +132,10 @@ try {
 try {
   db.exec(`ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0`);
 } catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN placedFurniture TEXT NOT NULL DEFAULT ''`);
+  db.exec(`UPDATE users SET placedFurniture = ownedFurniture WHERE placedFurniture = '' AND ownedFurniture != ''`);
+} catch {}
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`);
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`);
 
@@ -158,7 +163,7 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, displayName, avatarColor, isAdmin FROM users WHERE id = ?",
+    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin FROM users WHERE id = ?",
   ),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
   saveStreak: db.prepare(
@@ -199,7 +204,8 @@ const sql = {
   setEquippedHat: db.prepare("UPDATE users SET equippedHat = ? WHERE id = ?"),
   setOwnedFurniture: db.prepare("UPDATE users SET ownedFurniture = ? WHERE id = ?"),
   setFurniturePositions: db.prepare("UPDATE users SET furniturePositions = ? WHERE id = ?"),
-  getFurniture: db.prepare("SELECT ownedFurniture FROM users WHERE id = ?"),
+  setPlacedFurniture: db.prepare("UPDATE users SET placedFurniture = ? WHERE id = ?"),
+  getFurniture: db.prepare("SELECT ownedFurniture, placedFurniture FROM users WHERE id = ?"),
   setAvatarInfo: db.prepare("UPDATE users SET displayName = ?, avatarColor = ? WHERE id = ?"),
   getUserByGoogleId: db.prepare("SELECT * FROM users WHERE googleId = ?"),
   insertGoogleUser: db.prepare(
@@ -327,6 +333,15 @@ function getFurniturePosPayload(furniturePosJson: string): Record<string, { col:
     out[item.id] = saved[item.id] ?? { col: item.col, row: item.row };
   }
   return out;
+}
+
+/** Retourne les meubles effectivement placés dans la chambre (avec fallback pour migration) */
+function getEffectivePlaced(placedFurniture: string, ownedFurniture: string): string[] {
+  const placed = (placedFurniture ?? "").split(",").filter(Boolean);
+  if (placed.length === 0 && (ownedFurniture ?? "").length > 0) {
+    return (ownedFurniture ?? "").split(",").filter(Boolean);
+  }
+  return placed;
 }
 
 // ── HTTP Auth endpoints ───────────────────────────────────────────────────
@@ -700,15 +715,15 @@ io.on("connection", (socket) => {
   socket.on("join", ({ name, color, userId }) => {
     sql.upsertUser.run(userId);
     const user = sql.getUser.get(userId) as UserRow;
-    // Utiliser la position persistante si disponible, sinon garder la position envoyée en fallback
-    const persistedCol = user.col ?? 6;
-    const persistedRow = user.row ?? 6;
+    // Spawn toujours au point d'entrée fixe — la position persistée est ignorée au login
+    const spawnCol = 1;
+    const spawnRow = 10;
     const player: Player = {
       id: socket.id,
       name,
       color,
-      col: persistedCol,
-      row: persistedRow,
+      col: spawnCol,
+      row: spawnRow,
       state: "idle",
       coins: user.coins,
       hat: user.equippedHat ?? null,
@@ -718,7 +733,7 @@ io.on("connection", (socket) => {
     // Persister le pseudo + couleur choisis au join (utile pour les comptes Google)
     sql.setAvatarInfo.run(name, color, userId);
     socket.broadcast.emit("player-joined", player);
-    console.log(`[join] ${name} @ (${persistedCol},${persistedRow})`);
+    console.log(`[join] ${name} @ (${spawnCol},${spawnRow})`);
 
     // Envoyer ses tâches + pièces + position sauvegardée
     const rows = sql.getTasks.all(userId) as TaskRow[];
@@ -729,7 +744,6 @@ io.on("connection", (socket) => {
       type: (r.type as "task" | "daily") ?? "task",
     }));
     socket.emit("tasks:state", { tasks, coins: user.coins });
-    socket.emit("position:saved", { col: persistedCol, row: persistedRow });
     // Envoyer l'état XP initial
     const xp = user.xp ?? 0;
     const level = computeLevel(xp);
@@ -740,7 +754,8 @@ io.on("connection", (socket) => {
     socket.emit("cosmetics:state", { owned: ownedList, equippedHat: user.equippedHat ?? null });
     // Envoyer l'état mobilier initial
     const ownedFurnitureList = (user.ownedFurniture ?? "").split(",").filter(Boolean);
-    socket.emit("furniture:state", { owned: ownedFurnitureList, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
+    const placedFurnitureList = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    socket.emit("furniture:state", { owned: ownedFurnitureList, placed: placedFurnitureList, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
     // Vérifier le reset quotidien des dailies + envoyer la dégradation
     checkAndApplyDailyReset(socket, userId);
     broadcastLeaderboard(io);
@@ -861,8 +876,8 @@ io.on("connection", (socket) => {
       sql.addCoins.run(10, userId);
       coins += 10;
       // Bonus Feng Shui : +2🪙 par plante, +2🪙 par étagère
-      const furnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string };
-      const ownedFurniture = (furnitureRow?.ownedFurniture ?? "").split(",").filter(Boolean);
+      const furnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
+      const ownedFurniture = getEffectivePlaced(furnitureRow?.placedFurniture ?? "", furnitureRow?.ownedFurniture ?? "");
       let fengBonus = 0;
       if (ownedFurniture.includes("plant")) fengBonus += 2;
       if (ownedFurniture.includes("bookshelf")) fengBonus += 2;
@@ -951,19 +966,21 @@ io.on("connection", (socket) => {
   });
 
   // ── Nettoyer la room (dépenser 50 pièces par niveau de dégradation) ───────
-  socket.on("room:clean", () => {
+  socket.on("room:clean", ({ levels }) => {
     const userId = socketToUserId.get(socket.id);
     if (!userId) return;
     const user = sql.getUser.get(userId) as UserRow;
     const level = user.degradation ?? 0;
     if (level === 0) return;
-    // Feng Shui : Canapé réduit le coût de nettoyage de 10
-    const cleanFurniture = (user.ownedFurniture ?? "").split(",").filter(Boolean);
-    const cost = cleanFurniture.includes("couch") ? 40 : 50;
+    const lvls = Math.max(1, Math.min(levels ?? 1, level)); // entre 1 et le niveau actuel
+    // Feng Shui : Canapé réduit le coût de base de 10
+    const cleanFurniture = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const baseCost = cleanFurniture.includes("couch") ? 40 : 50;
+    const cost = baseCost * lvls;
     if (user.coins < cost) return;
     sql.addCoins.run(-cost, userId);
     const newCoins = Math.max(0, user.coins - cost);
-    const newDegradation = level - 1;
+    const newDegradation = level - lvls;
     sql.setDegradation.run(newDegradation, userId);
     socket.emit("degradation:update", { level: newDegradation });
     socket.emit("coins:update", { coins: newCoins });
@@ -983,10 +1000,13 @@ io.on("connection", (socket) => {
     sql.addCoins.run(-item.price, userId);
     const newOwned = [...owned, itemId].join(",");
     sql.setOwnedFurniture.run(newOwned, userId);
+    const newPlacedOnBuy = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const newPlacedList = [...newPlacedOnBuy, itemId];
+    sql.setPlacedFurniture.run(newPlacedList.join(","), userId);
     const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
     socket.emit("coins:update", { coins: newCoins });
     socket.emit("furniture:bought", { itemId, coins: newCoins });
-    socket.emit("furniture:state", { owned: [...owned, itemId], positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
+    socket.emit("furniture:state", { owned: [...owned, itemId], placed: newPlacedList, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
     const p = players.get(socket.id);
     if (p) p.coins = newCoins;
     broadcastLeaderboard(io);
@@ -1004,7 +1024,47 @@ io.on("connection", (socket) => {
     const positions = JSON.parse((user.furniturePositions as string | null) ?? "{}") as Record<string, { col: number; row: number }>;
     positions[itemId] = { col, row };
     sql.setFurniturePositions.run(JSON.stringify(positions), userId);
-    socket.emit("furniture:state", { owned, positions: getFurniturePosPayload(JSON.stringify(positions)) });
+    const movedPlaced = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    socket.emit("furniture:state", { owned, placed: movedPlaced, positions: getFurniturePosPayload(JSON.stringify(positions)) });
+  });
+  // ── Ranger / Sortir un meuble de la chambre (toggle-place) ───────────────────
+  socket.on("furniture:toggle-place", ({ userId, itemId }) => {
+    if (!allow(socket.id, "furniture:toggle-place", 20, 5000)) return;
+    sql.upsertUser.run(userId);
+    const user = sql.getUser.get(userId) as UserRow;
+    const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
+    if (!owned.includes(itemId)) return;
+    const placed = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const newPlaced = placed.includes(itemId)
+      ? placed.filter((id) => id !== itemId)
+      : [...placed, itemId];
+    sql.setPlacedFurniture.run(newPlaced.join(","), userId);
+    socket.emit("furniture:state", { owned, placed: newPlaced, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
+  });
+  // ── Confirmer le placement fantôme d'un meuble ─────────────────────────────
+  socket.on("furniture:place", ({ userId, itemId, col, row }) => {
+    if (!allow(socket.id, "furniture:place", 20, 5000)) return;
+    const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
+    if (!item) return;
+    if (col < 0 || col >= 12 || row < 0 || row >= 12) return;
+    sql.upsertUser.run(userId);
+    const user = sql.getUser.get(userId) as UserRow;
+    const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
+    if (!owned.includes(itemId)) return;
+    const placedIds = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const effectivePos = getFurniturePosPayload(user.furniturePositions ?? "{}");
+    for (const otherId of placedIds) {
+      if (otherId !== itemId) {
+        const pos = effectivePos[otherId];
+        if (pos && pos.col === col && pos.row === row) return;
+      }
+    }
+    const positions = JSON.parse((user.furniturePositions as string | null) ?? "{}") as Record<string, { col: number; row: number }>;
+    positions[itemId] = { col, row };
+    sql.setFurniturePositions.run(JSON.stringify(positions), userId);
+    const newPlacedAfter = placedIds.includes(itemId) ? placedIds : [...placedIds, itemId];
+    sql.setPlacedFurniture.run(newPlacedAfter.join(","), userId);
+    socket.emit("furniture:state", { owned, placed: newPlacedAfter, positions: getFurniturePosPayload(JSON.stringify(positions)) });
   });
   // ── Acheter un item dans le shop ─────────────────────────────────────────────
   socket.on("shop:buy", ({ userId, itemId }) => {
@@ -1055,8 +1115,8 @@ io.on("connection", (socket) => {
     sql.saveStreak.run(newStreak, now, userId);
     sql.addCoins.run(25 + bonus, userId);
     // Bonus Feng Shui pomodoro
-    const pFurnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string };
-    const pFurniture = (pFurnitureRow?.ownedFurniture ?? "").split(",").filter(Boolean);
+    const pFurnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
+    const pFurniture = getEffectivePlaced(pFurnitureRow?.placedFurniture ?? "", pFurnitureRow?.ownedFurniture ?? "");
     const setB = getSetBonuses(pFurniture);
     let pomoFengBonus = 0;
     if (pFurniture.includes("coffee")) pomoFengBonus += 5;

@@ -933,10 +933,10 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
 
   const handleTaskDelete = useCallback((taskId: string) => {
     socketRef.current?.deleteTask(LOCAL_USER_ID, taskId);
-  }, [LOCAL_USER_ID]);;
+  }, [LOCAL_USER_ID]);
 
-  const handleCleanRoom = useCallback(() => {
-    socketRef.current?.cleanRoom();
+  const handleCleanRoom = useCallback((levels: number) => {
+    socketRef.current?.cleanRoom(levels);
   }, []);
 
   const handleBuyItem = useCallback((itemId: string) => {

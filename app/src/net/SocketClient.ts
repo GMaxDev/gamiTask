@@ -290,8 +290,8 @@ export class SocketClient {
     this.socket.emit("debug:set-degradation", { userId, level });
   }
 
-  cleanRoom(): void {
-    this.socket.emit("room:clean");
+  cleanRoom(levels: number): void {
+    this.socket.emit("room:clean", { levels });
   }
 
   buyItem(userId: string, itemId: string): void {

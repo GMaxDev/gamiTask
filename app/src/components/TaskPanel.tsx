@@ -18,7 +18,7 @@ interface TaskPanelProps {
   onUpdate: (taskId: string, text: string, category: string | null) => void;
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
-  onCleanRoom: () => void;
+  onCleanRoom: (levels: number) => void;
 }
 
 const DEGRADATION_LABELS = ["✨ Propre", "🌫 Légère poussière", "🕸 Poussiéreux", "🌧 Sale", "💀 Très dégradé", "☠ Abandon total"];
@@ -43,6 +43,7 @@ export function TaskPanel({
   const [filterCat, setFilterCat] = useState<string | "none" | "daily" | null>(null);
   const [completing, setCompleting] = useState<string[]>([]);
   const [collapsing, setCollapsing] = useState<string[]>([]);
+  const [cleanLevels, setCleanLevels] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -145,15 +146,26 @@ export function TaskPanel({
             <span id="degradation-icon">☣</span>
             {DEGRADATION_LABELS[degradation]}
           </span>
-          <button
-            id="clean-room-btn"
-            onClick={onCleanRoom}
-            disabled={coins < 50}
-            title={coins < 50 ? "Besoin de 50🪙 pour nettoyer (ou terminer un 🍅 pomo)" : "Nettoyer un niveau (-50🪙) — ou finir un 🍅 pomo"}
-          >
-            🧹 Nettoyer <span className="clean-cost">-50🪙</span>
-          </button>
-          <span id="clean-alt-hint">🍅×1 pomo</span>
+          <div id="clean-controls">
+            <button
+              className="clean-step-btn"
+              onClick={() => setCleanLevels((v) => Math.max(1, v - 1))}
+              disabled={cleanLevels <= 1}
+            >− 1 niv</button>
+            <button
+              id="clean-room-btn"
+              onClick={() => { onCleanRoom(cleanLevels); setCleanLevels(1); }}
+              disabled={coins < 50 * cleanLevels}
+            >
+              🧹 {cleanLevels} niv&nbsp;<span className="clean-cost">−{50 * cleanLevels}🪙</span>
+            </button>
+            <button
+              className="clean-step-btn"
+              onClick={() => setCleanLevels((v) => Math.min(degradation, v + 1))}
+              disabled={cleanLevels >= degradation}
+            >+ 1 niv</button>
+          </div>
+          <span id="clean-alt-hint">🍅 1 pomo = 1 niv nettoyé</span>
         </div>
       )}
 

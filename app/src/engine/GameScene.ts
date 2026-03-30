@@ -64,6 +64,8 @@ export class GameScene {
   private ghostHighlight: PIXI.Graphics | null = null;
   private _ghostMoveHandler?: (e: PointerEvent) => void;
   private _ghostEscapeHandler?: (e: KeyboardEvent) => void;
+  private _ghostPrevSprite: FurnitureSprite | null = null;
+  private _ghostPrevPos: { col: number; row: number } | null = null;
   private _wheelHandler?: (e: WheelEvent) => void;
   private _panDownHandler?: (e: PointerEvent) => void;
   private _panMoveHandler?: (e: PointerEvent) => void;
@@ -118,10 +120,12 @@ export class GameScene {
     // Use worldContainer as the centering layer (offsetX/Y remain 0)
     this.offsetX = 0;
     this.offsetY = 0;
+    const gridCenterY = ((GRID_COLS - 1) + (GRID_ROWS - 1)) / 2 * (TILE_HEIGHT / 2);
+    const initialScale = 1.5;
     this.worldContainer.x = this.app.screen.width / 2;
-    this.worldContainer.y = TILE_HEIGHT * 2;
+    this.worldContainer.y = this.app.screen.height / 2 - gridCenterY * initialScale;
     // Zoom légèrement par défaut pour que la scène ne soit pas trop petite
-    this.worldContainer.scale.set(1.5);
+    this.worldContainer.scale.set(initialScale);
 
     // Mise à jour du hitArea uniquement (ne pas écraser la position si l'utilisateur a zoomé)
     this.app.renderer.on("resize", () => {
@@ -280,9 +284,9 @@ export class GameScene {
   }
 
   private initLocalAvatar(): void {
-    // Random start near center to avoid stacking when multiple players join
-    const startCol = 4 + Math.floor(Math.random() * 5); // 4–8
-    const startRow = 4 + Math.floor(Math.random() * 5); // 4–8
+    // Spawn à l'entrée fixe de la salle (coin bas-gauche de la grille)
+    const startCol = 1;
+    const startRow = 10;
     this.localAvatar.init(startCol, startRow, this.offsetX, this.offsetY);
     this.spriteLayer.addChild(this.localAvatar.container);
     this.updateSpriteDepth();
@@ -296,8 +300,12 @@ export class GameScene {
       // Ignorer le clic droit (réservé au drag-to-pan)
       if (e.button !== 0) return;
 
-      // toLocal() gère automatiquement le zoom et la translation du worldContainer
-      const local = this.worldContainer.toLocal(e.global);
+      // Utiliser clientX/Y (pixels CSS) pour rester cohérent avec le ghost onMove
+      const canvas = this.app.canvas as HTMLCanvasElement;
+      const rect = canvas.getBoundingClientRect();
+      const gx = e.clientX - rect.left;
+      const gy = e.clientY - rect.top;
+      const local = this.worldContainer.toLocal({ x: gx, y: gy });
       const target = screenToGrid(local.x, local.y, 0, 0);
 
       // Rejeter si hors de la grille (ne pas clamper au bord)
@@ -309,6 +317,12 @@ export class GameScene {
       if (this.ghostItemId !== null) {
         if (!isBlocked(col, row) && !this.occupiedCells.has(`${col},${row}`)) {
           const itemId = this.ghostItemId;
+          // Détruire l'ancien sprite (remplacement de position) avant d'annuler
+          if (this._ghostPrevSprite) {
+            this._ghostPrevSprite.destroy();
+            this._ghostPrevSprite = null;
+            this._ghostPrevPos = null;
+          }
           this.cancelGhostPlacement();
           const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
           const sprite = new FurnitureSprite(itemId);
@@ -584,7 +598,7 @@ export class GameScene {
         () => {
           this.updateSpriteDepth();
         },
-        avatar.state,
+        avatar.baseState,
       );
     } else {
       // Teleport if no path (edge case)
@@ -702,30 +716,37 @@ export class GameScene {
   }
 
   private _selectFurnitureForMove(id: string): void {
-    const prevId = this.pendingMoveItemId;
-    if (prevId !== null) {
-      this.furnitureSprites.get(prevId)?.setSelected(false);
-    }
-    if (prevId === id) {
-      this.pendingMoveItemId = null;
-    } else {
-      this.pendingMoveItemId = id;
-      this.furnitureSprites.get(id)?.setSelected(true);
-    }
+    // Cliquer directement sur un meuble lance le ghost placement (même comportement que "Replacer")
+    this.startGhostPlacement(id);
   }
 
   startGhostPlacement(itemId: string): void {
     this.cancelGhostPlacement();
     this.ghostItemId = itemId;
 
+    // Si le meuble est déjà dans la scène, le retirer temporairement
+    const existingSprite = this.furnitureSprites.get(itemId);
+    const existingPos = this.currentPositions[itemId];
+    if (existingSprite && existingPos) {
+      if (existingSprite.container.parent) this.spriteLayer.removeChild(existingSprite.container);
+      this.occupiedCells.delete(`${existingPos.col},${existingPos.row}`);
+      this.furnitureSprites.delete(itemId);
+      delete this.currentPositions[itemId];
+      this._ghostPrevSprite = existingSprite;
+      this._ghostPrevPos = existingPos;
+    }
+
     const sprite = new FurnitureSprite(itemId);
     sprite.container.alpha = 0.55;
     sprite.container.zIndex = 1000;
+    sprite.container.eventMode = "none"; // le clic traverse le ghost, capté par le stage
+    sprite.container.visible = false; // caché jusqu'au premier pointermove
     this.spriteLayer.addChild(sprite.container);
     this.ghostSprite = sprite;
 
     const highlight = new PIXI.Graphics();
     highlight.zIndex = 999;
+    highlight.eventMode = "none";
     this.spriteLayer.addChild(highlight);
     this.ghostHighlight = highlight;
 
@@ -744,6 +765,7 @@ export class GameScene {
       sprite.container.x = x;
       sprite.container.y = y;
       sprite.container.zIndex = isoDepth(col, row) + 0.45;
+      sprite.container.visible = true;
       const valid = !isBlocked(col, row) && !this.occupiedCells.has(`${col},${row}`);
       highlight.clear();
       highlight.poly([
@@ -789,6 +811,19 @@ export class GameScene {
       window.removeEventListener("keydown", this._ghostEscapeHandler);
       this._ghostEscapeHandler = undefined;
     }
+    // Restaurer l'ancien sprite si le placement est annulé (ESC ou cancel ext.)
+    if (this._ghostPrevSprite && this._ghostPrevPos && this.ghostItemId) {
+      const { x, y } = gridToScreen(this._ghostPrevPos.col, this._ghostPrevPos.row, this.offsetX, this.offsetY);
+      this._ghostPrevSprite.container.x = x;
+      this._ghostPrevSprite.container.y = y;
+      this._ghostPrevSprite.container.zIndex = isoDepth(this._ghostPrevPos.col, this._ghostPrevPos.row) + 0.4;
+      this.spriteLayer.addChild(this._ghostPrevSprite.container);
+      this.furnitureSprites.set(this.ghostItemId, this._ghostPrevSprite);
+      this.occupiedCells.add(`${this._ghostPrevPos.col},${this._ghostPrevPos.row}`);
+      this.currentPositions[this.ghostItemId] = this._ghostPrevPos;
+    }
+    this._ghostPrevSprite = null;
+    this._ghostPrevPos = null;
     this.ghostItemId = null;
   }
 

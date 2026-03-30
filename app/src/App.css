@@ -381,7 +381,7 @@
 
 #task-panel {
   pointer-events: auto;
-  width: 286px;
+  width: 310px;
   max-height: 100%;
   display: flex;
   flex-direction: column;
@@ -659,14 +659,15 @@
 /* ─── Degradation bar ─────────────────────────────────────────────── */
 #degradation-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
-  margin: 0 0 6px;
-  border-radius: var(--radius-sm);
+  gap: 5px 8px;
+  padding: 7px 10px 6px;
+  margin: 0;
+  border-radius: 0;
   background: rgba(255, 80, 40, 0.08);
-  border: 1px solid rgba(255, 80, 40, 0.25);
+  border-top: 1px solid rgba(255, 80, 40, 0.25);
+  border-bottom: 1px solid rgba(255, 80, 40, 0.25);
 }
 #degradation-label {
   display: flex;
@@ -675,20 +676,22 @@
   font-size: 0.78rem;
   color: var(--deg-color, #e07832);
   font-weight: 600;
+  flex-basis: 100%;
 }
 #degradation-icon {
   font-size: 0.9rem;
 }
 #clean-room-btn {
-  flex-shrink: 0;
+  flex: 1;
   background: rgba(96, 201, 106, 0.1);
   border: 1px solid rgba(96, 201, 106, 0.3);
   border-radius: var(--radius-sm);
   color: #5ecf6a;
   font-size: 0.76rem;
-  padding: 3px 8px;
+  padding: 4px 8px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
 }
 #clean-room-btn:hover:not(:disabled) {
   background: rgba(96, 201, 106, 0.18);
@@ -698,15 +701,47 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+#clean-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+}
+#clean-level-picker {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+#clean-level-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-width: 26px;
+  text-align: center;
+}
+.clean-step-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  color: var(--text-mid);
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.clean-step-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.clean-step-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
 .clean-cost {
   color: var(--gold);
   font-size: 0.72rem;
 }
 #clean-alt-hint {
-  font-size: 0.72rem;
+  font-size: 0.70rem;
   color: var(--text-dim);
-  white-space: nowrap;
-  opacity: 0.7;
+  opacity: 0.65;
+  flex-basis: 100%;
+  padding-top: 0;
 }
 
 /* ─── Immunity badge ─────────────────────────────────────────────── */
@@ -876,6 +911,10 @@
   font-weight: 600;
   padding: 3px 7px;
 }
+.shop-placed-actions {
+  display: flex;
+  gap: 4px;
+}
 .shop-toggle-place-btn {
   font-size: 0.72rem;
   background: transparent;
@@ -885,13 +924,18 @@
   padding: 3px 7px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 .shop-toggle-place-btn:hover {
   background: var(--bg-hover);
   color: var(--text-base);
 }
 .shop-toggle-place-btn.placed {
-  border-color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+  color: rgba(74, 222, 128, 0.7);
+}
+.shop-toggle-place-btn.placed:hover {
+  background: rgba(74, 222, 128, 0.08);
   color: #4ade80;
 }
 .shop-bonus-tag {
