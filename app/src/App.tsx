@@ -30,11 +30,23 @@ function loadPomoConfig(): PomodoroConfig {
   return { ...DEFAULT_CONFIG };
 }
 
+// Polyfill UUID — crypto.randomUUID() n'est disponible qu'en HTTPS/localhost
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback pour HTTP non-sécurisé
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 // Identifiant persistant de l'utilisateur (cross-session, stocké dans localStorage)
 const LOCAL_USER_ID = (() => {
   let id = localStorage.getItem("gamitask-userId");
   if (!id) {
-    id = crypto.randomUUID();
+    id = generateUUID();
     localStorage.setItem("gamitask-userId", id);
   }
   return id;
