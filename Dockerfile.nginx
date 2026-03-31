@@ -1,0 +1,29 @@
+# ── Étape 1 : Build du frontend React/Vite ──────────────────────────────────
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /app
+
+COPY app/package*.json ./
+RUN npm ci
+
+COPY app/ .
+
+# VITE_API_URL et VITE_GOOGLE_CLIENT_ID sont injectés au build (baked dans le JS)
+ARG VITE_API_URL=http://localhost:3001
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
+# Build avec base path /gamiTask/ pour que les assets soient au bon chemin
+RUN npx tsc -b && npx vite build --base /gamiTask/
+
+# ── Étape 2 : Nginx sert les fichiers statiques + proxy vers le serveur ───────
+FROM nginx:alpine
+
+# Copier les fichiers buildés dans le dossier /gamiTask de nginx
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html/gamiTask
+
+# Copier la config nginx
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

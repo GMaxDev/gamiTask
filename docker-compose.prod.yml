@@ -1,0 +1,40 @@
+services:
+
+  # ── Backend Node.js + SQLite ─────────────────────────────────────────────
+  server:
+    build: ./server
+    restart: unless-stopped
+    volumes:
+      # Persiste la base de données SQLite entre les redémarrages
+      - gamitask_data:/data
+    environment:
+      - PORT=3001
+      - DB_PATH=/data/gamitask.db
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+    networks:
+      - gamitask_net
+    # Pas de ports exposés : seul nginx y accède en interne
+
+  # ── Frontend buildé + Nginx reverse proxy ───────────────────────────────
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - gamitask_net
+
+networks:
+  gamitask_net:
+
+volumes:
+  gamitask_data:
