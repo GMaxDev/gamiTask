@@ -718,6 +718,10 @@ io.on("connection", (socket) => {
     // Spawn toujours au point d'entrée fixe — la position persistée est ignorée au login
     const spawnCol = 1;
     const spawnRow = 10;
+    // Calculer le mobilier avant le broadcast player-joined pour que les autres voient les meubles du nouveau joueur
+    const ownedFurnitureList = (user.ownedFurniture ?? "").split(",").filter(Boolean);
+    const placedFurnitureList = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const furniturePositionsPayload = getFurniturePosPayload(user.furniturePositions ?? "{}");
     const player: Player = {
       id: socket.id,
       name,
@@ -727,6 +731,8 @@ io.on("connection", (socket) => {
       state: "idle",
       coins: user.coins,
       hat: user.equippedHat ?? null,
+      placed: placedFurnitureList,
+      positions: furniturePositionsPayload,
     };
     players.set(socket.id, player);
     socketToUserId.set(socket.id, userId);
@@ -752,10 +758,8 @@ io.on("connection", (socket) => {
     // Envoyer l'état cosmétiques initial
     const ownedList = (user.ownedItems ?? "").split(",").filter(Boolean);
     socket.emit("cosmetics:state", { owned: ownedList, equippedHat: user.equippedHat ?? null });
-    // Envoyer l'état mobilier initial
-    const ownedFurnitureList = (user.ownedFurniture ?? "").split(",").filter(Boolean);
-    const placedFurnitureList = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
-    socket.emit("furniture:state", { owned: ownedFurnitureList, placed: placedFurnitureList, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
+    // Envoyer l'état mobilier initial (privé — contient owned)
+    socket.emit("furniture:state", { owned: ownedFurnitureList, placed: placedFurnitureList, positions: furniturePositionsPayload });
     // Vérifier le reset quotidien des dailies + envoyer la dégradation
     checkAndApplyDailyReset(socket, userId);
     broadcastLeaderboard(io);
@@ -1006,9 +1010,11 @@ io.on("connection", (socket) => {
     const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
     socket.emit("coins:update", { coins: newCoins });
     socket.emit("furniture:bought", { itemId, coins: newCoins });
-    socket.emit("furniture:state", { owned: [...owned, itemId], placed: newPlacedList, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
+    const buyPositionsPayload = getFurniturePosPayload(user.furniturePositions ?? "{}");
+    socket.emit("furniture:state", { owned: [...owned, itemId], placed: newPlacedList, positions: buyPositionsPayload });
     const p = players.get(socket.id);
-    if (p) p.coins = newCoins;
+    if (p) { p.coins = newCoins; p.placed = newPlacedList; p.positions = buyPositionsPayload; }
+    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: newPlacedList, positions: buyPositionsPayload });
     broadcastLeaderboard(io);
   });
   // ── Déplacer un meuble (Feng Shui) ─────────────────────────────────────────────
@@ -1025,7 +1031,11 @@ io.on("connection", (socket) => {
     positions[itemId] = { col, row };
     sql.setFurniturePositions.run(JSON.stringify(positions), userId);
     const movedPlaced = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
-    socket.emit("furniture:state", { owned, placed: movedPlaced, positions: getFurniturePosPayload(JSON.stringify(positions)) });
+    const movedPositionsPayload = getFurniturePosPayload(JSON.stringify(positions));
+    socket.emit("furniture:state", { owned, placed: movedPlaced, positions: movedPositionsPayload });
+    const mp = players.get(socket.id);
+    if (mp) { mp.placed = movedPlaced; mp.positions = movedPositionsPayload; }
+    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: movedPlaced, positions: movedPositionsPayload });
   });
   // ── Ranger / Sortir un meuble de la chambre (toggle-place) ───────────────────
   socket.on("furniture:toggle-place", ({ userId, itemId }) => {
@@ -1039,7 +1049,11 @@ io.on("connection", (socket) => {
       ? placed.filter((id) => id !== itemId)
       : [...placed, itemId];
     sql.setPlacedFurniture.run(newPlaced.join(","), userId);
-    socket.emit("furniture:state", { owned, placed: newPlaced, positions: getFurniturePosPayload(user.furniturePositions ?? "{}") });
+    const togglePositionsPayload = getFurniturePosPayload(user.furniturePositions ?? "{}");
+    socket.emit("furniture:state", { owned, placed: newPlaced, positions: togglePositionsPayload });
+    const tp = players.get(socket.id);
+    if (tp) { tp.placed = newPlaced; tp.positions = togglePositionsPayload; }
+    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: newPlaced, positions: togglePositionsPayload });
   });
   // ── Confirmer le placement fantôme d'un meuble ─────────────────────────────
   socket.on("furniture:place", ({ userId, itemId, col, row }) => {
@@ -1064,7 +1078,11 @@ io.on("connection", (socket) => {
     sql.setFurniturePositions.run(JSON.stringify(positions), userId);
     const newPlacedAfter = placedIds.includes(itemId) ? placedIds : [...placedIds, itemId];
     sql.setPlacedFurniture.run(newPlacedAfter.join(","), userId);
-    socket.emit("furniture:state", { owned, placed: newPlacedAfter, positions: getFurniturePosPayload(JSON.stringify(positions)) });
+    const placePositionsPayload = getFurniturePosPayload(JSON.stringify(positions));
+    socket.emit("furniture:state", { owned, placed: newPlacedAfter, positions: placePositionsPayload });
+    const pp = players.get(socket.id);
+    if (pp) { pp.placed = newPlacedAfter; pp.positions = placePositionsPayload; }
+    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: newPlacedAfter, positions: placePositionsPayload });
   });
   // ── Acheter un item dans le shop ─────────────────────────────────────────────
   socket.on("shop:buy", ({ userId, itemId }) => {
@@ -1370,6 +1388,74 @@ io.on("connection", (socket) => {
     if (!guild) return;
     emitGuildState(io, socketToUserId, guild.id);
   });
+});
+
+// ── Feedback (bug report / feature idea) → GitHub Issues ─────────────────────
+app.post("/api/feedback", async (req, res): Promise<void> => {
+  const { type, title, description, userName } = req.body as {
+    type?: string;
+    title?: string;
+    description?: string;
+    userName?: string;
+  };
+
+  if (!title || !description) {
+    res.status(400).json({ error: "title et description requis" });
+    return;
+  }
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    res.status(503).json({ error: "GitHub token non configuré" });
+    return;
+  }
+
+  const typeLabel = type === "bug" ? "bug" : "enhancement";
+  const typeEmoji = type === "bug" ? "🐛" : "💡";
+  const issueTitle = `${typeEmoji} ${title}`;
+  const issueBody = [
+    `**Type** : ${type === "bug" ? "Bug report" : "Idée / Feature"}`,
+    `**Soumis par** : ${userName ?? "Anonyme"}`,
+    ``,
+    `### Description`,
+    description,
+    ``,
+    `---`,
+    `*Soumis depuis l'application GamiTask*`,
+  ].join("\n");
+
+  try {
+    const response = await fetch(
+      "https://api.github.com/repos/GMaxDev/gamiTask/issues",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify({
+          title: issueTitle,
+          body: issueBody,
+          labels: [typeLabel],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[feedback] GitHub API error:", err);
+      res.status(502).json({ error: "GitHub API error" });
+      return;
+    }
+
+    const issue = await response.json() as { number: number; html_url: string };
+    res.json({ number: issue.number, url: issue.html_url });
+  } catch (e) {
+    console.error("[feedback] Fetch error:", e);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
 });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;

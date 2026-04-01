@@ -50,9 +50,13 @@ export class GameScene {
   private tileLayer: PIXI.Container;
   private spriteLayer: PIXI.Container;
   private localAvatar: AvatarSprite;
+  /** Atlas de textures des tuiles ISO chargées depuis le tileset */
+  private tileset = new Map<string, PIXI.Texture>();
   private remoteAvatars = new Map<string, AvatarSprite>();
   private scrollMap = new Map<string, { sprite: ScrollSprite; col: number; row: number }>();
   private furnitureSprites = new Map<string, FurnitureSprite>();
+  /** Mobilier des autres joueurs : socketId → (itemId → sprite) */
+  private otherFurnitureSprites = new Map<string, Map<string, FurnitureSprite>>();
   private offsetX: number;
   private offsetY: number;
   private resumeState: AvatarState = "idle";
@@ -111,7 +115,7 @@ export class GameScene {
     await this.app.init({
       canvas,
       resizeTo: window,
-      backgroundColor: 0x1a1a2e,
+      backgroundColor: 0x1a0e07,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -192,12 +196,39 @@ export class GameScene {
     this.worldContainer.addChild(this.spriteLayer);
     this.app.stage.addChild(this.worldContainer);
 
+    // Tri automatique par zIndex pour le rendu correct des blocs 3D
+    this.tileLayer.sortableChildren = true;
+
+    await this.loadTileTextures();
     this.buildTiles();
     this.buildFurniture();
     this.initLocalAvatar();
     this.setupClickHandler();
 
     this.initialized = true;
+  }
+
+  /**
+   * Charge les textures de tuiles depuis le tileset PNG.
+   * Chaque tuile occupe 32×40px dans le tileset (avec 7px transparents en haut
+   * pour les décorations type brins d'herbe). À l'échelle 2×, la face
+   * isométrique diamond (64×32) correspond exactement à TILE_WIDTH × TILE_HEIGHT.
+   */
+  private async loadTileTextures(): Promise<void> {
+    try {
+      const src = await PIXI.Assets.load<PIXI.Texture>(
+        "/basic_ground_tiles.png"
+      );
+      const make = (x: number, y: number) =>
+        new PIXI.Texture({ source: src.source, frame: new PIXI.Rectangle(x, y, 128, 128) });
+
+      // Row 0, col 1 (x=128) : gazon propre
+      this.tileset.set("floor",   make(128, 0));
+      // Row 0, col 2 (x=256) : pierre grise – zones bloquées
+      this.tileset.set("blocked", make(256, 0));
+    } catch (e) {
+      console.warn("[GameScene] Impossible de charger le tileset:", e);
+    }
   }
 
   private buildTiles(): void {
@@ -209,40 +240,53 @@ export class GameScene {
     }
   }
 
-  private createTile(col: number, row: number): PIXI.Graphics {
+  private createTile(col: number, row: number): PIXI.Container {
     const pos = gridToScreen(col, row, this.offsetX, this.offsetY);
-    const g = new PIXI.Graphics();
-
     const blocked = isBlocked(col, row);
-    const fillColor = blocked ? 0x3d2b1f : 0x16213e;
-    const strokeColor = blocked ? 0x7a5c3f : 0x0f3460;
 
+    // --- Rendu sprite depuis le tileset pixel-art ---
+    const texKey = blocked ? "blocked" : "floor";
+    const tex = this.tileset.get(texKey);
+    if (tex) {
+      const sprite = new PIXI.Sprite(tex);
+      // Échelle 0.5× : sprite 128×128 → affichage 64×64
+      // anchor y=0.25 : centre du diamant iso à y=32/128 du haut du sprite
+      sprite.scale.set(0.5);
+      sprite.anchor.set(0.5, 0.25);
+      sprite.position.set(pos.x, pos.y);
+      sprite.zIndex = isoDepth(col, row);
+
+      if (blocked) {
+        sprite.tint = 0x8b6644; // teinte chaude pour zones occupées
+      }
+      if (!blocked) {
+        sprite.eventMode = "static";
+        sprite.cursor = "pointer";
+        sprite.on("pointerover", () => { sprite.tint = 0xffcc88; });
+        sprite.on("pointerout",  () => { sprite.tint = 0xffffff; });
+      }
+      return sprite;
+    }
+
+    // --- Fallback : tuile procédurale Graphics (si texture non chargée) ---
+    const g = new PIXI.Graphics();
+    const fillColor = blocked ? 0x3b2010 : 0x2c1a0a;
+    const strokeColor = blocked ? 0x6b3c1a : 0x4a2e12;
     g.poly([
-      pos.x,
-      pos.y - TILE_HEIGHT / 2,
-      pos.x + TILE_WIDTH / 2,
-      pos.y,
-      pos.x,
-      pos.y + TILE_HEIGHT / 2,
-      pos.x - TILE_WIDTH / 2,
-      pos.y,
+      pos.x,               pos.y - TILE_HEIGHT / 2,
+      pos.x + TILE_WIDTH / 2, pos.y,
+      pos.x,               pos.y + TILE_HEIGHT / 2,
+      pos.x - TILE_WIDTH / 2, pos.y,
     ]);
     g.fill(fillColor);
     g.stroke({ width: 1, color: strokeColor });
     g.zIndex = isoDepth(col, row);
-
-    // Hover highlight on walkable tiles
     if (!blocked) {
       g.eventMode = "static";
       g.cursor = "pointer";
-      g.on("pointerover", () => {
-        g.tint = 0xaaaaff;
-      });
-      g.on("pointerout", () => {
-        g.tint = 0xffffff;
-      });
+      g.on("pointerover", () => { g.tint = 0xffcc88; });
+      g.on("pointerout",  () => { g.tint = 0xffffff; });
     }
-
     return g;
   }
 
@@ -270,14 +314,14 @@ export class GameScene {
         pos.x - TILE_WIDTH / 2,
         pos.y - lift,
       ]);
-      desk.fill(0x8b5e3c);
-      desk.stroke({ width: 1, color: 0x5c3a1e });
+      desk.fill(0xc4894a);
+      desk.stroke({ width: 1, color: 0x8b5e3c });
       // Table legs (left face)
       desk.rect(pos.x - TILE_WIDTH / 2, pos.y - lift, 8, lift);
-      desk.fill(0x5c3a1e);
+      desk.fill(0x7a4a20);
       // Table legs (right face)
       desk.rect(pos.x + TILE_WIDTH / 2 - 8, pos.y - lift, 8, lift);
-      desk.fill(0x5c3a1e);
+      desk.fill(0x7a4a20);
       desk.zIndex = isoDepth(col, row) + 0.5;
       this.spriteLayer.addChild(desk);
     }
@@ -410,7 +454,7 @@ export class GameScene {
   setDegradationLevel(level: number): void {
     this._degradationLevel = Math.min(5, Math.max(0, level));
     // Tints du plus propre au plus dégradé : blanc → brun-jaune sale
-    const tints = [0xffffff, 0xf5ead8, 0xe8d4a8, 0xd4b870, 0xb89040, 0x8a6020];
+    const tints = [0xffffff, 0xf7e8d0, 0xefd4a8, 0xd9b870, 0xb89040, 0x8a6020];
     this.worldContainer.tint = tints[this._degradationLevel];
     if (this._degradationLevel > 0) {
       if (!this.guardianNPC) {
@@ -718,6 +762,63 @@ export class GameScene {
   private _selectFurnitureForMove(id: string): void {
     // Cliquer directement sur un meuble lance le ghost placement (même comportement que "Replacer")
     this.startGhostPlacement(id);
+  }
+
+  /** Met à jour (ou crée) les sprites du mobilier d'un autre joueur. */
+  setOtherPlayerFurniture(
+    socketId: string,
+    placed: string[],
+    positions: Record<string, { col: number; row: number }>,
+  ): void {
+    // Récupérer ou créer la map de sprites pour ce joueur
+    let spriteMap = this.otherFurnitureSprites.get(socketId);
+    if (!spriteMap) {
+      spriteMap = new Map();
+      this.otherFurnitureSprites.set(socketId, spriteMap);
+    }
+
+    const placedSet = new Set(placed);
+
+    // Supprimer les sprites des meubles qui ne sont plus placés
+    for (const [itemId, sprite] of [...spriteMap.entries()]) {
+      if (!placedSet.has(itemId)) {
+        if (sprite.container.parent) this.spriteLayer.removeChild(sprite.container);
+        sprite.destroy();
+        spriteMap.delete(itemId);
+      }
+    }
+
+    // Ajouter ou repositionner les meubles placés
+    for (const itemId of placed) {
+      const pos = positions[itemId];
+      if (!pos) continue;
+      const { x, y } = gridToScreen(pos.col, pos.row, this.offsetX, this.offsetY);
+      const existingSprite = spriteMap.get(itemId);
+      if (existingSprite) {
+        existingSprite.container.x = x;
+        existingSprite.container.y = y;
+        existingSprite.container.zIndex = isoDepth(pos.col, pos.row) + 0.4;
+      } else {
+        const sprite = new FurnitureSprite(itemId);
+        sprite.container.x = x;
+        sprite.container.y = y;
+        sprite.container.zIndex = isoDepth(pos.col, pos.row) + 0.4;
+        // Pas de onSelect pour le mobilier des autres (non interactif)
+        this.spriteLayer.addChild(sprite.container);
+        spriteMap.set(itemId, sprite);
+      }
+    }
+  }
+
+  /** Supprime tous les sprites du mobilier d'un joueur (lors de sa déconnexion). */
+  removeOtherPlayerFurniture(socketId: string): void {
+    const spriteMap = this.otherFurnitureSprites.get(socketId);
+    if (!spriteMap) return;
+    for (const sprite of spriteMap.values()) {
+      if (sprite.container.parent) this.spriteLayer.removeChild(sprite.container);
+      sprite.destroy();
+    }
+    this.otherFurnitureSprites.delete(socketId);
   }
 
   startGhostPlacement(itemId: string): void {

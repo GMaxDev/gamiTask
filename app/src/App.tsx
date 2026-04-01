@@ -19,6 +19,7 @@ import { OnboardingOverlay } from "./components/OnboardingOverlay";
 import { GuildPanel } from "./components/GuildPanel";
 import { playPomoDone, playPomoBreak, playCoin, playChatSpatial, playCoinSpatial, playMention } from "./engine/SoundEngine";
 import { AuthScreen, type AuthResult } from "./components/AuthScreen";
+import { FeedbackModal } from "./components/FeedbackModal";
 
 function loadPomoConfig(): PomodoroConfig {
   try {
@@ -236,6 +237,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [debugOpen, setDebugOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [adminTarget, setAdminTarget] = useState(LOCAL_USER_ID);
   const [adminAmount, setAdminAmount] = useState("100");
   const [adminMsg, setAdminMsg] = useState("");
@@ -246,10 +248,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
     new Map(),
   );
   const lastTypingSent = useRef(0);
-  const [reactions, setReactions] = useState<
-    Map<number, Map<string, Set<string>>>
-  >(new Map());
-  const [hoveredMsg, setHoveredMsg] = useState<number | null>(null);
   const [showEmotePicker, setShowEmotePicker] = useState(false);
   const [roomMembers, setRoomMembers] = useState<
     Map<string, { name: string; color: number }>
@@ -302,6 +300,9 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       for (const p of pending) {
         scene.addRemoteAvatar(p.id, p.name, p.color, p.col, p.row, p.hat);
         scene.setRemoteAvatarState(p.id, p.state);
+        if (p.placed && p.positions) {
+          scene.setOtherPlayerFurniture(p.id, p.placed, p.positions);
+        }
       }
       if (pending.length > 0) {
         setRoomMembers(
@@ -402,6 +403,9 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
         for (const p of players) {
           scene.addRemoteAvatar(p.id, p.name, p.color, p.col, p.row, p.hat);
           scene.setRemoteAvatarState(p.id, p.state);
+          if (p.placed && p.positions) {
+            scene.setOtherPlayerFurniture(p.id, p.placed, p.positions);
+          }
         }
         setRemotePlayers(
           players.map((p) => ({
@@ -425,6 +429,9 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       },
       onPlayerJoined: (p) => {
         sceneRef.current?.addRemoteAvatar(p.id, p.name, p.color, p.col, p.row, p.hat);
+        if (p.placed && p.positions) {
+          sceneRef.current?.setOtherPlayerFurniture(p.id, p.placed, p.positions);
+        }
         setRemotePlayers((prev) => [
           ...prev,
           { id: p.id, color: p.color, col: p.col, row: p.row },
@@ -446,6 +453,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       },
       onPlayerLeft: (id) => {
         sceneRef.current?.removeRemoteAvatar(id);
+        sceneRef.current?.removeOtherPlayerFurniture(id);
         setRemotePlayers((prev) => prev.filter((rp) => rp.id !== id));
         setRoomMembers((prev) => {
           const next = new Map(prev);
@@ -600,18 +608,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
         }, 3000);
         typingTimers.current.set(id, t);
       },
-      onChatReact: (msgTs, emoji, fromId) => {
-        setReactions((prev) => {
-          const next = new Map(prev);
-          const byEmoji = new Map(next.get(msgTs) ?? []);
-          const who = new Set(byEmoji.get(emoji) ?? []);
-          who.add(fromId);
-          byEmoji.set(emoji, who);
-          next.set(msgTs, byEmoji);
-          return next;
-        });
-        sceneRef.current?.showRemoteChat(fromId, emoji);
-      },
+      onChatReact: () => {},
       onXpUpdate: (newXp, newLevel, _xpToNext, levelUp) => {
         setXp(newXp);
         setLevel(newLevel);
@@ -646,6 +643,9 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       },
       onFurnitureBought: () => {
         // furniture:state est déjà émis après l'achat
+      },
+      onFurniturePlayerUpdate: ({ id, placed, positions }) => {
+        sceneRef.current?.setOtherPlayerFurniture(id, placed, positions);
       },
       onAdminAnnounce: ({ message }) => {
         const sysMsg: ChatMessage = {
@@ -1203,6 +1203,14 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
           >
             👤
           </button>
+          <button
+            id="feedback-btn"
+            onClick={() => setFeedbackOpen(true)}
+            aria-label="Feedback"
+            title="Signaler un bug ou soumettre une idée"
+          >
+            📢
+          </button>
           <div id="coins-badge">🪙 {coins}</div>
           {streak > 0 && (
             <div
@@ -1326,15 +1334,11 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
           </div>
           <div id="chat-messages">
             {messages.map((m, i) => {
-              const msgReactions = reactions.get(m.ts);
-              const EMOJIS = ["👍","🎉","🔥","❤️"] as const;
               const isMentionedMe = m.text.includes(`@${LOCAL_NAME}`);
               return (
                 <div
                   key={i}
                   className={`chat-line${isMentionedMe ? " chat-line-mention-me" : ""}`}
-                  onMouseEnter={() => setHoveredMsg(m.ts)}
-                  onMouseLeave={() => setHoveredMsg(null)}
                 >
                   <div className="chat-line-body">
                     <span
@@ -1348,29 +1352,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
                       {m.name}
                     </span>
                     <span className="chat-text">{renderMentionText(m.text)}</span>
-                    {hoveredMsg === m.ts && (
-                      <div className="reaction-picker">
-                        {EMOJIS.map((e) => (
-                          <button
-                            key={e}
-                            className="reaction-btn"
-                            onClick={() => socketRef.current?.sendChatReact(m.ts, e)}
-                          >
-                            {e}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                  {msgReactions && msgReactions.size > 0 && (
-                    <div className="reaction-bar">
-                      {Array.from(msgReactions.entries()).map(([e, who]) => (
-                        <span key={e} className="reaction-count">
-                          {e} {who.size}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -1578,6 +1560,14 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
           data={profileData}
           isOwnProfile={profileData.userId === LOCAL_USER_ID}
           onClose={() => setProfileData(null)}
+        />
+      )}
+
+      {/* ── Modal Feedback ── */}
+      {feedbackOpen && (
+        <FeedbackModal
+          userName={LOCAL_NAME}
+          onClose={() => setFeedbackOpen(false)}
         />
       )}
 

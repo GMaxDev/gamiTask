@@ -83,6 +83,7 @@ export type RoomCallbacks = {
   onPlayerHat: (data: { id: string; hat: string | null }) => void;
   onFurnitureState: (data: { owned: string[]; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
   onFurnitureBought: (data: { itemId: string; coins: number }) => void;
+  onFurniturePlayerUpdate: (data: { id: string; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
   onAdminAnnounce: (payload: { message: string }) => void;
   onProfileData: (data: ProfileData) => void;
   onGuildState: (data: GuildData) => void;
@@ -177,6 +178,9 @@ export class SocketClient {
     );
     this.socket.on("furniture:bought", (data) =>
       callbacks.onFurnitureBought(data),
+    );
+    this.socket.on("furniture:player-update", (data) =>
+      callbacks.onFurniturePlayerUpdate(data),
     );
     this.socket.on("admin:announce", (data) =>
       callbacks.onAdminAnnounce(data),

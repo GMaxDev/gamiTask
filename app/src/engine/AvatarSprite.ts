@@ -91,7 +91,7 @@ export class AvatarSprite {
     this.body = new PIXI.Graphics();
     this.label = new PIXI.Text({
       text: name,
-      style: { fontSize: 13, fill: 0xffffff, fontFamily: "monospace" },
+      style: { fontSize: 13, fill: 0xf5e6cc, fontFamily: "monospace" },
     });
     // aura doit être derrière body
     this.bodyWrap.addChild(this.aura);
@@ -114,7 +114,7 @@ export class AvatarSprite {
       text: truncated,
       style: {
         fontSize: 12,
-        fill: 0x1a1a2e,
+        fill: 0x2a1505,
         fontFamily: "sans-serif",
         wordWrap: true,
         wordWrapWidth: CHAT_MAX_WIDTH - 16,
@@ -208,7 +208,7 @@ export class AvatarSprite {
 
     const bg = new PIXI.Graphics();
     bg.roundRect(-pw / 2, -ph / 2, pw, ph, ph / 2);
-    bg.fill({ color: 0x0d0d1a, alpha: 0.92 });
+    bg.fill({ color: 0x2a1505, alpha: 0.92 });
     bg.stroke({ width: 2, color: this.color });
 
     const bubble = new PIXI.Container();

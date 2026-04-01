@@ -10,6 +10,8 @@ export interface Player {
   state: AvatarState;
   coins?: number;
   hat?: string | null;
+  placed?: string[];
+  positions?: Record<string, { col: number; row: number }>;
 }
 
 export interface ShopItem {
@@ -229,6 +231,7 @@ export interface ServerToClientEvents {
   "player-hat": (payload: { id: string; hat: string | null }) => void;
   "furniture:state": (payload: { owned: string[]; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
   "furniture:bought": (payload: { itemId: string; coins: number }) => void;
+  "furniture:player-update": (payload: { id: string; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
   "admin:announce": (payload: { message: string }) => void;
   "profile:data": (data: {
     userId: string; name: string; color: number; hat: string | null;

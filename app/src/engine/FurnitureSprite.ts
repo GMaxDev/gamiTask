@@ -5,11 +5,11 @@ const CONFIGS: Record<
   string,
   { topColor: number; sideColor: number; h: number; emoji: string; bonus: string }
 > = {
-  plant:     { topColor: 0x166534, sideColor: 0x14532d, h: 10, emoji: "🪴", bonus: "+2 coins/tache" },
-  lamp:      { topColor: 0x92400e, sideColor: 0x78350f, h: 22, emoji: "💡", bonus: "+10 XP/pomo" },
-  coffee:    { topColor: 0x374151, sideColor: 0x1f2937, h: 12, emoji: "☕", bonus: "+5 coins/pomo" },
-  bookshelf: { topColor: 0x3730a3, sideColor: 0x312e81, h: 20, emoji: "📚", bonus: "+2 coins/tache" },
-  couch:     { topColor: 0x7f1d1d, sideColor: 0x5a1e1e, h: 8,  emoji: "🛋️", bonus: "Nettoyage -10" },
+  plant:     { topColor: 0x2d6a2d, sideColor: 0x1e4a1e, h: 10, emoji: "🪴", bonus: "+2 coins/tache" },
+  lamp:      { topColor: 0xd4892a, sideColor: 0xa05c10, h: 22, emoji: "💡", bonus: "+10 XP/pomo" },
+  coffee:    { topColor: 0x6b3a1e, sideColor: 0x4a2510, h: 12, emoji: "☕", bonus: "+5 coins/pomo" },
+  bookshelf: { topColor: 0x8b3a1a, sideColor: 0x5c2410, h: 20, emoji: "📚", bonus: "+2 coins/tache" },
+  couch:     { topColor: 0xc47830, sideColor: 0x8b5020, h: 8,  emoji: "🛋️", bonus: "Nettoyage -10" },
 };
 
 export class FurnitureSprite {
@@ -46,8 +46,8 @@ export class FurnitureSprite {
     const c = new PIXI.Container();
     const bg = new PIXI.Graphics();
     bg.roundRect(-60, -10, 120, 20, 3);
-    bg.fill({ color: 0x0f172a, alpha: 0.88 });
-    bg.stroke({ color: 0xfbbf24, width: 1, alpha: 0.8 });
+    bg.fill({ color: 0x2a1505, alpha: 0.92 });
+    bg.stroke({ color: 0xe8a040, width: 1, alpha: 0.9 });
     const label = new PIXI.Text({
       text,
       style: new PIXI.TextStyle({
@@ -94,8 +94,8 @@ export class FurnitureSprite {
     const hw = TILE_WIDTH / 4 + 5;
     const hh = TILE_HEIGHT / 4 + 4;
     this.selectRing.poly([0, -hh, hw, 0, 0, hh, -hw, 0]);
-    this.selectRing.stroke({ color: 0x60a5fa, width: 2 });
-    this.selectRing.fill({ color: 0x60a5fa, alpha: 0.18 });
+    this.selectRing.stroke({ color: 0xe8a040, width: 2 });
+    this.selectRing.fill({ color: 0xe8a040, alpha: 0.18 });
   }
 
   destroy(): void {
