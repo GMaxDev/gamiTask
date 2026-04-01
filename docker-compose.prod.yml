@@ -13,6 +13,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
     networks:
       - gamitask_net
     # Pas de ports exposés : seul nginx y accède en interne
