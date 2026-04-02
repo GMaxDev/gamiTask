@@ -217,7 +217,7 @@ export class GameScene {
   private async loadTileTextures(): Promise<void> {
     try {
       const src = await PIXI.Assets.load<PIXI.Texture>(
-        "/basic_ground_tiles.png"
+        `${import.meta.env.BASE_URL}basic_ground_tiles.png`
       );
       const make = (x: number, y: number) =>
         new PIXI.Texture({ source: src.source, frame: new PIXI.Rectangle(x, y, 128, 128) });
