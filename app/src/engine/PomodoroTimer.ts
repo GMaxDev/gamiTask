@@ -44,6 +44,7 @@ export class PomodoroTimer {
   };
 
   private intervalId: ReturnType<typeof setInterval> | null = null;
+  private endTime: number | null = null; // absolute timestamp when current phase ends
   private listeners: Listener[] = [];
 
   constructor(config?: PomodoroConfig) {
@@ -88,31 +89,39 @@ export class PomodoroTimer {
 
   start(): void {
     if (this.state.status === "running") return;
+    // Use absolute end time so background throttling doesn't affect accuracy
+    this.endTime = Date.now() + this.state.remaining * 1000;
     this.state = { ...this.state, status: "running" };
     this.emit({ type: "status-change", status: "running" });
 
     this.intervalId = setInterval(() => {
-      const next = this.state.remaining - 1;
-      if (next <= 0) {
+      const remaining = Math.max(0, Math.ceil((this.endTime! - Date.now()) / 1000));
+      if (remaining <= 0) {
         this.advance();
       } else {
-        this.state = { ...this.state, remaining: next };
-        this.emit({ type: "tick", remaining: next });
+        this.state = { ...this.state, remaining };
+        this.emit({ type: "tick", remaining });
       }
-    }, 1000);
+    }, 500);
   }
 
   pause(): void {
     if (this.state.status !== "running") return;
+    // Compute accurate remaining before pausing
+    const remaining = this.endTime
+      ? Math.max(0, Math.ceil((this.endTime - Date.now()) / 1000))
+      : this.state.remaining;
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
-    this.state = { ...this.state, status: "paused" };
+    this.endTime = null;
+    this.state = { ...this.state, status: "paused", remaining };
     this.emit({ type: "status-change", status: "paused" });
   }
 
   reset(): void {
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
+    this.endTime = null;
     this.state = {
       phase: "focus",
       status: "idle",
@@ -130,6 +139,7 @@ export class PomodoroTimer {
   private advance(): void {
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
+    this.endTime = null;
 
     let nextPhase: PomodoroPhase;
     let nextSession = this.state.session;
@@ -158,6 +168,7 @@ export class PomodoroTimer {
 
   destroy(): void {
     if (this.intervalId) clearInterval(this.intervalId);
+    this.endTime = null;
   }
 }
 
