@@ -954,6 +954,14 @@ io.on("connection", (socket) => {
     emitXpUpdate(socket, userId, amount);
   });
 
+  // ── Debug : ajouter des pièces ────────────────────────────────────────────
+  socket.on("debug:grant-coins", ({ userId, amount }) => {
+    sql.upsertUser.run(userId);
+    sql.addCoins.run(amount, userId);
+    const coins = (sql.getCoins.get(userId) as UserRow).coins;
+    socket.emit("coins:update", { coins });
+  });
+
   // ── Debug : remettre les XP à zéro ───────────────────────────────────────
   socket.on("debug:reset-xp", ({ userId }) => {
     sql.upsertUser.run(userId);

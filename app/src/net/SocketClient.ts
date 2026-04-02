@@ -294,6 +294,10 @@ export class SocketClient {
     this.socket.emit("debug:set-degradation", { userId, level });
   }
 
+  debugGrantCoins(userId: string, amount: number): void {
+    this.socket.emit("debug:grant-coins", { userId, amount });
+  }
+
   cleanRoom(levels: number): void {
     this.socket.emit("room:clean", { levels });
   }

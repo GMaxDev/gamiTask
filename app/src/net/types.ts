@@ -140,6 +140,7 @@ export interface ClientToServerEvents {
   "debug:grant-xp": (payload: { userId: string; amount: number }) => void;
   "debug:reset-xp": (payload: { userId: string }) => void;
   "debug:set-degradation": (payload: { userId: string; level: number }) => void;
+  "debug:grant-coins": (payload: { userId: string; amount: number }) => void;
   "room:clean": (payload: { levels: number }) => void;
   "shop:buy": (payload: { userId: string; itemId: string }) => void;
   "cosmetic:equip": (payload: { userId: string; hatId: string | null }) => void;

@@ -1512,6 +1512,16 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
           >
             🔄 Reset XP (Lv 0)
           </button>
+          <div className="debug-section-title">🪙 Pièces (actuel : {coins})</div>
+          {[50, 100, 500, 1000].map((amount) => (
+            <button
+              key={amount}
+              className="debug-ach-row debug-xp-row"
+              onClick={() => socketRef.current?.debugGrantCoins(LOCAL_USER_ID, amount)}
+            >
+              +{amount} 🪙
+            </button>
+          ))}
           <div className="debug-section-title">☣ Dégradation (actuel : {degradation}/5)</div>
           {[0, 1, 2, 3, 4, 5].map((lvl) => (
             <button
