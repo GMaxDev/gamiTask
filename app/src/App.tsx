@@ -955,6 +955,20 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
     "long-break": "🛋️ Grande pause collective",
   };
 
+  // Maintient --topbar-bottom pour positionner les panneaux sous la top-bar
+  useEffect(() => {
+    const topBar = document.getElementById("top-bar");
+    if (!topBar) return;
+    const update = () => {
+      const bottom = topBar.getBoundingClientRect().bottom;
+      document.documentElement.style.setProperty("--topbar-bottom", `${bottom}px`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(topBar);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <>
       <canvas ref={canvasRef} id="game-canvas" />

@@ -369,7 +369,7 @@
 #panels-left {
   position: fixed;
   left: 14px;
-  top: 72px;
+  top: var(--topbar-bottom, 72px);
   bottom: 215px;
   display: flex;
   flex-direction: row;
@@ -1377,7 +1377,7 @@
 #leaderboard-panel {
   pointer-events: auto;
   position: fixed;
-  top: 72px;
+  top: calc(var(--topbar-bottom, 72px) + 8px);
   right: 14px;
   width: 226px;
   background: var(--bg-panel);
