@@ -13,7 +13,6 @@ import { SocketClient, type ChatMessage } from "./net/SocketClient";
 import type { AvatarState, Task, SharedPomoState, ProfileData, GuildData } from "./net/types";
 import { TaskPanel } from "./components/TaskPanel";
 import { ShopPanel } from "./components/ShopPanel";
-import { Minimap, type MinimapPlayer } from "./components/Minimap";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
 import { GuildPanel } from "./components/GuildPanel";
@@ -216,8 +215,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
     }>
   >([]);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-  const [remotePlayers, setRemotePlayers] = useState<MinimapPlayer[]>([]);
-  const [localPos, setLocalPos] = useState({ col: 6, row: 6 });
   const [dmMessages, setDmMessages] = useState<Map<string, ChatMessage[]>>(
     new Map(),
   );
@@ -280,7 +277,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       scene.onLocalMove = (col, row) => {
         socketRef.current?.move(col, row);
         socketRef.current?.savePosition(LOCAL_USER_ID, col, row);
-        setLocalPos({ col, row });
       };
       // Callback déplacement de meuble → socket
       scene.onFurnitureMoved = (itemId, col, row) => {
@@ -407,14 +403,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
             scene.setOtherPlayerFurniture(p.id, p.placed, p.positions);
           }
         }
-        setRemotePlayers(
-          players.map((p) => ({
-            id: p.id,
-            color: p.color,
-            col: p.col,
-            row: p.row,
-          })),
-        );
         setRoomMembers(
           new Map(players.map((p) => [p.id, { name: p.name, color: p.color }])),
         );
@@ -432,10 +420,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
         if (p.placed && p.positions) {
           sceneRef.current?.setOtherPlayerFurniture(p.id, p.placed, p.positions);
         }
-        setRemotePlayers((prev) => [
-          ...prev,
-          { id: p.id, color: p.color, col: p.col, row: p.row },
-        ]);
         setRoomMembers((prev) => {
           const next = new Map(prev);
           next.set(p.id, { name: p.name, color: p.color });
@@ -444,9 +428,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       },
       onPlayerMoved: (id, col, row) => {
         sceneRef.current?.moveRemoteAvatar(id, col, row);
-        setRemotePlayers((prev) =>
-          prev.map((rp) => (rp.id === id ? { ...rp, col, row } : rp)),
-        );
       },
       onPlayerState: (id, state) => {
         sceneRef.current?.setRemoteAvatarState(id, state);
@@ -454,7 +435,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
       onPlayerLeft: (id) => {
         sceneRef.current?.removeRemoteAvatar(id);
         sceneRef.current?.removeOtherPlayerFurniture(id);
-        setRemotePlayers((prev) => prev.filter((rp) => rp.id !== id));
         setRoomMembers((prev) => {
           const next = new Map(prev);
           next.delete(id);
@@ -978,15 +958,6 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
   return (
     <>
       <canvas ref={canvasRef} id="game-canvas" />
-
-      <div id="minimap-container">
-        <Minimap
-          players={remotePlayers}
-          localCol={localPos.col}
-          localRow={localPos.row}
-          localColor={LOCAL_COLOR}
-        />
-      </div>
 
       <div id="ui-overlay">
         <div id="top-bar">
