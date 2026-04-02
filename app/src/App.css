@@ -1657,6 +1657,8 @@
   min-width: 205px;
   box-shadow: var(--shadow-lg);
   backdrop-filter: var(--blur);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
 }
 #debug-ach-title {
   font-size: 0.7rem;
