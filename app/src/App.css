@@ -2483,6 +2483,15 @@
 }
 #feedback-btn:hover { background: rgba(139, 92, 246, 0.3); transform: scale(1.08); }
 
+#app-version {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.04em;
+  padding: 0 4px;
+  user-select: none;
+  align-self: center;
+}
+
 /* ── Feedback modal ───────────────────────────────────────────────────────── */
 .feedback-backdrop {
   position: fixed;

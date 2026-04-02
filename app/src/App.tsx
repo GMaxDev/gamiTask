@@ -1211,6 +1211,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
           >
             📢
           </button>
+          <span id="app-version">v{__APP_VERSION__}</span>
           <div id="coins-badge">🪙 {coins}</div>
           {streak > 0 && (
             <div
