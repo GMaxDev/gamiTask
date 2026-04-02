@@ -2471,6 +2471,7 @@
 
 /* ── Feedback button ──────────────────────────────────────────────────────── */
 #feedback-btn {
+  pointer-events: auto;
   background: rgba(139, 92, 246, 0.15);
   border: 1px solid rgba(139, 92, 246, 0.35);
   color: #c4b5fd;
