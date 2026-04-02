@@ -1389,6 +1389,8 @@
   padding-bottom: 4px;
 }
 #leaderboard-title {
+  display: flex;
+  align-items: center;
   color: var(--gold);
   font-weight: 700;
   font-size: 0.85rem;
@@ -2621,3 +2623,49 @@
   transition: background 0.15s;
 }
 .feedback-issue-link:hover { background: rgba(129, 140, 248, 0.12); }
+
+/* ── Close button shared across panels ─────────────────────────── */
+.panel-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  margin-left: auto;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.panel-close-btn:hover { color: var(--text); background: var(--bg-hover); }
+
+/* ── Mobile responsive ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  #chat-panel {
+    width: auto;
+    max-width: calc(100vw - 28px);
+  }
+
+  #panels-left {
+    left: 0;
+    right: 0;
+    width: 100%;
+    padding: 0 14px;
+    box-sizing: border-box;
+  }
+
+  #task-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #shop-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #leaderboard-panel {
+    width: calc(100vw - 28px);
+    right: 14px;
+  }
+}

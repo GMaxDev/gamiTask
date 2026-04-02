@@ -1113,6 +1113,9 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
             <button onClick={handleCenter} aria-label="Recentrer (Espace)">
               ⊕
             </button>
+            <button onClick={() => sceneRef.current?.fitToScreen()} aria-label="Ajuster à l'écran" title="Ajuster la carte à l'écran">
+              ⧉
+            </button>
           </div>
           <button
             id="task-toggle-btn"
@@ -1227,6 +1230,7 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
               onToggle={handleTaskToggle}
               onDelete={handleTaskDelete}
               onCleanRoom={handleCleanRoom}
+              onClose={() => setTaskPanelOpen(false)}
             />
           )}
           {shopOpen && (
@@ -1241,12 +1245,16 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
               onBuyFurniture={handleBuyFurniture}
               onTogglePlace={(itemId) => socketRef.current?.toggleFurniturePlaced(LOCAL_USER_ID, itemId)}
               onStartPlacement={(itemId) => sceneRef.current?.startGhostPlacement(itemId)}
+              onClose={() => setShopOpen(false)}
             />
           )}
         </div>
         {leaderboardOpen && (
           <div id="leaderboard-panel">
-            <div id="leaderboard-title">🏆 Classement</div>
+            <div id="leaderboard-title">
+              🏆 Classement
+              <button className="panel-close-btn" onClick={() => setLeaderboardOpen(false)} aria-label="Fermer">✕</button>
+            </div>
             {leaderboard.map((entry, i) => (
               <div
                 key={entry.id}

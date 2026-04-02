@@ -125,7 +125,7 @@ export class GameScene {
     this.offsetX = 0;
     this.offsetY = 0;
     const gridCenterY = ((GRID_COLS - 1) + (GRID_ROWS - 1)) / 2 * (TILE_HEIGHT / 2);
-    const initialScale = 1.5;
+    const initialScale = window.innerWidth < 640 ? 0.7 : 1.5;
     this.worldContainer.x = this.app.screen.width / 2;
     this.worldContainer.y = this.app.screen.height / 2 - gridCenterY * initialScale;
     // Zoom légèrement par défaut pour que la scène ne soit pas trop petite
@@ -561,6 +561,22 @@ export class GameScene {
   zoomOut(): void {
     const s = Math.max(0.4, this.worldContainer.scale.x / 1.15);
     this.worldContainer.scale.set(s);
+  }
+
+  fitToScreen(): void {
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    const gridWorldW = (GRID_COLS + GRID_ROWS - 2) * (TILE_WIDTH / 2); // 704
+    const gridWorldH = (GRID_COLS + GRID_ROWS - 2) * (TILE_HEIGHT / 2); // 352
+    const gridCenterY = gridWorldH / 2; // 176
+    const topInset = 72;
+    const pad = 24;
+    const availW = w - pad * 2;
+    const availH = h - topInset - pad;
+    const s = Math.max(0.4, Math.min(4.0, Math.min(availW / gridWorldW, availH / gridWorldH)));
+    this.worldContainer.scale.set(s);
+    this.worldContainer.x = w / 2;
+    this.worldContainer.y = topInset + availH / 2 - gridCenterY * s;
   }
 
   centerView(): void {

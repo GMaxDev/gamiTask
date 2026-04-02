@@ -19,6 +19,7 @@ interface TaskPanelProps {
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onCleanRoom: (levels: number) => void;
+  onClose: () => void;
 }
 
 const DEGRADATION_LABELS = ["✨ Propre", "🌫 Légère poussière", "🕸 Poussiéreux", "🌧 Sale", "💀 Très dégradé", "☠ Abandon total"];
@@ -35,6 +36,7 @@ export function TaskPanel({
   onToggle,
   onDelete,
   onCleanRoom,
+  onClose,
 }: TaskPanelProps) {
   const [input, setInput] = useState("");
   const [addCategory, setAddCategory] = useState<string | null>(null);
@@ -137,6 +139,7 @@ export function TaskPanel({
       <div id="task-panel-header">
         <span id="task-panel-title">📋 Mes tâches</span>
         <span id="coins-display">🪙 {coins}</span>
+        <button className="panel-close-btn" onClick={onClose} aria-label="Fermer">✕</button>
       </div>
 
       {/* ── Indicateur de dégradation ── */}

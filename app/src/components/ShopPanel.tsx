@@ -11,6 +11,7 @@ interface ShopPanelProps {
   onBuyFurniture: (itemId: string) => void;
   onTogglePlace: (itemId: string) => void;
   onStartPlacement: (itemId: string) => void;
+  onClose: () => void;
 }
 
 export function ShopPanel({
@@ -24,12 +25,14 @@ export function ShopPanel({
   onBuyFurniture,
   onTogglePlace,
   onStartPlacement,
+  onClose,
 }: ShopPanelProps) {
   return (
     <div id="shop-panel">
       <div id="shop-header">
-        <span id="shop-title">🛍 Boutique</span>
+        <span id="shop-title">🛘 Boutique</span>
         <span id="shop-coins">🪙 {coins}</span>
+        <button className="panel-close-btn" onClick={onClose} aria-label="Fermer">✕</button>
       </div>
 
       <div id="shop-section-label">🎩 Chapeaux</div>
