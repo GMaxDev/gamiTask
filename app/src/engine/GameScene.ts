@@ -553,14 +553,26 @@ export class GameScene {
     }
   }
 
+  private _zoomAround(factor: number): void {
+    const oldScale = this.worldContainer.scale.x;
+    const newScale = Math.max(0.4, Math.min(4.0, oldScale * factor));
+    // Point d'ancrage = position écran du personnage local
+    const ax = this.localAvatar.container.x;
+    const ay = this.localAvatar.container.y;
+    const screenX = this.worldContainer.x + ax * oldScale;
+    const screenY = this.worldContainer.y + ay * oldScale;
+    this.worldContainer.scale.set(newScale);
+    // Recentrer pour que le personnage reste au même endroit à l'écran
+    this.worldContainer.x = screenX - ax * newScale;
+    this.worldContainer.y = screenY - ay * newScale;
+  }
+
   zoomIn(): void {
-    const s = Math.min(4.0, this.worldContainer.scale.x * 1.15);
-    this.worldContainer.scale.set(s);
+    this._zoomAround(1.15);
   }
 
   zoomOut(): void {
-    const s = Math.max(0.4, this.worldContainer.scale.x / 1.15);
-    this.worldContainer.scale.set(s);
+    this._zoomAround(1 / 1.15);
   }
 
   fitToScreen(): void {
