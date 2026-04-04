@@ -212,7 +212,7 @@ const sql = {
     "INSERT INTO users (id, coins, email, googleId, displayName, avatarColor, isAdmin) VALUES (?, 0, ?, ?, ?, 0, ?)",
   ),
   updateGoogleAuth: db.prepare(
-    "UPDATE users SET email = ?, displayName = ? WHERE id = ?",
+    "UPDATE users SET email = ?, displayName = COALESCE(NULLIF(displayName, ''), ?) WHERE id = ?",
   ),
   setAdminFlag: db.prepare("UPDATE users SET isAdmin = ? WHERE id = ?"),
   saveDailyReset: db.prepare(
