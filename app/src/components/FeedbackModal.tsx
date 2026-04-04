@@ -15,12 +15,14 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [issueUrl, setIssueUrl] = useState<string | null>(null);
 
+  const serverBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !description.trim()) return;
     setStatus("loading");
     try {
-      const res = await fetch("/api/feedback", {
+      const res = await fetch(`${serverBase}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, title: title.trim(), description: description.trim(), userName }),

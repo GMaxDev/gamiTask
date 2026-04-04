@@ -869,7 +869,14 @@ export class GameScene {
     sprite.container.alpha = 0.55;
     sprite.container.zIndex = 1000;
     sprite.container.eventMode = "none"; // le clic traverse le ghost, capté par le stage
-    sprite.container.visible = false; // caché jusqu'au premier pointermove
+    if (existingPos) {
+      const { x, y } = gridToScreen(existingPos.col, existingPos.row, this.offsetX, this.offsetY);
+      sprite.container.x = x;
+      sprite.container.y = y;
+      sprite.container.visible = true;
+    } else {
+      sprite.container.visible = true;
+    }
     this.spriteLayer.addChild(sprite.container);
     this.ghostSprite = sprite;
 

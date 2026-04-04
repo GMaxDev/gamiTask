@@ -150,7 +150,7 @@ function JoinDialog({
   );
 }
 
-function Room({ joinInfo }: { joinInfo: JoinInfo }) {
+function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void }) {
   const LOCAL_NAME = joinInfo.name;
   const LOCAL_COLOR = joinInfo.color;
   // joinInfo.userId remplace le LOCAL_USER_ID du module (shadowing intentionnel)
@@ -1192,6 +1192,15 @@ function Room({ joinInfo }: { joinInfo: JoinInfo }) {
             👤
           </button>
           <button
+            id="logout-btn"
+            type="button"
+            onClick={onLogout}
+            aria-label="Déconnexion"
+            title="Déconnexion"
+          >
+            🚪
+          </button>
+          <button
             id="feedback-btn"
             onClick={() => setFeedbackOpen(true)}
             aria-label="Feedback"
@@ -1745,6 +1754,13 @@ function App() {
     });
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("gamitask-jwt");
+    setAuthUser(null);
+    setGuestMode(false);
+    setJoinInfo(null);
+  };
+
   const handleJoin = (info: Omit<JoinInfo, "userId" | "isAdmin">) => {
     setJoinInfo({
       ...info,
@@ -1773,7 +1789,7 @@ function App() {
     return <JoinDialog onJoin={handleJoin} prefill={prefill} />;
   }
 
-  return <Room joinInfo={joinInfo} />;
+  return <Room joinInfo={joinInfo} onLogout={handleLogout} />;
 }
 
 export default App;

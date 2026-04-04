@@ -63,6 +63,7 @@
 
 /* ─── Top Bar ─────────────────────────────────────────────────────── */
 #top-bar {
+  pointer-events: auto;
   display: flex;
   gap: 8px;
   align-items: flex-start;
