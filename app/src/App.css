@@ -65,9 +65,41 @@
 #top-bar {
   pointer-events: auto;
   display: flex;
-  gap: 8px;
-  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
+}
+
+.top-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.top-bar-group--timer {
+  min-width: min(100%, 360px);
+}
+.top-bar-group--actions {
+  gap: 6px;
+}
+.top-bar-group--status {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#top-bar button .topbar-icon {
+  display: block;
+  font-size: 1rem;
+  line-height: 1;
+}
+#top-bar button .topbar-button-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-mid);
+  line-height: 1.1;
+  margin-top: 2px;
+  letter-spacing: 0.02em;
 }
 
 /* ─── Zoom Controls ───────────────────────────────────────────────── */
@@ -251,22 +283,25 @@
 #pomo-settings button:hover { background: var(--bg-hover); }
 
 /* ─── Top Bar Buttons ─────────────────────────────────────────────── */
-#task-toggle-btn, #shop-toggle-btn, #leaderboard-toggle-btn, #guild-toggle-btn, #profile-self-btn {
+#task-toggle-btn, #shop-toggle-btn, #leaderboard-toggle-btn, #guild-toggle-btn, #profile-self-btn, #logout-btn, #feedback-btn {
   pointer-events: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  color: var(--text-mid);
-  font-size: 1rem;
-  width: 32px;
-  height: 32px;
+  color: var(--text);
+  font-size: 0.95rem;
+  min-width: 72px;
+  height: 52px;
   cursor: pointer;
   backdrop-filter: var(--blur);
   box-shadow: var(--shadow);
-  display: flex;
+  display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  gap: 4px;
+  padding: 12px 10px 8px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
 }
 #task-toggle-btn:hover, #task-toggle-btn.active {
   background: rgba(96, 165, 250, 0.18);
@@ -370,7 +405,7 @@
 #panels-left {
   position: fixed;
   left: 14px;
-  top: var(--topbar-bottom, 72px);
+  top: calc(var(--topbar-bottom, 72px) + 10px);
   bottom: 215px;
   display: flex;
   flex-direction: row;
@@ -2650,6 +2685,7 @@
   #panels-left {
     left: 0;
     right: 0;
+    top: calc(var(--topbar-bottom, 72px) + 18px);
     width: 100%;
     padding: 0 14px;
     box-sizing: border-box;
@@ -2668,5 +2704,105 @@
   #leaderboard-panel {
     width: calc(100vw - 28px);
     right: 14px;
+  }
+
+  #top-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 10px 14px;
+  }
+
+  .top-bar-group {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .top-bar-group--timer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .top-bar-group--actions {
+    justify-content: space-around;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .top-bar-group--status {
+    justify-content: space-between;
+  }
+
+  #timer-panel {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  #timer-panel > span,
+  #timer-panel > button {
+    flex: 1 1 auto;
+  }
+
+  #top-bar button {
+    min-width: 44px;
+    height: 44px;
+    padding: 10px 8px;
+  }
+
+  #top-bar button .topbar-button-label {
+    display: none;
+  }
+
+  #top-bar button .topbar-icon {
+    font-size: 1.15rem;
+  }
+
+  #zoom-controls {
+    display: none;
+  }
+
+  #top-bar-group--actions {
+    justify-content: flex-start;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  #top-bar-group--actions::-webkit-scrollbar {
+    height: 6px;
+  }
+  #top-bar-group--actions::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.12);
+    border-radius: 3px;
+  }
+  #top-bar-group--actions button {
+    flex: none;
+  }
+
+  #chat-panel {
+    width: calc(100vw - 24px);
+    max-width: 100%;
+    align-self: center;
+    margin: 0 auto;
+  }
+
+  #chat-messages {
+    min-height: 150px;
+    max-height: 42vh;
+  }
+
+  #chat-input {
+    padding: 12px 14px;
+  }
+
+  #debug-ach-btn,
+  #admin-toggle-btn {
+    display: none;
   }
 }

@@ -10,13 +10,26 @@ import {
   DEFAULT_CONFIG,
 } from "./engine/PomodoroTimer";
 import { SocketClient, type ChatMessage } from "./net/SocketClient";
-import type { AvatarState, Task, SharedPomoState, ProfileData, GuildData } from "./net/types";
+import type {
+  AvatarState,
+  Task,
+  SharedPomoState,
+  ProfileData,
+  GuildData,
+} from "./net/types";
 import { TaskPanel } from "./components/TaskPanel";
 import { ShopPanel } from "./components/ShopPanel";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
 import { GuildPanel } from "./components/GuildPanel";
-import { playPomoDone, playPomoBreak, playCoin, playChatSpatial, playCoinSpatial, playMention } from "./engine/SoundEngine";
+import {
+  playPomoDone,
+  playPomoBreak,
+  playCoin,
+  playChatSpatial,
+  playCoinSpatial,
+  playMention,
+} from "./engine/SoundEngine";
 import { AuthScreen, type AuthResult } from "./components/AuthScreen";
 import { FeedbackModal } from "./components/FeedbackModal";
 
@@ -32,7 +45,10 @@ function loadPomoConfig(): PomodoroConfig {
 
 // Polyfill UUID — crypto.randomUUID() n'est disponible qu'en HTTPS/localhost
 function generateUUID(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   // Fallback pour HTTP non-sécurisé
@@ -90,7 +106,10 @@ function JoinDialog({
   prefill?: { name: string; color: number };
 }) {
   const defaultColorIdx = prefill
-    ? Math.max(0, PALETTE.findIndex((p) => p.hex === prefill.color))
+    ? Math.max(
+        0,
+        PALETTE.findIndex((p) => p.hex === prefill.color),
+      )
     : 0;
   const [name, setName] = useState(prefill?.name ?? "");
   const [colorIdx, setColorIdx] = useState(defaultColorIdx);
@@ -150,7 +169,13 @@ function JoinDialog({
   );
 }
 
-function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void }) {
+function Room({
+  joinInfo,
+  onLogout,
+}: {
+  joinInfo: JoinInfo;
+  onLogout: () => void;
+}) {
   const LOCAL_NAME = joinInfo.name;
   const LOCAL_COLOR = joinInfo.color;
   // joinInfo.userId remplace le LOCAL_USER_ID du module (shadowing intentionnel)
@@ -199,7 +224,9 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
   const [equippedHat, setEquippedHat] = useState<string | null>(null);
   const [ownedFurniture, setOwnedFurniture] = useState<string[]>([]);
   const [placedFurniture, setPlacedFurniture] = useState<string[]>([]);
-  const [furniturePositions, setFurniturePositions] = useState<Record<string, { col: number; row: number }>>({});
+  const [furniturePositions, setFurniturePositions] = useState<
+    Record<string, { col: number; row: number }>
+  >({});
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [collectivePomo, setCollectivePomo] = useState<SharedPomoState | null>(
     null,
@@ -231,7 +258,9 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
     desc: string;
     icon: string;
   } | null>(null);
-  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>(
+    [],
+  );
   const [debugOpen, setDebugOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -253,11 +282,16 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
   const [mentionSelIdx, setMentionSelIdx] = useState(0);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
-  const onboardingDoneRef = useRef(localStorage.getItem("gamitask-onboarding-done") === "1");
+  const onboardingDoneRef = useRef(
+    localStorage.getItem("gamitask-onboarding-done") === "1",
+  );
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [guildData, setGuildData] = useState<GuildData | null>(null);
   const [guildPanelOpen, setGuildPanelOpen] = useState(false);
-  const [guildBossToast, setGuildBossToast] = useState<{ reward: number; bossLevel: number } | null>(null);
+  const [guildBossToast, setGuildBossToast] = useState<{
+    reward: number;
+    bossLevel: number;
+  } | null>(null);
 
   // ── Scène PixiJS ────────────────────────────────────────────
   useEffect(() => {
@@ -416,9 +450,20 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
         client.requestGuildState();
       },
       onPlayerJoined: (p) => {
-        sceneRef.current?.addRemoteAvatar(p.id, p.name, p.color, p.col, p.row, p.hat);
+        sceneRef.current?.addRemoteAvatar(
+          p.id,
+          p.name,
+          p.color,
+          p.col,
+          p.row,
+          p.hat,
+        );
         if (p.placed && p.positions) {
-          sceneRef.current?.setOtherPlayerFurniture(p.id, p.placed, p.positions);
+          sceneRef.current?.setOtherPlayerFurniture(
+            p.id,
+            p.placed,
+            p.positions,
+          );
         }
         setRoomMembers((prev) => {
           const next = new Map(prev);
@@ -564,7 +609,9 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
         setAchievementToast({ label, desc, icon });
         setTimeout(() => setAchievementToast(null), 5600);
         sceneRef.current?.showLocalCoin(icon);
-        setUnlockedAchievements((prev) => prev.includes(key) ? prev : [...prev, key]);
+        setUnlockedAchievements((prev) =>
+          prev.includes(key) ? prev : [...prev, key],
+        );
       },
       onAchievementPublic: (socketId, label, icon) => {
         sceneRef.current?.showRemoteCoin(socketId, `${icon} ${label}`);
@@ -663,7 +710,12 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
 
   // ── Onboarding : déclencher pour les nouveaux joueurs ──────────────────────
   useEffect(() => {
-    if (!onboardingDoneRef.current && xp === 0 && coins === 0 && tasks.length === 0) {
+    if (
+      !onboardingDoneRef.current &&
+      xp === 0 &&
+      coins === 0 &&
+      tasks.length === 0
+    ) {
       queueMicrotask(() => setShowOnboarding(true));
     }
   }, [tasks, xp, coins]);
@@ -801,14 +853,16 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
         if (e.key === "ArrowUp") {
           e.preventDefault();
           setMentionSelIdx(
-            (i) => (i - 1 + mentionSuggestions.length) % mentionSuggestions.length,
+            (i) =>
+              (i - 1 + mentionSuggestions.length) % mentionSuggestions.length,
           );
           return;
         }
         if (e.key === "Enter" || e.key === "Tab") {
           e.preventDefault();
           selectMention(
-            mentionSuggestions[mentionSelIdx]?.name ?? mentionSuggestions[0].name,
+            mentionSuggestions[mentionSelIdx]?.name ??
+              mentionSuggestions[0].name,
           );
           return;
         }
@@ -908,9 +962,16 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
     setDmInput("");
   }, [dmInput, openDm, LOCAL_NAME, LOCAL_COLOR]);
 
-  const handleTaskAdd = useCallback((text: string, category: string | null, type: "task" | "daily" = "task") => {
-    socketRef.current?.addTask(LOCAL_USER_ID, text, category, type);
-  }, [LOCAL_USER_ID]);
+  const handleTaskAdd = useCallback(
+    (
+      text: string,
+      category: string | null,
+      type: "task" | "daily" = "task",
+    ) => {
+      socketRef.current?.addTask(LOCAL_USER_ID, text, category, type);
+    },
+    [LOCAL_USER_ID],
+  );
 
   const handleTaskUpdate = useCallback(
     (taskId: string, text: string, category: string | null) => {
@@ -919,25 +980,37 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
     [LOCAL_USER_ID],
   );
 
-  const handleTaskToggle = useCallback((taskId: string) => {
-    socketRef.current?.toggleTask(LOCAL_USER_ID, taskId);
-  }, [LOCAL_USER_ID]);
+  const handleTaskToggle = useCallback(
+    (taskId: string) => {
+      socketRef.current?.toggleTask(LOCAL_USER_ID, taskId);
+    },
+    [LOCAL_USER_ID],
+  );
 
-  const handleTaskDelete = useCallback((taskId: string) => {
-    socketRef.current?.deleteTask(LOCAL_USER_ID, taskId);
-  }, [LOCAL_USER_ID]);
+  const handleTaskDelete = useCallback(
+    (taskId: string) => {
+      socketRef.current?.deleteTask(LOCAL_USER_ID, taskId);
+    },
+    [LOCAL_USER_ID],
+  );
 
   const handleCleanRoom = useCallback((levels: number) => {
     socketRef.current?.cleanRoom(levels);
   }, []);
 
-  const handleBuyItem = useCallback((itemId: string) => {
-    socketRef.current?.buyItem(LOCAL_USER_ID, itemId);
-  }, [LOCAL_USER_ID]);
+  const handleBuyItem = useCallback(
+    (itemId: string) => {
+      socketRef.current?.buyItem(LOCAL_USER_ID, itemId);
+    },
+    [LOCAL_USER_ID],
+  );
 
-  const handleBuyFurniture = useCallback((itemId: string) => {
-    socketRef.current?.buyFurniture(LOCAL_USER_ID, itemId);
-  }, [LOCAL_USER_ID]);
+  const handleBuyFurniture = useCallback(
+    (itemId: string) => {
+      socketRef.current?.buyFurniture(LOCAL_USER_ID, itemId);
+    },
+    [LOCAL_USER_ID],
+  );
 
   const handleEquipHat = useCallback(
     (hatId: string | null) => {
@@ -961,7 +1034,10 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
     if (!topBar) return;
     const update = () => {
       const bottom = topBar.getBoundingClientRect().bottom;
-      document.documentElement.style.setProperty("--topbar-bottom", `${bottom}px`);
+      document.documentElement.style.setProperty(
+        "--topbar-bottom",
+        `${bottom}px`,
+      );
     };
     update();
     const ro = new ResizeObserver(update);
@@ -975,267 +1051,282 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
 
       <div id="ui-overlay">
         <div id="top-bar">
-          {collectivePomo ? (
-            <div
-              id="timer-panel"
-              data-phase={collectivePomo.phase}
-              data-status={collectivePomo.running ? "running" : "idle"}
-              className="collective"
-            >
-              <span id="timer-label">
-                {POMO_PHASE_LABEL[collectivePomo.phase]}
-              </span>
-              <span id="timer-display">
-                {formatTime(collectivePomo.remaining)}
-              </span>
-              <span id="pomo-participants">
-                👥 {collectivePomo.participants}
-              </span>
-              <button
-                id="timer-reset"
-                onClick={() => {
-                  isInCollectivePomoRef.current = false;
-                  socketRef.current?.leaveCollectivePomo();
-                  setCollectivePomo(null);
-                  sceneRef.current?.setAvatarState("idle");
-                  socketRef.current?.setAvatarState("idle");
-                }}
-                aria-label="Quitter"
-                title="Quitter le pomo collectif"
+          <div className="top-bar-group top-bar-group--timer">
+            {collectivePomo ? (
+              <div
+                id="timer-panel"
+                data-phase={collectivePomo.phase}
+                data-status={collectivePomo.running ? "running" : "idle"}
+                className="collective"
               >
-                ✕
+                <span id="timer-label">
+                  {POMO_PHASE_LABEL[collectivePomo.phase]}
+                </span>
+                <span id="timer-display">
+                  {formatTime(collectivePomo.remaining)}
+                </span>
+                <span id="pomo-participants">
+                  👥 {collectivePomo.participants}
+                </span>
+                <button
+                  id="timer-reset"
+                  onClick={() => {
+                    isInCollectivePomoRef.current = false;
+                    socketRef.current?.leaveCollectivePomo();
+                    setCollectivePomo(null);
+                    sceneRef.current?.setAvatarState("idle");
+                    socketRef.current?.setAvatarState("idle");
+                  }}
+                  aria-label="Quitter"
+                  title="Quitter le pomo collectif"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div id="timer-panel" data-phase={phase} data-status={status}>
+                <span id="timer-label">{PHASE_LABEL[phase]}</span>
+                <span id="timer-display">{display}</span>
+                <button
+                  id="timer-toggle"
+                  onClick={handleToggle}
+                  aria-label={isRunning ? "Pause" : "Démarrer"}
+                >
+                  {isRunning ? "⏸" : "▶"}
+                </button>
+                <button
+                  id="timer-reset"
+                  onClick={handleReset}
+                  aria-label="Réinitialiser"
+                >
+                  ↺
+                </button>
+                <button
+                  id="pomo-settings-btn"
+                  onClick={() => {
+                    setDraftConfig(pomoConfig);
+                    setPomoSettingsOpen((o) => !o);
+                  }}
+                  aria-label="Paramètres"
+                  title="Paramètres"
+                >
+                  ⚙️
+                </button>
+                <button
+                  id="pomo-join-btn"
+                  onClick={() => {
+                    isInCollectivePomoRef.current = true;
+                    socketRef.current?.joinCollectivePomo();
+                    sceneRef.current?.setAvatarState("collective");
+                    socketRef.current?.setAvatarState("collective");
+                  }}
+                  aria-label="Rejoindre le pomo collectif"
+                  title="Rejoindre le pomo collectif"
+                >
+                  👥
+                </button>
+                {pomoSettingsOpen && (
+                  <div id="pomo-settings">
+                    <label>
+                      🍅
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={draftConfig.focus}
+                        onChange={(e) =>
+                          setDraftConfig((d) => ({
+                            ...d,
+                            focus: Number(e.target.value),
+                          }))
+                        }
+                      />
+                      <span>min</span>
+                    </label>
+                    <label>
+                      ☕
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={draftConfig.shortBreak}
+                        onChange={(e) =>
+                          setDraftConfig((d) => ({
+                            ...d,
+                            shortBreak: Number(e.target.value),
+                          }))
+                        }
+                      />
+                      <span>min</span>
+                    </label>
+                    <label>
+                      🛋️
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={draftConfig.longBreak}
+                        onChange={(e) =>
+                          setDraftConfig((d) => ({
+                            ...d,
+                            longBreak: Number(e.target.value),
+                          }))
+                        }
+                      />
+                      <span>min</span>
+                    </label>
+                    <button onClick={handleSaveConfig} title="Appliquer">
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => setPomoSettingsOpen(false)}
+                      title="Annuler"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="top-bar-group top-bar-group--actions">
+            <div id="zoom-controls">
+              <button
+                onClick={() => sceneRef.current?.zoomIn()}
+                aria-label="Zoom +"
+              >
+                +
+              </button>
+              <button
+                onClick={() => sceneRef.current?.zoomOut()}
+                aria-label="Zoom −"
+              >
+                −
+              </button>
+              <button onClick={handleCenter} aria-label="Recentrer (Espace)">
+                ⊕
+              </button>
+              <button
+                onClick={() => sceneRef.current?.fitToScreen()}
+                aria-label="Ajuster à l'écran"
+                title="Ajuster la carte à l'écran"
+              >
+                ⧉
               </button>
             </div>
-          ) : (
-            <div id="timer-panel" data-phase={phase} data-status={status}>
-              <span id="timer-label">{PHASE_LABEL[phase]}</span>
-              <span id="timer-display">{display}</span>
-              <button
-                id="timer-toggle"
-                onClick={handleToggle}
-                aria-label={isRunning ? "Pause" : "Démarrer"}
-              >
-                {isRunning ? "⏸" : "▶"}
-              </button>
-              <button
-                id="timer-reset"
-                onClick={handleReset}
-                aria-label="Réinitialiser"
-              >
-                ↺
-              </button>
-              <button
-                id="pomo-settings-btn"
-                onClick={() => {
-                  setDraftConfig(pomoConfig);
-                  setPomoSettingsOpen((o) => !o);
-                }}
-                aria-label="Paramètres"
-                title="Paramètres"
-              >
-                ⚙️
-              </button>
-              <button
-                id="pomo-join-btn"
-                onClick={() => {
-                  isInCollectivePomoRef.current = true;
-                  socketRef.current?.joinCollectivePomo();
-                  sceneRef.current?.setAvatarState("collective");
-                  socketRef.current?.setAvatarState("collective");
-                }}
-                aria-label="Rejoindre le pomo collectif"
-                title="Rejoindre le pomo collectif"
-              >
-                👥
-              </button>
-              {pomoSettingsOpen && (
-                <div id="pomo-settings">
-                  <label>
-                    🍅
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      value={draftConfig.focus}
-                      onChange={(e) =>
-                        setDraftConfig((d) => ({
-                          ...d,
-                          focus: Number(e.target.value),
-                        }))
-                      }
-                    />
-                    <span>min</span>
-                  </label>
-                  <label>
-                    ☕
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      value={draftConfig.shortBreak}
-                      onChange={(e) =>
-                        setDraftConfig((d) => ({
-                          ...d,
-                          shortBreak: Number(e.target.value),
-                        }))
-                      }
-                    />
-                    <span>min</span>
-                  </label>
-                  <label>
-                    🛋️
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      value={draftConfig.longBreak}
-                      onChange={(e) =>
-                        setDraftConfig((d) => ({
-                          ...d,
-                          longBreak: Number(e.target.value),
-                        }))
-                      }
-                    />
-                    <span>min</span>
-                  </label>
-                  <button onClick={handleSaveConfig} title="Appliquer">
-                    ✓
-                  </button>
-                  <button
-                    onClick={() => setPomoSettingsOpen(false)}
-                    title="Annuler"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          <div id="zoom-controls">
             <button
-              onClick={() => sceneRef.current?.zoomIn()}
-              aria-label="Zoom +"
+              id="task-toggle-btn"
+              onClick={() => setTaskPanelOpen((o) => !o)}
+              aria-label="Tâches"
+              className={taskPanelOpen ? "active" : ""}
             >
-              +
+              <span className="topbar-icon">📋</span>
+              <span className="topbar-button-label">Tâches</span>
             </button>
             <button
-              onClick={() => sceneRef.current?.zoomOut()}
-              aria-label="Zoom −"
+              id="shop-toggle-btn"
+              onClick={() => setShopOpen((o) => !o)}
+              aria-label="Boutique"
+              className={shopOpen ? "active" : ""}
             >
-              −
+              <span className="topbar-icon">🏪</span>
+              <span className="topbar-button-label">Boutique</span>
             </button>
-            <button onClick={handleCenter} aria-label="Recentrer (Espace)">
-              ⊕
+            <button
+              id="leaderboard-toggle-btn"
+              onClick={() => setLeaderboardOpen((o) => !o)}
+              aria-label="Classement"
+              className={leaderboardOpen ? "active" : ""}
+            >
+              <span className="topbar-icon">🏆</span>
+              <span className="topbar-button-label">Classement</span>
             </button>
-            <button onClick={() => sceneRef.current?.fitToScreen()} aria-label="Ajuster à l'écran" title="Ajuster la carte à l'écran">
-              ⧉
+            <button
+              id="guild-toggle-btn"
+              onClick={() => setGuildPanelOpen((o) => !o)}
+              aria-label="Guilde"
+              className={guildPanelOpen ? "active" : ""}
+              title={guildData ? `Guilde : ${guildData.name}` : "Guildes"}
+            >
+              <span className="topbar-icon">⚔️</span>
+              <span className="topbar-button-label">Guilde</span>
+            </button>
+            <button
+              id="profile-self-btn"
+              onClick={() => {
+                const lvl = level;
+                const xpForThis = 50 * lvl * lvl;
+                const xpForNext = 50 * (lvl + 1) * (lvl + 1);
+                setProfileData({
+                  userId: LOCAL_USER_ID,
+                  name: LOCAL_NAME,
+                  color: LOCAL_COLOR,
+                  hat: equippedHat,
+                  level: lvl,
+                  xp,
+                  xpProgress: xp - xpForThis,
+                  xpToNext: xpForNext - xpForThis,
+                  coins,
+                  streak,
+                  degradation,
+                  achievements: unlockedAchievements,
+                  isAdmin: IS_ADMIN,
+                });
+              }}
+              aria-label="Mon profil"
+              title="Mon profil"
+            >
+              <span className="topbar-icon">👤</span>
+              <span className="topbar-button-label">Profil</span>
+            </button>
+            <button
+              id="feedback-btn"
+              onClick={() => setFeedbackOpen(true)}
+              aria-label="Feedback"
+              title="Signaler un bug ou soumettre une idée"
+            >
+              <span className="topbar-icon">📢</span>
+              <span className="topbar-button-label">Aide</span>
+            </button>
+            <button
+              id="logout-btn"
+              type="button"
+              onClick={onLogout}
+              aria-label="Déconnexion"
+              title="Déconnexion"
+            >
+              <span className="topbar-icon">🚪</span>
+              <span className="topbar-button-label">Déconnexion</span>
             </button>
           </div>
-          <button
-            id="task-toggle-btn"
-            onClick={() => setTaskPanelOpen((o) => !o)}
-            aria-label="Tâches"
-            className={taskPanelOpen ? "active" : ""}
-          >
-            📋
-          </button>
-          <button
-            id="shop-toggle-btn"
-            onClick={() => setShopOpen((o) => !o)}
-            aria-label="Boutique"
-            className={shopOpen ? "active" : ""}
-          >
-            🏪
-          </button>
-          <button
-            id="leaderboard-toggle-btn"
-            onClick={() => setLeaderboardOpen((o) => !o)}
-            aria-label="Classement"
-            className={leaderboardOpen ? "active" : ""}
-          >
-            🏆
-          </button>
-          <button
-            id="guild-toggle-btn"
-            onClick={() => setGuildPanelOpen((o) => !o)}
-            aria-label="Guilde"
-            className={guildPanelOpen ? "active" : ""}
-            title={guildData ? `Guilde : ${guildData.name}` : "Guildes"}
-          >
-            ⚔️
-          </button>
-          <button
-            id="profile-self-btn"
-            onClick={() => {
-              const lvl = level;
-              const xpForThis = 50 * lvl * lvl;
-              const xpForNext = 50 * (lvl + 1) * (lvl + 1);
-              setProfileData({
-                userId: LOCAL_USER_ID,
-                name: LOCAL_NAME,
-                color: LOCAL_COLOR,
-                hat: equippedHat,
-                level: lvl,
-                xp,
-                xpProgress: xp - xpForThis,
-                xpToNext: xpForNext - xpForThis,
-                coins,
-                streak,
-                degradation,
-                achievements: unlockedAchievements,
-                isAdmin: IS_ADMIN,
-              });
-            }}
-            aria-label="Mon profil"
-            title="Mon profil"
-          >
-            👤
-          </button>
-          <button
-            id="logout-btn"
-            type="button"
-            onClick={onLogout}
-            aria-label="Déconnexion"
-            title="Déconnexion"
-          >
-            🚪
-          </button>
-          <button
-            id="feedback-btn"
-            onClick={() => setFeedbackOpen(true)}
-            aria-label="Feedback"
-            title="Signaler un bug ou soumettre une idée"
-          >
-            📢
-          </button>
-          <span id="app-version">v{__APP_VERSION__}</span>
-          <div id="coins-badge">🪙 {coins}</div>
-          {streak > 0 && (
-            <div
-              id="streak-badge"
-              className={streakBonus !== null ? "pop" : ""}
-            >
-              🔥 {streak}
-              {streakBonus !== null && (
-                <span className="streak-bonus">+{streakBonus} 🪙</span>
-              )}
-            </div>
-          )}
-          <div id="xp-badge">
-            <span>Lv {level}</span>
-            <div id="xp-bar">
+          <div className="top-bar-group top-bar-group--status">
+            <span id="app-version">v{__APP_VERSION__}</span>
+            <div id="coins-badge">🪙 {coins}</div>
+            {streak > 0 && (
               <div
-                id="xp-bar-fill"
-                style={{
-                  width: `${
-                    Math.round(
+                id="streak-badge"
+                className={streakBonus !== null ? "pop" : ""}
+              >
+                🔥 {streak}
+                {streakBonus !== null && (
+                  <span className="streak-bonus">+{streakBonus} 🪙</span>
+                )}
+              </div>
+            )}
+            <div id="xp-badge">
+              <span>Lv {level}</span>
+              <div id="xp-bar">
+                <div
+                  id="xp-bar-fill"
+                  style={{
+                    width: `${Math.round(
                       ((xp - 50 * level * level) /
                         (50 * (level + 1) * (level + 1) - 50 * level * level)) *
                         100,
-                    )
-                  }%`,
-                }}
-              />
+                    )}%`,
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1266,8 +1357,12 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
               ownedFurniture={ownedFurniture}
               placedFurniture={placedFurniture}
               onBuyFurniture={handleBuyFurniture}
-              onTogglePlace={(itemId) => socketRef.current?.toggleFurniturePlaced(LOCAL_USER_ID, itemId)}
-              onStartPlacement={(itemId) => sceneRef.current?.startGhostPlacement(itemId)}
+              onTogglePlace={(itemId) =>
+                socketRef.current?.toggleFurniturePlaced(LOCAL_USER_ID, itemId)
+              }
+              onStartPlacement={(itemId) =>
+                sceneRef.current?.startGhostPlacement(itemId)
+              }
               onClose={() => setShopOpen(false)}
             />
           )}
@@ -1276,7 +1371,13 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
           <div id="leaderboard-panel">
             <div id="leaderboard-title">
               🏆 Classement
-              <button className="panel-close-btn" onClick={() => setLeaderboardOpen(false)} aria-label="Fermer">✕</button>
+              <button
+                className="panel-close-btn"
+                onClick={() => setLeaderboardOpen(false)}
+                aria-label="Fermer"
+              >
+                ✕
+              </button>
             </div>
             {leaderboard.map((entry, i) => (
               <div
@@ -1354,17 +1455,25 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
                     >
                       {m.name}
                     </span>
-                    <span className="chat-text">{renderMentionText(m.text)}</span>
+                    <span className="chat-text">
+                      {renderMentionText(m.text)}
+                    </span>
                   </div>
                 </div>
               );
             })}
-            <div className={`chat-typing${typingUsers.size === 0 ? " hidden" : ""}`}>
+            <div
+              className={`chat-typing${typingUsers.size === 0 ? " hidden" : ""}`}
+            >
               {Array.from(typingUsers.values())
                 .map((u) => u.name)
                 .join(", ")}{" "}
               {typingUsers.size === 1 ? "est" : "sont"} en train d’écrire
-              <span className="typing-dots"><span/><span/><span/></span>
+              <span className="typing-dots">
+                <span />
+                <span />
+                <span />
+              </span>
             </div>
             <div ref={chatEndRef} />
           </div>
@@ -1375,7 +1484,9 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
                   <button
                     key={s.name}
                     className={`mention-option${i === mentionSelIdx ? " active" : ""}`}
-                    style={{ color: `#${s.color.toString(16).padStart(6, "0")}` }}
+                    style={{
+                      color: `#${s.color.toString(16).padStart(6, "0")}`,
+                    }}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       selectMention(s.name);
@@ -1503,28 +1614,28 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
         <div id="debug-ach-panel">
           <div id="debug-ach-title">🛠 Debug achievements</div>
           {[
-            { key: "first-task",       icon: "✅", label: "1ère tâche !" },
-            { key: "task-10",          icon: "🔟", label: "10 tâches !" },
-            { key: "task-50",          icon: "🏆", label: "50 tâches !" },
-            { key: "first-pomo",       icon: "🍅", label: "1er Pomodoro !" },
-            { key: "streak-5",         icon: "🔥", label: "Streak ×5 !" },
-            { key: "coins-100",        icon: "💰", label: "100 pièces !" },
-            { key: "coins-500",        icon: "👑", label: "500 pièces !" },
+            { key: "first-task", icon: "✅", label: "1ère tâche !" },
+            { key: "task-10", icon: "🔟", label: "10 tâches !" },
+            { key: "task-50", icon: "🏆", label: "50 tâches !" },
+            { key: "first-pomo", icon: "🍅", label: "1er Pomodoro !" },
+            { key: "streak-5", icon: "🔥", label: "Streak ×5 !" },
+            { key: "coins-100", icon: "💰", label: "100 pièces !" },
+            { key: "coins-500", icon: "👑", label: "500 pièces !" },
             { key: "first-collective", icon: "🌐", label: "Pomo collectif !" },
           ].map(({ key, icon, label }) => (
             <button
               key={key}
               className="debug-ach-row"
-              onClick={() =>
-                socketRef.current?.debugUnlock(LOCAL_USER_ID, key)
-              }
+              onClick={() => socketRef.current?.debugUnlock(LOCAL_USER_ID, key)}
             >
               {icon} {label}
             </button>
           ))}
           <div className="debug-section-title">⬆ XP / Niveaux</div>
           <div className="debug-xp-info">
-            {xp} XP — Lv {level} ({xp - 50 * level * level} / {50 * (level + 1) * (level + 1) - 50 * level * level} pour Lv {level + 1})
+            {xp} XP — Lv {level} ({xp - 50 * level * level} /{" "}
+            {50 * (level + 1) * (level + 1) - 50 * level * level} pour Lv{" "}
+            {level + 1})
           </div>
           {[50, 75, 200, 500].map((amount) => (
             <button
@@ -1543,23 +1654,34 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
           >
             🔄 Reset XP (Lv 0)
           </button>
-          <div className="debug-section-title">🪙 Pièces (actuel : {coins})</div>
+          <div className="debug-section-title">
+            🪙 Pièces (actuel : {coins})
+          </div>
           {[50, 100, 500, 1000].map((amount) => (
             <button
               key={amount}
               className="debug-ach-row debug-xp-row"
-              onClick={() => socketRef.current?.debugGrantCoins(LOCAL_USER_ID, amount)}
+              onClick={() =>
+                socketRef.current?.debugGrantCoins(LOCAL_USER_ID, amount)
+              }
             >
               +{amount} 🪙
             </button>
           ))}
-          <div className="debug-section-title">☣ Dégradation (actuel : {degradation}/5)</div>
+          <div className="debug-section-title">
+            ☣ Dégradation (actuel : {degradation}/5)
+          </div>
           {[0, 1, 2, 3, 4, 5].map((lvl) => (
             <button
               key={lvl}
               className="debug-ach-row"
-              style={{ opacity: degradation === lvl ? 1 : 0.55, fontWeight: degradation === lvl ? 700 : 400 }}
-              onClick={() => socketRef.current?.debugSetDegradation(LOCAL_USER_ID, lvl)}
+              style={{
+                opacity: degradation === lvl ? 1 : 0.55,
+                fontWeight: degradation === lvl ? 700 : 400,
+              }}
+              onClick={() =>
+                socketRef.current?.debugSetDegradation(LOCAL_USER_ID, lvl)
+              }
             >
               {["✨ 0", "🌫 1", "🕸 2", "🌧 3", "💀 4", "☠ 5"][lvl]}
             </button>
@@ -1601,7 +1723,9 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
         <div id="guild-boss-toast">
           🏆 Boss Lv.{guildBossToast.bossLevel} vaincu !
           <br />
-          <span id="guild-boss-toast-reward">+{guildBossToast.reward}🪙 pour tous les membres</span>
+          <span id="guild-boss-toast-reward">
+            +{guildBossToast.reward}🪙 pour tous les membres
+          </span>
         </div>
       )}
 
@@ -1649,7 +1773,10 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
                 <button
                   className="admin-btn"
                   onClick={() =>
-                    socketRef.current?.adminGiveCoins(adminTarget, Number(adminAmount))
+                    socketRef.current?.adminGiveCoins(
+                      adminTarget,
+                      Number(adminAmount),
+                    )
                   }
                 >
                   💰 +Coins
@@ -1657,7 +1784,10 @@ function Room({ joinInfo, onLogout }: { joinInfo: JoinInfo; onLogout: () => void
                 <button
                   className="admin-btn"
                   onClick={() =>
-                    socketRef.current?.adminGiveXp(adminTarget, Number(adminAmount))
+                    socketRef.current?.adminGiveXp(
+                      adminTarget,
+                      Number(adminAmount),
+                    )
                   }
                 >
                   ⬆ +XP
@@ -1713,12 +1843,18 @@ function App() {
   // Vérifier le token JWT sauvegardé au chargement
   useEffect(() => {
     const token = localStorage.getItem("gamitask-jwt");
-    if (!token) { queueMicrotask(() => setAuthChecked(true)); return; }
-    fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/auth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    })
+    if (!token) {
+      queueMicrotask(() => setAuthChecked(true));
+      return;
+    }
+    fetch(
+      `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/auth/token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      },
+    )
       .then((r) => r.json())
       .then((data: AuthResult & { error?: string }) => {
         if (!data.error && data.userId) {
@@ -1737,7 +1873,9 @@ function App() {
           localStorage.removeItem("gamitask-jwt");
         }
       })
-      .catch(() => { /* réseau indisponible : mode invité automatique */ })
+      .catch(() => {
+        /* réseau indisponible : mode invité automatique */
+      })
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -1779,13 +1917,16 @@ function App() {
   }
 
   if (!authUser && !guestMode) {
-    return <AuthScreen onAuth={handleAuth} onGuest={() => setGuestMode(true)} />;
+    return (
+      <AuthScreen onAuth={handleAuth} onGuest={() => setGuestMode(true)} />
+    );
   }
 
   if (!joinInfo) {
-    const prefill = authUser && authUser.name
-      ? { name: authUser.name, color: authUser.color }
-      : undefined;
+    const prefill =
+      authUser && authUser.name
+        ? { name: authUser.name, color: authUser.color }
+        : undefined;
     return <JoinDialog onJoin={handleJoin} prefill={prefill} />;
   }
 

@@ -136,19 +136,11 @@ export class GameScene {
       this.app.stage.hitArea = this.app.screen;
     });
 
-    // Zoom molette vers le curseur
+    // Zoom molette centré sur le personnage local
     this._wheelHandler = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.1 : 0.9;
-      const prevScale = this.worldContainer.scale.x;
-      const newScale = Math.max(0.4, Math.min(4.0, prevScale * factor));
-      const mx = e.clientX;
-      const my = e.clientY;
-      this.worldContainer.x =
-        mx + (this.worldContainer.x - mx) * (newScale / prevScale);
-      this.worldContainer.y =
-        my + (this.worldContainer.y - my) * (newScale / prevScale);
-      this.worldContainer.scale.set(newScale);
+      this._zoomAround(factor);
     };
     canvas.addEventListener("wheel", this._wheelHandler, { passive: false });
 

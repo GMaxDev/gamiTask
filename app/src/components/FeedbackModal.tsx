@@ -13,7 +13,6 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("idle");
-  const [issueUrl, setIssueUrl] = useState<string | null>(null);
 
   const serverBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -28,8 +27,7 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
         body: JSON.stringify({ type, title: title.trim(), description: description.trim(), userName }),
       });
       if (!res.ok) throw new Error("Erreur serveur");
-      const data = await res.json() as { number: number; url: string };
-      setIssueUrl(data.url);
+      await res.json();
       setStatus("success");
     } catch {
       setStatus("error");
@@ -45,12 +43,7 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
           <div className="feedback-success">
             <div className="feedback-success-icon">✅</div>
             <h2>Merci !</h2>
-            <p>Ton retour a bien été soumis sur GitHub.</p>
-            {issueUrl && (
-              <a href={issueUrl} target="_blank" rel="noreferrer" className="feedback-issue-link">
-                Voir l'issue →
-              </a>
-            )}
+            <p>Ton retour a bien été soumis.</p>
             <button className="feedback-btn-primary" onClick={onClose}>Fermer</button>
           </div>
         ) : (
