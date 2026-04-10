@@ -24,7 +24,12 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
       const res = await fetch(`${serverBase}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, title: title.trim(), description: description.trim(), userName }),
+        body: JSON.stringify({
+          type,
+          title: title.trim(),
+          description: description.trim(),
+          userName,
+        }),
       });
       if (!res.ok) throw new Error("Erreur serveur");
       await res.json();
@@ -35,16 +40,29 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
   }
 
   return (
-    <div className="feedback-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="feedback-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="feedback-modal">
-        <button className="feedback-close" onClick={onClose} aria-label="Fermer">✕</button>
+        <button
+          className="feedback-close"
+          onClick={onClose}
+          aria-label="Fermer"
+        >
+          ✕
+        </button>
 
         {status === "success" ? (
           <div className="feedback-success">
             <div className="feedback-success-icon">✅</div>
             <h2>Merci !</h2>
             <p>Ton retour a bien été soumis.</p>
-            <button className="feedback-btn-primary" onClick={onClose}>Fermer</button>
+            <button className="feedback-btn-primary" onClick={onClose}>
+              Fermer
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="feedback-form">
@@ -74,7 +92,11 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
               <input
                 className="feedback-input"
                 type="text"
-                placeholder={type === "bug" ? "Ex : Le timer s'arrête tout seul" : "Ex : Ajouter un mode nuit"}
+                placeholder={
+                  type === "bug"
+                    ? "Ex : Le timer s'arrête tout seul"
+                    : "Ex : Ajouter un mode nuit"
+                }
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={100}
@@ -86,9 +108,11 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
               Description
               <textarea
                 className="feedback-textarea"
-                placeholder={type === "bug"
-                  ? "Décris ce qui se passe, comment reproduire le bug..."
-                  : "Décris ton idée en détail..."}
+                placeholder={
+                  type === "bug"
+                    ? "Décris ce qui se passe, comment reproduire le bug..."
+                    : "Décris ton idée en détail..."
+                }
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={5}
@@ -98,13 +122,17 @@ export function FeedbackModal({ userName, onClose }: FeedbackModalProps) {
             </label>
 
             {status === "error" && (
-              <p className="feedback-error">Une erreur est survenue. Réessaie dans un instant.</p>
+              <p className="feedback-error">
+                Une erreur est survenue. Réessaie dans un instant.
+              </p>
             )}
 
             <button
               type="submit"
               className="feedback-btn-primary"
-              disabled={status === "loading" || !title.trim() || !description.trim()}
+              disabled={
+                status === "loading" || !title.trim() || !description.trim()
+              }
             >
               {status === "loading" ? "Envoi…" : "Envoyer"}
             </button>

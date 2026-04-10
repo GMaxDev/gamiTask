@@ -95,7 +95,10 @@ export class PomodoroTimer {
     this.emit({ type: "status-change", status: "running" });
 
     this.intervalId = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((this.endTime! - Date.now()) / 1000));
+      const remaining = Math.max(
+        0,
+        Math.ceil((this.endTime! - Date.now()) / 1000),
+      );
       if (remaining <= 0) {
         this.advance();
       } else {

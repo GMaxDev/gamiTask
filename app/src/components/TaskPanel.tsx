@@ -14,7 +14,11 @@ interface TaskPanelProps {
   degradation: number;
   level: number;
   lastTaskCoinGain: number;
-  onAdd: (text: string, category: string | null, type: "task" | "daily") => void;
+  onAdd: (
+    text: string,
+    category: string | null,
+    type: "task" | "daily",
+  ) => void;
   onUpdate: (taskId: string, text: string, category: string | null) => void;
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
@@ -22,8 +26,22 @@ interface TaskPanelProps {
   onClose: () => void;
 }
 
-const DEGRADATION_LABELS = ["✨ Propre", "🌫 Légère poussière", "🕸 Poussiéreux", "🌧 Sale", "💀 Très dégradé", "☠ Abandon total"];
-const DEGRADATION_COLORS = ["#5ecf6a", "#a3c45a", "#d4a444", "#e07832", "#cc4444", "#991111"];
+const DEGRADATION_LABELS = [
+  "✨ Propre",
+  "🌫 Légère poussière",
+  "🕸 Poussiéreux",
+  "🌧 Sale",
+  "💀 Très dégradé",
+  "☠ Abandon total",
+];
+const DEGRADATION_COLORS = [
+  "#5ecf6a",
+  "#a3c45a",
+  "#d4a444",
+  "#e07832",
+  "#cc4444",
+  "#991111",
+];
 
 export function TaskPanel({
   tasks,
@@ -42,7 +60,9 @@ export function TaskPanel({
   const [addCategory, setAddCategory] = useState<string | null>(null);
   const [addType, setAddType] = useState<"task" | "daily">("task");
   const [editCategory, setEditCategory] = useState<string | null>(null);
-  const [filterCat, setFilterCat] = useState<string | "none" | "daily" | null>(null);
+  const [filterCat, setFilterCat] = useState<string | "none" | "daily" | null>(
+    null,
+  );
   const [completing, setCompleting] = useState<string[]>([]);
   const [collapsing, setCollapsing] = useState<string[]>([]);
   const [cleanLevels, setCleanLevels] = useState(1);
@@ -110,8 +130,14 @@ export function TaskPanel({
     setEditingId(null);
   };
 
-  const handleEditKey = (e: React.KeyboardEvent<HTMLInputElement>, taskId: string) => {
-    if (e.key === "Enter") { e.preventDefault(); commitEdit(taskId); }
+  const handleEditKey = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    taskId: string,
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEdit(taskId);
+    }
     if (e.key === "Escape") setEditingId(null);
   };
 
@@ -139,12 +165,25 @@ export function TaskPanel({
       <div id="task-panel-header">
         <span id="task-panel-title">📋 Mes tâches</span>
         <span id="coins-display">🪙 {coins}</span>
-        <button className="panel-close-btn" onClick={onClose} aria-label="Fermer">✕</button>
+        <button
+          className="panel-close-btn"
+          onClick={onClose}
+          aria-label="Fermer"
+        >
+          ✕
+        </button>
       </div>
 
       {/* ── Indicateur de dégradation ── */}
       {degradation > 0 && (
-        <div id="degradation-bar" style={{ "--deg-color": DEGRADATION_COLORS[degradation] } as React.CSSProperties}>
+        <div
+          id="degradation-bar"
+          style={
+            {
+              "--deg-color": DEGRADATION_COLORS[degradation],
+            } as React.CSSProperties
+          }
+        >
           <span id="degradation-label">
             <span id="degradation-icon">☣</span>
             {DEGRADATION_LABELS[degradation]}
@@ -154,19 +193,29 @@ export function TaskPanel({
               className="clean-step-btn"
               onClick={() => setCleanLevels((v) => Math.max(1, v - 1))}
               disabled={cleanLevels <= 1}
-            >− 1 niv</button>
+            >
+              − 1 niv
+            </button>
             <button
               id="clean-room-btn"
-              onClick={() => { onCleanRoom(cleanLevels); setCleanLevels(1); }}
+              onClick={() => {
+                onCleanRoom(cleanLevels);
+                setCleanLevels(1);
+              }}
               disabled={coins < 50 * cleanLevels}
             >
-              🧹 {cleanLevels} niv&nbsp;<span className="clean-cost">−{50 * cleanLevels}🪙</span>
+              🧹 {cleanLevels} niv&nbsp;
+              <span className="clean-cost">−{50 * cleanLevels}🪙</span>
             </button>
             <button
               className="clean-step-btn"
-              onClick={() => setCleanLevels((v) => Math.min(degradation, v + 1))}
+              onClick={() =>
+                setCleanLevels((v) => Math.min(degradation, v + 1))
+              }
               disabled={cleanLevels >= degradation}
-            >+ 1 niv</button>
+            >
+              + 1 niv
+            </button>
           </div>
           <span id="clean-alt-hint">🍅 1 pomo = 1 niv nettoyé</span>
         </div>
@@ -188,7 +237,9 @@ export function TaskPanel({
           <div id="daily-progress-bar">
             <div
               id="daily-progress-fill"
-              style={{ width: `${dailyTasks.length > 0 ? (doneDailies / dailyTasks.length) * 100 : 0}%` }}
+              style={{
+                width: `${dailyTasks.length > 0 ? (doneDailies / dailyTasks.length) * 100 : 0}%`,
+              }}
             />
           </div>
         </div>
@@ -205,7 +256,8 @@ export function TaskPanel({
           className={`task-filter-btn${filterCat === "daily" ? " active daily-filter" : " daily-filter-off"}`}
           onClick={() => setFilterCat((f) => (f === "daily" ? null : "daily"))}
         >
-          🔄 Daily {dailyTasks.length > 0 && `(${doneDailies}/${dailyTasks.length})`}
+          🔄 Daily{" "}
+          {dailyTasks.length > 0 && `(${doneDailies}/${dailyTasks.length})`}
         </button>
         <button
           className={`task-filter-btn${filterCat === "none" ? " active" : ""}`}
@@ -217,7 +269,9 @@ export function TaskPanel({
           <button
             key={c.id}
             className={`task-filter-btn${filterCat === c.id ? " active" : ""}`}
-            style={filterCat === c.id ? { borderColor: c.color, color: c.color } : {}}
+            style={
+              filterCat === c.id ? { borderColor: c.color, color: c.color } : {}
+            }
             onClick={() => setFilterCat((f) => (f === c.id ? null : c.id))}
           >
             <span className="task-cat-dot" style={{ background: c.color }} />
@@ -254,13 +308,19 @@ export function TaskPanel({
           const isCollapsing = collapsing.includes(task.id);
           const isEditing = editingId === task.id;
           const isDaily = task.type === "daily";
-          const catColor = CATEGORIES.find((c) => c.id === task.category)?.color;
+          const catColor = CATEGORIES.find(
+            (c) => c.id === task.category,
+          )?.color;
           return (
             <div
               key={task.id}
               className={`task-item${task.done ? " done" : ""}${isCompleting ? " completing" : ""}${isCollapsing ? " collapsing" : ""}${isDaily ? " daily" : ""}`}
             >
-              {isDaily && <span className="task-daily-icon" title="Tâche quotidienne">🔄</span>}
+              {isDaily && (
+                <span className="task-daily-icon" title="Tâche quotidienne">
+                  🔄
+                </span>
+              )}
               <input
                 type="checkbox"
                 checked={task.done || isCompleting}
@@ -291,7 +351,10 @@ export function TaskPanel({
                       <button
                         className={`task-cat-btn${editCategory === null ? " active" : ""}`}
                         style={{ background: "rgba(255,255,255,0.15)" }}
-                        onMouseDown={(e) => { e.preventDefault(); setEditCategory(null); }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setEditCategory(null);
+                        }}
                         title="Aucune"
                       />
                       {CATEGORIES.map((c) => (
@@ -299,7 +362,10 @@ export function TaskPanel({
                           key={c.id}
                           className={`task-cat-btn${editCategory === c.id ? " active" : ""}`}
                           style={{ background: c.color }}
-                          onMouseDown={(e) => { e.preventDefault(); setEditCategory(c.id); }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setEditCategory(c.id);
+                          }}
                           title={c.label}
                         />
                       ))}
@@ -307,14 +373,23 @@ export function TaskPanel({
                   </>
                 ) : (
                   <span
-                    onDoubleClick={(e) => { e.preventDefault(); startEdit(task); }}
-                    title={task.done && !isDaily ? "" : "Double-clic pour modifier"}
-                    style={task.done && !isDaily ? undefined : { cursor: "text" }}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      startEdit(task);
+                    }}
+                    title={
+                      task.done && !isDaily ? "" : "Double-clic pour modifier"
+                    }
+                    style={
+                      task.done && !isDaily ? undefined : { cursor: "text" }
+                    }
                   >
                     {task.text}
                   </span>
                 )}
-                {isCompleting && <span className="task-coin-pop">+{lastTaskCoinGain} 🪙</span>}
+                {isCompleting && (
+                  <span className="task-coin-pop">+{lastTaskCoinGain} 🪙</span>
+                )}
               </span>
               {!isCompleting && !isCollapsing && !isEditing && (
                 <button
@@ -336,7 +411,11 @@ export function TaskPanel({
           id="task-type-toggle"
           className={addType === "daily" ? "daily-active" : ""}
           onClick={() => setAddType((t) => (t === "task" ? "daily" : "task"))}
-          title={addType === "task" ? "Créer une tâche régulière (clic = daily)" : "Créer une tâche quotidienne (clic = régulière)"}
+          title={
+            addType === "task"
+              ? "Créer une tâche régulière (clic = daily)"
+              : "Créer une tâche quotidienne (clic = régulière)"
+          }
         >
           {addType === "task" ? "📋" : "🔄"}
         </button>
@@ -344,7 +423,10 @@ export function TaskPanel({
           <button
             className={`task-cat-btn${addCategory === null ? " active" : ""}`}
             style={{ background: "rgba(255,255,255,0.15)" }}
-            onMouseDown={(e) => { e.preventDefault(); setAddCategory(null); }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setAddCategory(null);
+            }}
             title="Aucune"
           />
           {CATEGORIES.map((c) => (
@@ -352,7 +434,10 @@ export function TaskPanel({
               key={c.id}
               className={`task-cat-btn${addCategory === c.id ? " active" : ""}`}
               style={{ background: c.color }}
-              onMouseDown={(e) => { e.preventDefault(); setAddCategory(c.id); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setAddCategory(c.id);
+              }}
               title={c.label}
             />
           ))}
@@ -360,7 +445,11 @@ export function TaskPanel({
         <input
           id="task-input"
           type="text"
-          placeholder={addType === "daily" ? "Nouvelle tâche quotidienne… (Entrée)" : "Nouvelle tâche… (Entrée)"}
+          placeholder={
+            addType === "daily"
+              ? "Nouvelle tâche quotidienne… (Entrée)"
+              : "Nouvelle tâche… (Entrée)"
+          }
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}

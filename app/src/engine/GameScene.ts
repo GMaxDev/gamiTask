@@ -53,10 +53,16 @@ export class GameScene {
   /** Atlas de textures des tuiles ISO chargées depuis le tileset */
   private tileset = new Map<string, PIXI.Texture>();
   private remoteAvatars = new Map<string, AvatarSprite>();
-  private scrollMap = new Map<string, { sprite: ScrollSprite; col: number; row: number }>();
+  private scrollMap = new Map<
+    string,
+    { sprite: ScrollSprite; col: number; row: number }
+  >();
   private furnitureSprites = new Map<string, FurnitureSprite>();
   /** Mobilier des autres joueurs : socketId → (itemId → sprite) */
-  private otherFurnitureSprites = new Map<string, Map<string, FurnitureSprite>>();
+  private otherFurnitureSprites = new Map<
+    string,
+    Map<string, FurnitureSprite>
+  >();
   private offsetX: number;
   private offsetY: number;
   private resumeState: AvatarState = "idle";
@@ -80,19 +86,34 @@ export class GameScene {
 
   // Positions candidates pour les parchemins (hors BLOCKED, près des bureaux)
   private static readonly SCROLL_TILE_POOL: [number, number][] = [
-    [2, 3], [3, 2], [5, 3], [5, 4],
-    [10, 3], [10, 4], [6, 3], [7, 4],
-    [2, 8], [2, 9], [5, 8], [4, 7],
-    [10, 8], [10, 9], [6, 8], [7, 7],
+    [2, 3],
+    [3, 2],
+    [5, 3],
+    [5, 4],
+    [10, 3],
+    [10, 4],
+    [6, 3],
+    [7, 4],
+    [2, 8],
+    [2, 9],
+    [5, 8],
+    [4, 7],
+    [10, 8],
+    [10, 9],
+    [6, 8],
+    [7, 7],
   ];
 
   // Positions fixes du mobilier Feng Shui
-  private static readonly FURNITURE_SLOTS: Record<string, { col: number; row: number }> = {
-    plant:     { col: 1,  row: 5  },
-    lamp:      { col: 6,  row: 1  },
-    coffee:    { col: 10, row: 5  },
-    bookshelf: { col: 6,  row: 10 },
-    couch:     { col: 1,  row: 10 },
+  private static readonly FURNITURE_SLOTS: Record<
+    string,
+    { col: number; row: number }
+  > = {
+    plant: { col: 1, row: 5 },
+    lamp: { col: 6, row: 1 },
+    coffee: { col: 10, row: 5 },
+    bookshelf: { col: 6, row: 10 },
+    couch: { col: 1, row: 10 },
   };
 
   // Called when the local player finishes moving to a new tile
@@ -124,10 +145,12 @@ export class GameScene {
     // Use worldContainer as the centering layer (offsetX/Y remain 0)
     this.offsetX = 0;
     this.offsetY = 0;
-    const gridCenterY = ((GRID_COLS - 1) + (GRID_ROWS - 1)) / 2 * (TILE_HEIGHT / 2);
+    const gridCenterY =
+      ((GRID_COLS - 1 + (GRID_ROWS - 1)) / 2) * (TILE_HEIGHT / 2);
     const initialScale = window.innerWidth < 640 ? 0.7 : 1.5;
     this.worldContainer.x = this.app.screen.width / 2;
-    this.worldContainer.y = this.app.screen.height / 2 - gridCenterY * initialScale;
+    this.worldContainer.y =
+      this.app.screen.height / 2 - gridCenterY * initialScale;
     // Zoom légèrement par défaut pour que la scène ne soit pas trop petite
     this.worldContainer.scale.set(initialScale);
 
@@ -209,13 +232,16 @@ export class GameScene {
   private async loadTileTextures(): Promise<void> {
     try {
       const src = await PIXI.Assets.load<PIXI.Texture>(
-        `${import.meta.env.BASE_URL}basic_ground_tiles.png`
+        `${import.meta.env.BASE_URL}basic_ground_tiles.png`,
       );
       const make = (x: number, y: number) =>
-        new PIXI.Texture({ source: src.source, frame: new PIXI.Rectangle(x, y, 128, 128) });
+        new PIXI.Texture({
+          source: src.source,
+          frame: new PIXI.Rectangle(x, y, 128, 128),
+        });
 
       // Row 0, col 1 (x=128) : gazon propre
-      this.tileset.set("floor",   make(128, 0));
+      this.tileset.set("floor", make(128, 0));
       // Row 0, col 2 (x=256) : pierre grise – zones bloquées
       this.tileset.set("blocked", make(256, 0));
     } catch (e) {
@@ -254,8 +280,12 @@ export class GameScene {
       if (!blocked) {
         sprite.eventMode = "static";
         sprite.cursor = "pointer";
-        sprite.on("pointerover", () => { sprite.tint = 0xffcc88; });
-        sprite.on("pointerout",  () => { sprite.tint = 0xffffff; });
+        sprite.on("pointerover", () => {
+          sprite.tint = 0xffcc88;
+        });
+        sprite.on("pointerout", () => {
+          sprite.tint = 0xffffff;
+        });
       }
       return sprite;
     }
@@ -265,10 +295,14 @@ export class GameScene {
     const fillColor = blocked ? 0x3b2010 : 0x2c1a0a;
     const strokeColor = blocked ? 0x6b3c1a : 0x4a2e12;
     g.poly([
-      pos.x,               pos.y - TILE_HEIGHT / 2,
-      pos.x + TILE_WIDTH / 2, pos.y,
-      pos.x,               pos.y + TILE_HEIGHT / 2,
-      pos.x - TILE_WIDTH / 2, pos.y,
+      pos.x,
+      pos.y - TILE_HEIGHT / 2,
+      pos.x + TILE_WIDTH / 2,
+      pos.y,
+      pos.x,
+      pos.y + TILE_HEIGHT / 2,
+      pos.x - TILE_WIDTH / 2,
+      pos.y,
     ]);
     g.fill(fillColor);
     g.stroke({ width: 1, color: strokeColor });
@@ -276,8 +310,12 @@ export class GameScene {
     if (!blocked) {
       g.eventMode = "static";
       g.cursor = "pointer";
-      g.on("pointerover", () => { g.tint = 0xffcc88; });
-      g.on("pointerout",  () => { g.tint = 0xffffff; });
+      g.on("pointerover", () => {
+        g.tint = 0xffcc88;
+      });
+      g.on("pointerout", () => {
+        g.tint = 0xffffff;
+      });
     }
     return g;
   }
@@ -381,17 +419,24 @@ export class GameScene {
         if (!isBlocked(col, row)) {
           const itemId = this.pendingMoveItemId;
           const oldPos = this.currentPositions[itemId];
-          const isOwnCell = !!oldPos && oldPos.col === col && oldPos.row === row;
+          const isOwnCell =
+            !!oldPos && oldPos.col === col && oldPos.row === row;
           if (!this.occupiedCells.has(`${col},${row}`) || isOwnCell) {
             const sprite = this.furnitureSprites.get(itemId);
             if (sprite) {
-              const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+              const { x, y } = gridToScreen(
+                col,
+                row,
+                this.offsetX,
+                this.offsetY,
+              );
               sprite.container.x = x;
               sprite.container.y = y;
               sprite.container.zIndex = isoDepth(col, row) + 0.4;
               sprite.setSelected(false);
             }
-            if (oldPos) this.occupiedCells.delete(`${oldPos.col},${oldPos.row}`);
+            if (oldPos)
+              this.occupiedCells.delete(`${oldPos.col},${oldPos.row}`);
             this.occupiedCells.add(`${col},${row}`);
             this.currentPositions[itemId] = { col, row };
             this.pendingMoveItemId = null;
@@ -404,7 +449,10 @@ export class GameScene {
       if (isBlocked(col, row)) return;
 
       const path = findPath(
-        { col: this.localAvatar.walkTargetCol, row: this.localAvatar.walkTargetRow },
+        {
+          col: this.localAvatar.walkTargetCol,
+          row: this.localAvatar.walkTargetRow,
+        },
         { col, row },
         GRID_COLS,
         GRID_ROWS,
@@ -577,7 +625,10 @@ export class GameScene {
     const pad = 24;
     const availW = w - pad * 2;
     const availH = h - topInset - pad;
-    const s = Math.max(0.4, Math.min(4.0, Math.min(availW / gridWorldW, availH / gridWorldH)));
+    const s = Math.max(
+      0.4,
+      Math.min(4.0, Math.min(availW / gridWorldW, availH / gridWorldH)),
+    );
     this.worldContainer.scale.set(s);
     this.worldContainer.x = w / 2;
     this.worldContainer.y = topInset + availH / 2 - gridCenterY * s;
@@ -733,7 +784,10 @@ export class GameScene {
   }
 
   /** Synchronise le mobilier Feng Shui du joueur local avec la liste des items possédés. */
-  setFurniture(ownedIds: string[], positions: Record<string, { col: number; row: number }> = {}): void {
+  setFurniture(
+    ownedIds: string[],
+    positions: Record<string, { col: number; row: number }> = {},
+  ): void {
     const ownedSet = new Set(ownedIds);
 
     // Supprimer les meubles qui ne sont plus possédés
@@ -751,13 +805,23 @@ export class GameScene {
       const existingSprite = this.furnitureSprites.get(id);
       if (existingSprite) {
         // Mettre à jour la position si elle a changé
-        const { x, y } = gridToScreen(slot.col, slot.row, this.offsetX, this.offsetY);
+        const { x, y } = gridToScreen(
+          slot.col,
+          slot.row,
+          this.offsetX,
+          this.offsetY,
+        );
         existingSprite.container.x = x;
         existingSprite.container.y = y;
         existingSprite.container.zIndex = isoDepth(slot.col, slot.row) + 0.4;
         continue;
       }
-      const { x, y } = gridToScreen(slot.col, slot.row, this.offsetX, this.offsetY);
+      const { x, y } = gridToScreen(
+        slot.col,
+        slot.row,
+        this.offsetX,
+        this.offsetY,
+      );
       const sprite = new FurnitureSprite(id);
       sprite.container.x = x;
       sprite.container.y = y;
@@ -802,7 +866,8 @@ export class GameScene {
     // Supprimer les sprites des meubles qui ne sont plus placés
     for (const [itemId, sprite] of [...spriteMap.entries()]) {
       if (!placedSet.has(itemId)) {
-        if (sprite.container.parent) this.spriteLayer.removeChild(sprite.container);
+        if (sprite.container.parent)
+          this.spriteLayer.removeChild(sprite.container);
         sprite.destroy();
         spriteMap.delete(itemId);
       }
@@ -812,7 +877,12 @@ export class GameScene {
     for (const itemId of placed) {
       const pos = positions[itemId];
       if (!pos) continue;
-      const { x, y } = gridToScreen(pos.col, pos.row, this.offsetX, this.offsetY);
+      const { x, y } = gridToScreen(
+        pos.col,
+        pos.row,
+        this.offsetX,
+        this.offsetY,
+      );
       const existingSprite = spriteMap.get(itemId);
       if (existingSprite) {
         existingSprite.container.x = x;
@@ -835,7 +905,8 @@ export class GameScene {
     const spriteMap = this.otherFurnitureSprites.get(socketId);
     if (!spriteMap) return;
     for (const sprite of spriteMap.values()) {
-      if (sprite.container.parent) this.spriteLayer.removeChild(sprite.container);
+      if (sprite.container.parent)
+        this.spriteLayer.removeChild(sprite.container);
       sprite.destroy();
     }
     this.otherFurnitureSprites.delete(socketId);
@@ -849,7 +920,8 @@ export class GameScene {
     const existingSprite = this.furnitureSprites.get(itemId);
     const existingPos = this.currentPositions[itemId];
     if (existingSprite && existingPos) {
-      if (existingSprite.container.parent) this.spriteLayer.removeChild(existingSprite.container);
+      if (existingSprite.container.parent)
+        this.spriteLayer.removeChild(existingSprite.container);
       this.occupiedCells.delete(`${existingPos.col},${existingPos.row}`);
       this.furnitureSprites.delete(itemId);
       delete this.currentPositions[itemId];
@@ -862,7 +934,12 @@ export class GameScene {
     sprite.container.zIndex = 1000;
     sprite.container.eventMode = "none"; // le clic traverse le ghost, capté par le stage
     if (existingPos) {
-      const { x, y } = gridToScreen(existingPos.col, existingPos.row, this.offsetX, this.offsetY);
+      const { x, y } = gridToScreen(
+        existingPos.col,
+        existingPos.row,
+        this.offsetX,
+        this.offsetY,
+      );
       sprite.container.x = x;
       sprite.container.y = y;
       sprite.container.visible = true;
@@ -894,16 +971,25 @@ export class GameScene {
       sprite.container.y = y;
       sprite.container.zIndex = isoDepth(col, row) + 0.45;
       sprite.container.visible = true;
-      const valid = !isBlocked(col, row) && !this.occupiedCells.has(`${col},${row}`);
+      const valid =
+        !isBlocked(col, row) && !this.occupiedCells.has(`${col},${row}`);
       highlight.clear();
       highlight.poly([
-        x, y - TILE_HEIGHT / 2,
-        x + TILE_WIDTH / 2, y,
-        x, y + TILE_HEIGHT / 2,
-        x - TILE_WIDTH / 2, y,
+        x,
+        y - TILE_HEIGHT / 2,
+        x + TILE_WIDTH / 2,
+        y,
+        x,
+        y + TILE_HEIGHT / 2,
+        x - TILE_WIDTH / 2,
+        y,
       ]);
       highlight.fill({ color: valid ? 0x4ade80 : 0xef4444, alpha: 0.25 });
-      highlight.stroke({ color: valid ? 0x4ade80 : 0xef4444, width: 2, alpha: 0.8 });
+      highlight.stroke({
+        color: valid ? 0x4ade80 : 0xef4444,
+        width: 2,
+        alpha: 0.8,
+      });
       highlight.zIndex = isoDepth(col, row) + 0.35;
       this.spriteLayer.sortableChildren = true;
       this.spriteLayer.sortChildren();
@@ -922,17 +1008,22 @@ export class GameScene {
   cancelGhostPlacement(): void {
     if (!this.ghostItemId) return;
     if (this.ghostSprite) {
-      if (this.ghostSprite.container.parent) this.spriteLayer.removeChild(this.ghostSprite.container);
+      if (this.ghostSprite.container.parent)
+        this.spriteLayer.removeChild(this.ghostSprite.container);
       this.ghostSprite.destroy();
       this.ghostSprite = null;
     }
     if (this.ghostHighlight) {
-      if (this.ghostHighlight.parent) this.spriteLayer.removeChild(this.ghostHighlight);
+      if (this.ghostHighlight.parent)
+        this.spriteLayer.removeChild(this.ghostHighlight);
       this.ghostHighlight.destroy();
       this.ghostHighlight = null;
     }
     if (this._ghostMoveHandler) {
-      (this.app.canvas as HTMLCanvasElement).removeEventListener("pointermove", this._ghostMoveHandler);
+      (this.app.canvas as HTMLCanvasElement).removeEventListener(
+        "pointermove",
+        this._ghostMoveHandler,
+      );
       this._ghostMoveHandler = undefined;
     }
     if (this._ghostEscapeHandler) {
@@ -941,13 +1032,21 @@ export class GameScene {
     }
     // Restaurer l'ancien sprite si le placement est annulé (ESC ou cancel ext.)
     if (this._ghostPrevSprite && this._ghostPrevPos && this.ghostItemId) {
-      const { x, y } = gridToScreen(this._ghostPrevPos.col, this._ghostPrevPos.row, this.offsetX, this.offsetY);
+      const { x, y } = gridToScreen(
+        this._ghostPrevPos.col,
+        this._ghostPrevPos.row,
+        this.offsetX,
+        this.offsetY,
+      );
       this._ghostPrevSprite.container.x = x;
       this._ghostPrevSprite.container.y = y;
-      this._ghostPrevSprite.container.zIndex = isoDepth(this._ghostPrevPos.col, this._ghostPrevPos.row) + 0.4;
+      this._ghostPrevSprite.container.zIndex =
+        isoDepth(this._ghostPrevPos.col, this._ghostPrevPos.row) + 0.4;
       this.spriteLayer.addChild(this._ghostPrevSprite.container);
       this.furnitureSprites.set(this.ghostItemId, this._ghostPrevSprite);
-      this.occupiedCells.add(`${this._ghostPrevPos.col},${this._ghostPrevPos.row}`);
+      this.occupiedCells.add(
+        `${this._ghostPrevPos.col},${this._ghostPrevPos.row}`,
+      );
       this.currentPositions[this.ghostItemId] = this._ghostPrevPos;
     }
     this._ghostPrevSprite = null;
@@ -982,11 +1081,16 @@ export class GameScene {
   destroy(): void {
     if (!this.initialized) return;
     const canvas = this.app.canvas as HTMLCanvasElement;
-    if (this._wheelHandler) canvas.removeEventListener("wheel", this._wheelHandler);
-    if (this._panDownHandler) canvas.removeEventListener("pointerdown", this._panDownHandler);
-    if (this._panMoveHandler) canvas.removeEventListener("pointermove", this._panMoveHandler);
-    if (this._panUpHandler) canvas.removeEventListener("pointerup", this._panUpHandler);
-    if (this._contextMenuHandler) canvas.removeEventListener("contextmenu", this._contextMenuHandler);
+    if (this._wheelHandler)
+      canvas.removeEventListener("wheel", this._wheelHandler);
+    if (this._panDownHandler)
+      canvas.removeEventListener("pointerdown", this._panDownHandler);
+    if (this._panMoveHandler)
+      canvas.removeEventListener("pointermove", this._panMoveHandler);
+    if (this._panUpHandler)
+      canvas.removeEventListener("pointerup", this._panUpHandler);
+    if (this._contextMenuHandler)
+      canvas.removeEventListener("contextmenu", this._contextMenuHandler);
     this.cancelGhostPlacement();
     this._hideGuardianNPC();
     this.app.destroy(true);

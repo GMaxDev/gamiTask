@@ -24,8 +24,10 @@ interface AudioPanelProps {
 export function AudioPanel({ onClose }: AudioPanelProps) {
   const [enabled, setEnabled] = useState(getSoundsEnabled());
   const [volume, setVolume] = useState(getMasterVolume());
-  const [ambientEnabled, setAmbientEnabledState] = useState(getAmbientEnabled());
-  const [ambientType, setAmbientTypeState] = useState<AmbientType>(getAmbientType());
+  const [ambientEnabled, setAmbientEnabledState] =
+    useState(getAmbientEnabled());
+  const [ambientType, setAmbientTypeState] =
+    useState<AmbientType>(getAmbientType());
 
   useEffect(() => {
     setSoundsEnabled(enabled);
@@ -48,9 +50,20 @@ export function AudioPanel({ onClose }: AudioPanelProps) {
   };
 
   return (
-    <div className="feedback-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="feedback-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="feedback-modal audio-panel">
-        <button className="feedback-close" onClick={onClose} aria-label="Fermer">✕</button>
+        <button
+          className="feedback-close"
+          onClick={onClose}
+          aria-label="Fermer"
+        >
+          ✕
+        </button>
 
         <h2 className="feedback-title">Paramètres Audio</h2>
 

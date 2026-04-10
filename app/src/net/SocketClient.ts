@@ -74,20 +74,50 @@ export type RoomCallbacks = {
   }) => void;
   onAchievementPublic: (socketId: string, label: string, icon: string) => void;
   onTyping: (id: string, name: string, color: number) => void;
-  onChatReact: (msgTs: number, emoji: string, fromId: string, fromColor: number) => void;
-  onXpUpdate: (xp: number, level: number, xpToNext: number, levelUp: boolean) => void;
-  onLevelUpPublic: (socketId: string, name: string, color: number, level: number) => void;
+  onChatReact: (
+    msgTs: number,
+    emoji: string,
+    fromId: string,
+    fromColor: number,
+  ) => void;
+  onXpUpdate: (
+    xp: number,
+    level: number,
+    xpToNext: number,
+    levelUp: boolean,
+  ) => void;
+  onLevelUpPublic: (
+    socketId: string,
+    name: string,
+    color: number,
+    level: number,
+  ) => void;
   onDegradationUpdate: (level: number) => void;
-  onCosmeticsState: (data: { owned: string[]; equippedHat: string | null }) => void;
+  onCosmeticsState: (data: {
+    owned: string[];
+    equippedHat: string | null;
+  }) => void;
   onShopBought: (data: { itemId: string; coins: number }) => void;
   onPlayerHat: (data: { id: string; hat: string | null }) => void;
-  onFurnitureState: (data: { owned: string[]; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
+  onFurnitureState: (data: {
+    owned: string[];
+    placed: string[];
+    positions: Record<string, { col: number; row: number }>;
+  }) => void;
   onFurnitureBought: (data: { itemId: string; coins: number }) => void;
-  onFurniturePlayerUpdate: (data: { id: string; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
+  onFurniturePlayerUpdate: (data: {
+    id: string;
+    placed: string[];
+    positions: Record<string, { col: number; row: number }>;
+  }) => void;
   onAdminAnnounce: (payload: { message: string }) => void;
   onProfileData: (data: ProfileData) => void;
   onGuildState: (data: GuildData) => void;
-  onGuildBossAttacked: (payload: { damage: number; newHp: number; maxHp: number }) => void;
+  onGuildBossAttacked: (payload: {
+    damage: number;
+    newHp: number;
+    maxHp: number;
+  }) => void;
   onGuildBossDefeated: (payload: { bossLevel: number; reward: number }) => void;
   onEmote: (id: string, emoji: string) => void;
 };
@@ -96,7 +126,9 @@ export class SocketClient {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
 
   constructor(callbacks: RoomCallbacks) {
-    this.socket = io(import.meta.env.VITE_API_URL ?? "http://localhost:3001", { transports: ["websocket"] });
+    this.socket = io(import.meta.env.VITE_API_URL ?? "http://localhost:3001", {
+      transports: ["websocket"],
+    });
 
     this.socket.on("room-state", callbacks.onRoomState);
     this.socket.on("player-joined", callbacks.onPlayerJoined);
@@ -167,12 +199,8 @@ export class SocketClient {
     this.socket.on("cosmetics:state", (data) =>
       callbacks.onCosmeticsState(data),
     );
-    this.socket.on("shop:bought", (data) =>
-      callbacks.onShopBought(data),
-    );
-    this.socket.on("player-hat", (data) =>
-      callbacks.onPlayerHat(data),
-    );
+    this.socket.on("shop:bought", (data) => callbacks.onShopBought(data));
+    this.socket.on("player-hat", (data) => callbacks.onPlayerHat(data));
     this.socket.on("furniture:state", (data) =>
       callbacks.onFurnitureState(data),
     );
@@ -182,15 +210,9 @@ export class SocketClient {
     this.socket.on("furniture:player-update", (data) =>
       callbacks.onFurniturePlayerUpdate(data),
     );
-    this.socket.on("admin:announce", (data) =>
-      callbacks.onAdminAnnounce(data),
-    );
-    this.socket.on("profile:data", (data) =>
-      callbacks.onProfileData(data),
-    );
-    this.socket.on("guild:state", (data) =>
-      callbacks.onGuildState(data),
-    );
+    this.socket.on("admin:announce", (data) => callbacks.onAdminAnnounce(data));
+    this.socket.on("profile:data", (data) => callbacks.onProfileData(data));
+    this.socket.on("guild:state", (data) => callbacks.onGuildState(data));
     this.socket.on("guild:boss-attacked", (payload) =>
       callbacks.onGuildBossAttacked(payload),
     );
@@ -241,7 +263,12 @@ export class SocketClient {
     this.socket.emit("private-message", { to, text });
   }
 
-  addTask(userId: string, text: string, category: string | null, type: "task" | "daily" = "task"): void {
+  addTask(
+    userId: string,
+    text: string,
+    category: string | null,
+    type: "task" | "daily" = "task",
+  ): void {
     this.socket.emit("task:add", { userId, text, category, type });
   }
 
@@ -314,7 +341,12 @@ export class SocketClient {
     this.socket.emit("furniture:buy", { userId, itemId });
   }
 
-  moveFurniture(userId: string, itemId: string, col: number, row: number): void {
+  moveFurniture(
+    userId: string,
+    itemId: string,
+    col: number,
+    row: number,
+  ): void {
     this.socket.emit("furniture:move", { userId, itemId, col, row });
   }
 
@@ -322,7 +354,12 @@ export class SocketClient {
     this.socket.emit("furniture:toggle-place", { userId, itemId });
   }
 
-  placeFurniture(userId: string, itemId: string, col: number, row: number): void {
+  placeFurniture(
+    userId: string,
+    itemId: string,
+    col: number,
+    row: number,
+  ): void {
     this.socket.emit("furniture:place", { userId, itemId, col, row });
   }
 

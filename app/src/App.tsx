@@ -212,6 +212,24 @@ function Room({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatSize, setChatSize] = useState<"normal" | "expanded" | "hidden">(
+    "normal",
+  );
+  const [chatNotified, setChatNotified] = useState(false);
+  const [showNotifiedOnly, setShowNotifiedOnly] = useState(false);
+  const chatSizeRef = useRef<"normal" | "expanded" | "hidden">(chatSize);
+
+  const filteredMessages = useMemo(() => {
+    if (!showNotifiedOnly) return messages;
+    // Filtre simple : afficher uniquement les messages qui mentionnent l'utilisateur
+    const mentionRegex = new RegExp(`@${LOCAL_NAME}`, "i");
+    return messages.filter((m) => mentionRegex.test(m.text));
+  }, [messages, showNotifiedOnly]);
+
+  useEffect(() => {
+    chatSizeRef.current = chatSize;
+  }, [chatSize]);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [coins, setCoins] = useState(0);
   const [lastTaskCoinGain, setLastTaskCoinGain] = useState(10);
@@ -498,11 +516,24 @@ function Room({
       onChatMessage: (msg) => {
         // Ignorer l'écho serveur de nos propres messages (déjà affichés localement)
         if (msg.id === socketRef.current?.socketId) return;
-        setMessages((prev) => [...prev.slice(-99), msg]);
+        const isMention = msg.text.includes(`@${LOCAL_NAME}`);
+        setMessages((prev) => [
+          ...prev.slice(-99),
+          msg,
+        ]);
         sceneRef.current?.showRemoteChat(msg.id, msg.text);
         setUnreadCount((n) => n + 1);
+        if (isMention) {
+          setChatNotified(true);
+          if (Notification.permission === "granted") {
+            new Notification("GamiTask — Nouveau message", {
+              body: `${msg.name} : ${msg.text}`,
+              icon: "/favicon.ico",
+            });
+          }
+        }
         const dist = sceneRef.current?.distanceTo(msg.id) ?? Infinity;
-        if (msg.text.includes(`@${LOCAL_NAME}`)) {
+        if (isMention) {
           playMention();
         } else {
           playChatSpatial(dist);
@@ -726,6 +757,10 @@ function Room({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [showNotifiedOnly]);
 
   // Auto-scroll DM
   useEffect(() => {
@@ -1440,39 +1475,90 @@ function Room({
           </div>
         )}
 
-        <div id="chat-panel">
+        <div
+          id="chat-panel"
+          className={
+            chatSize === "hidden"
+              ? "hidden"
+              : chatSize === "expanded"
+                ? "expanded"
+                : ""
+          }
+        >
           <div id="chat-header">
             <span>💬 Chat</span>
-            {unreadCount > 0 && (
-              <span id="chat-unread-badge">{unreadCount}</span>
-            )}
+            <div className="chat-controls">
+              {chatNotified && unreadCount > 0 && (
+                <span
+                  className="chat-notif-pill"
+                  title="Nouveaux messages non lus"
+                >
+                  🔔 {unreadCount}
+                </span>
+              )}
+              <button
+                className={`chat-control-btn${showNotifiedOnly ? " active" : ""}`}
+                onClick={() => setShowNotifiedOnly((v) => !v)}
+                title="Afficher seulement les messages notifiés"
+              >
+                {showNotifiedOnly ? "🔔✓" : "🔔"}
+              </button>
+              <button
+                className="chat-control-btn"
+                onClick={() =>
+                  setChatSize(chatSize === "expanded" ? "normal" : "expanded")
+                }
+                title={
+                  chatSize === "expanded"
+                    ? "Réduire le chat"
+                    : "Agrandir le chat"
+                }
+              >
+                {chatSize === "expanded" ? "⬇️" : "⬆️"}
+              </button>
+              <button
+                className="chat-control-btn"
+                onClick={() => setChatSize("hidden")}
+                title="Masquer le chat"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div id="chat-messages">
-            {messages.map((m, i) => {
-              const isMentionedMe = m.text.includes(`@${LOCAL_NAME}`);
-              return (
-                <div
-                  key={i}
-                  className={`chat-line${isMentionedMe ? " chat-line-mention-me" : ""}`}
-                >
-                  <div className="chat-line-body">
-                    <span
-                      className="chat-author"
-                      style={{
-                        color: m.color
-                          ? `#${m.color.toString(16).padStart(6, "0")}`
-                          : "rgba(255,255,255,0.5)",
-                      }}
-                    >
-                      {m.name}
-                    </span>
-                    <span className="chat-text">
-                      {renderMentionText(m.text)}
-                    </span>
+            {filteredMessages.length === 0 ? (
+              <div className="chat-empty">
+                {showNotifiedOnly
+                  ? "Aucun message notifié à afficher."
+                  : "Aucun message pour le moment."}
+              </div>
+            ) : (
+              filteredMessages.map((m, i) => {
+                const isMentionedMe = m.text.includes(`@${LOCAL_NAME}`);
+                return (
+                  <div
+                    key={i}
+                    className={`chat-line${isMentionedMe ? " chat-line-mention-me" : ""}${isMentionedMe ? " chat-line-unread" : ""}`}
+                  >
+                    <div className="chat-line-body">
+                      <span
+                        className="chat-author"
+                        style={{
+                          color: m.color
+                            ? `#${m.color.toString(16).padStart(6, "0")}`
+                            : "rgba(255,255,255,0.5)",
+                        }}
+                      >
+                        {m.name}
+                      </span>
+                      <span className="chat-text">
+                        {renderMentionText(m.text)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
             <div
               className={`chat-typing${typingUsers.size === 0 ? " hidden" : ""}`}
             >
@@ -1515,7 +1601,10 @@ function Room({
               placeholder="Envoyer un message… (Entrée)"
               value={chatInput}
               onChange={handleChatChange}
-              onFocus={() => setUnreadCount(0)}
+              onFocus={() => {
+                setUnreadCount(0);
+                setChatNotified(false);
+              }}
               onKeyDown={handleChatKey}
               maxLength={200}
             />
@@ -1845,6 +1934,24 @@ function Room({
             </div>
           )}
         </>
+      )}
+
+      {/* ── Bouton pour réafficher le chat si masqué ── */}
+      {chatSize === "hidden" && (
+        <button
+          id="chat-show-btn"
+          onClick={() => {
+            setChatSize("normal");
+            setChatNotified(false);
+            setUnreadCount(0);
+          }}
+          title="Afficher le chat"
+        >
+          💬
+          {unreadCount > 0 && (
+            <span className="chat-show-badge">{unreadCount}</span>
+          )}
+        </button>
       )}
     </>
   );

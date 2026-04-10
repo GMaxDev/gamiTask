@@ -1,5 +1,4 @@
 services:
-
   # ── Backend Node.js + SQLite ─────────────────────────────────────────────
   server:
     build: ./server

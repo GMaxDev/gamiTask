@@ -9,11 +9,16 @@ const STATE_CONFIG: Record<
   AvatarState,
   { bubble: number; auraColor?: number; bobFreq?: number; bobAmp?: number }
 > = {
-  idle:       { bubble: 0x44ff88 },
-  walking:    { bubble: 0x44ff88 },
-  focus:      { bubble: 0xff4444, auraColor: 0xff4444, bobFreq: 3.5, bobAmp: 2.5 },
-  pause:      { bubble: 0xffaa00, auraColor: 0xffaa00 },
-  collective: { bubble: 0xfbbf24, auraColor: 0xfbbf24, bobFreq: 2.2, bobAmp: 2.0 },
+  idle: { bubble: 0x44ff88 },
+  walking: { bubble: 0x44ff88 },
+  focus: { bubble: 0xff4444, auraColor: 0xff4444, bobFreq: 3.5, bobAmp: 2.5 },
+  pause: { bubble: 0xffaa00, auraColor: 0xffaa00 },
+  collective: {
+    bubble: 0xfbbf24,
+    auraColor: 0xfbbf24,
+    bobFreq: 2.2,
+    bobAmp: 2.0,
+  },
 };
 
 function easeInOut(t: number): number {
@@ -60,10 +65,10 @@ interface ChatBubbleEntry {
 }
 
 export class AvatarSprite {
-  public container: PIXI.Container;     // outer: world position + zIndex
-  private bodyWrap: PIXI.Container;     // inner: receives bob animation
-  private aura: PIXI.Graphics;          // glow ring drawn behind body
-  private body: PIXI.Graphics;          // avatar figure
+  public container: PIXI.Container; // outer: world position + zIndex
+  private bodyWrap: PIXI.Container; // inner: receives bob animation
+  private aura: PIXI.Graphics; // glow ring drawn behind body
+  private body: PIXI.Graphics; // avatar figure
   private label: PIXI.Text;
   private color: number;
   private chatStack: ChatBubbleEntry[] = [];
@@ -290,7 +295,8 @@ export class AvatarSprite {
       const popP = elapsed / EMOTE_POP_MS;
       container.scale.set(popP < 1 ? samplePop(Math.min(popP, 1)) * 1.0 : 1.0);
       // Flotte vers le haut
-      container.y = startY - EMOTE_FLOAT * easeInOut(Math.min(elapsed / EMOTE_DURATION, 1));
+      container.y =
+        startY - EMOTE_FLOAT * easeInOut(Math.min(elapsed / EMOTE_DURATION, 1));
       // Fade-out
       if (t >= fadeStart) {
         container.alpha = Math.max(0, (endAt - t) / EMOTE_FADE);
@@ -400,7 +406,7 @@ export class AvatarSprite {
         this.bodyWrap.y = Math.sin(elapsed * bobFreq + this.bobPhase) * bobAmp;
         // Pulsation de l\'aura
         if (auraColor) {
-          const pulse = 0.12 + 0.10 * Math.sin(elapsed * 1.5 + this.bobPhase);
+          const pulse = 0.12 + 0.1 * Math.sin(elapsed * 1.5 + this.bobPhase);
           this.aura.clear();
           this.aura.circle(0, -24, 26);
           this.aura.fill({ color: auraColor, alpha: pulse + 0.06 });

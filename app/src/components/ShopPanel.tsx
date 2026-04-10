@@ -32,7 +32,13 @@ export function ShopPanel({
       <div id="shop-header">
         <span id="shop-title">🛘 Boutique</span>
         <span id="shop-coins">🪙 {coins}</span>
-        <button className="panel-close-btn" onClick={onClose} aria-label="Fermer">✕</button>
+        <button
+          className="panel-close-btn"
+          onClick={onClose}
+          aria-label="Fermer"
+        >
+          ✕
+        </button>
       </div>
 
       <div id="shop-section-label">🎩 Chapeaux</div>
@@ -81,7 +87,10 @@ export function ShopPanel({
         {FURNITURE_ITEMS.map((item) => {
           const owned = ownedFurniture.includes(item.id);
           return (
-            <div key={item.id} className={`shop-item${owned ? " equipped" : ""}`}>
+            <div
+              key={item.id}
+              className={`shop-item${owned ? " equipped" : ""}`}
+            >
               <span className="shop-item-emoji">{item.emoji}</span>
               <span className="shop-item-name">
                 {item.name}
@@ -147,23 +156,34 @@ export function ShopPanel({
       <div id="shop-sets">
         {FURNITURE_SETS.map((set) => {
           const complete = set.items.every((id) => ownedFurniture.includes(id));
-          const ownedCount = set.items.filter((id) => ownedFurniture.includes(id)).length;
+          const ownedCount = set.items.filter((id) =>
+            ownedFurniture.includes(id),
+          ).length;
           return (
-            <div key={set.id} className={`shop-set${complete ? " complete" : ""}`}>
+            <div
+              key={set.id}
+              className={`shop-set${complete ? " complete" : ""}`}
+            >
               <div className="shop-set-header">
                 <span className="shop-set-emoji">{set.emoji}</span>
                 <span className="shop-set-name">{set.name}</span>
-                {complete
-                  ? <span className="shop-set-active">✨ Actif</span>
-                  : <span className="shop-set-progress">{ownedCount}/{set.items.length}</span>
-                }
+                {complete ? (
+                  <span className="shop-set-active">✨ Actif</span>
+                ) : (
+                  <span className="shop-set-progress">
+                    {ownedCount}/{set.items.length}
+                  </span>
+                )}
               </div>
               <div className="shop-set-items">
                 {set.items.map((itemId) => {
                   const fItem = FURNITURE_ITEMS.find((f) => f.id === itemId)!;
                   const owned = ownedFurniture.includes(itemId);
                   return (
-                    <span key={itemId} className={`shop-set-item${owned ? " owned" : ""}`}>
+                    <span
+                      key={itemId}
+                      className={`shop-set-item${owned ? " owned" : ""}`}
+                    >
                       {fItem.emoji} {fItem.name}
                     </span>
                   );
@@ -177,4 +197,3 @@ export function ShopPanel({
     </div>
   );
 }
-

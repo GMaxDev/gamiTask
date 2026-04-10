@@ -22,11 +22,11 @@ export interface ShopItem {
 }
 
 export const SHOP_ITEMS: ShopItem[] = [
-  { id: "hat-party",  name: "Chapeau fête",   price: 100, emoji: "🎉" },
-  { id: "hat-halo",   name: "Halo",            price: 150, emoji: "😇" },
-  { id: "hat-crown",  name: "Couronne",         price: 200, emoji: "👑" },
-  { id: "hat-cowboy", name: "Cowboy",           price: 250, emoji: "🤠" },
-  { id: "hat-wizard", name: "Sorcier",          price: 300, emoji: "🧙" },
+  { id: "hat-party", name: "Chapeau fête", price: 100, emoji: "🎉" },
+  { id: "hat-halo", name: "Halo", price: 150, emoji: "😇" },
+  { id: "hat-crown", name: "Couronne", price: 200, emoji: "👑" },
+  { id: "hat-cowboy", name: "Cowboy", price: 250, emoji: "🤠" },
+  { id: "hat-wizard", name: "Sorcier", price: 300, emoji: "🧙" },
 ];
 
 export interface FurnitureItem {
@@ -41,12 +41,66 @@ export interface FurnitureItem {
 }
 
 export const FURNITURE_ITEMS: FurnitureItem[] = [
-  { id: "plant",     name: "Plante",   price: 80,  emoji: "🪴", bonus: "+2🪙 par tâche",      setId: "jardin", col: 1,  row: 5  },
-  { id: "lamp",      name: "Lampe",    price: 120, emoji: "💡", bonus: "+10 XP par pomo",     setId: "bureau", col: 6,  row: 1  },
-  { id: "coffee",    name: "Café",     price: 100, emoji: "☕", bonus: "+5🪙 par pomo",        setId: "salon",  col: 10, row: 5  },
-  { id: "bookshelf", name: "Étagère",  price: 150, emoji: "📚", bonus: "+2🪙 par tâche",      setId: "bureau", col: 6,  row: 10 },
-  { id: "couch",     name: "Canapé",   price: 200, emoji: "🛋️", bonus: "Nettoyage -10🪙",    setId: "salon",  col: 1,  row: 10 },
-  { id: "cactus",    name: "Cactus",   price: 85,  emoji: "🌵", bonus: "+1🪙 par tâche",      setId: "jardin", col: 3,  row: 7  },
+  {
+    id: "plant",
+    name: "Plante",
+    price: 80,
+    emoji: "🪴",
+    bonus: "+2🪙 par tâche",
+    setId: "jardin",
+    col: 1,
+    row: 5,
+  },
+  {
+    id: "lamp",
+    name: "Lampe",
+    price: 120,
+    emoji: "💡",
+    bonus: "+10 XP par pomo",
+    setId: "bureau",
+    col: 6,
+    row: 1,
+  },
+  {
+    id: "coffee",
+    name: "Café",
+    price: 100,
+    emoji: "☕",
+    bonus: "+5🪙 par pomo",
+    setId: "salon",
+    col: 10,
+    row: 5,
+  },
+  {
+    id: "bookshelf",
+    name: "Étagère",
+    price: 150,
+    emoji: "📚",
+    bonus: "+2🪙 par tâche",
+    setId: "bureau",
+    col: 6,
+    row: 10,
+  },
+  {
+    id: "couch",
+    name: "Canapé",
+    price: 200,
+    emoji: "🛋️",
+    bonus: "Nettoyage -10🪙",
+    setId: "salon",
+    col: 1,
+    row: 10,
+  },
+  {
+    id: "cactus",
+    name: "Cactus",
+    price: 85,
+    emoji: "🌵",
+    bonus: "+1🪙 par tâche",
+    setId: "jardin",
+    col: 3,
+    row: 7,
+  },
 ];
 
 export interface FurnitureSet {
@@ -61,9 +115,30 @@ export interface FurnitureSet {
 }
 
 export const FURNITURE_SETS: FurnitureSet[] = [
-  { id: "bureau", name: "Set Bureau Studieux", emoji: "📖", items: ["lamp", "bookshelf"], bonusDescription: "+20 XP par pomo",  xpPomoBonus: 20 },
-  { id: "salon",  name: "Set Salon Cosy",      emoji: "🫖", items: ["coffee", "couch"],   bonusDescription: "+10🪙 par pomo",   coinsPomoBonus: 10 },
-  { id: "jardin", name: "Set Jardin Zen",      emoji: "🌿", items: ["plant", "cactus"],   bonusDescription: "+4🪙 par tâche",   coinsTaskBonus: 4 },
+  {
+    id: "bureau",
+    name: "Set Bureau Studieux",
+    emoji: "📖",
+    items: ["lamp", "bookshelf"],
+    bonusDescription: "+20 XP par pomo",
+    xpPomoBonus: 20,
+  },
+  {
+    id: "salon",
+    name: "Set Salon Cosy",
+    emoji: "🫖",
+    items: ["coffee", "couch"],
+    bonusDescription: "+10🪙 par pomo",
+    coinsPomoBonus: 10,
+  },
+  {
+    id: "jardin",
+    name: "Set Jardin Zen",
+    emoji: "🌿",
+    items: ["plant", "cactus"],
+    bonusDescription: "+4🪙 par tâche",
+    coinsTaskBonus: 4,
+  },
 ];
 
 export interface Task {
@@ -130,12 +205,31 @@ export interface ClientToServerEvents {
   "shop:buy": (payload: { userId: string; itemId: string }) => void;
   "cosmetic:equip": (payload: { userId: string; hatId: string | null }) => void;
   "furniture:buy": (payload: { userId: string; itemId: string }) => void;
-  "furniture:move": (payload: { userId: string; itemId: string; col: number; row: number }) => void;
-  "furniture:toggle-place": (payload: { userId: string; itemId: string }) => void;
-  "furniture:place": (payload: { userId: string; itemId: string; col: number; row: number }) => void;
-  "admin:give-coins": (payload: { targetUserId: string; amount: number }) => void;
+  "furniture:move": (payload: {
+    userId: string;
+    itemId: string;
+    col: number;
+    row: number;
+  }) => void;
+  "furniture:toggle-place": (payload: {
+    userId: string;
+    itemId: string;
+  }) => void;
+  "furniture:place": (payload: {
+    userId: string;
+    itemId: string;
+    col: number;
+    row: number;
+  }) => void;
+  "admin:give-coins": (payload: {
+    targetUserId: string;
+    amount: number;
+  }) => void;
   "admin:give-xp": (payload: { targetUserId: string; xp: number }) => void;
-  "admin:set-degradation": (payload: { targetUserId: string; level: number }) => void;
+  "admin:set-degradation": (payload: {
+    targetUserId: string;
+    level: number;
+  }) => void;
   "admin:announce": (payload: { message: string }) => void;
   "profile:request": (payload: { socketId: string | null }) => void;
   "chat:typing": () => void;
@@ -206,7 +300,12 @@ export interface ServerToClientEvents {
   }) => void;
   "task:completed-public": (payload: { socketId: string }) => void;
   "chat:typing": (payload: { id: string; name: string; color: number }) => void;
-  "chat:react": (payload: { msgTs: number; emoji: string; fromId: string; fromColor: number }) => void;
+  "chat:react": (payload: {
+    msgTs: number;
+    emoji: string;
+    fromId: string;
+    fromColor: number;
+  }) => void;
   "chat:emote": (payload: { id: string; emoji: string }) => void;
   "achievement:unlocked": (payload: {
     key: string;
@@ -225,24 +324,57 @@ export interface ServerToClientEvents {
     xpToNext: number;
     levelUp: boolean;
   }) => void;
-  "level-up:public": (payload: { socketId: string; name: string; color: number; level: number }) => void;
+  "level-up:public": (payload: {
+    socketId: string;
+    name: string;
+    color: number;
+    level: number;
+  }) => void;
   "degradation:update": (payload: { level: number }) => void;
-  "cosmetics:state": (payload: { owned: string[]; equippedHat: string | null }) => void;
+  "cosmetics:state": (payload: {
+    owned: string[];
+    equippedHat: string | null;
+  }) => void;
   "shop:bought": (payload: { itemId: string; coins: number }) => void;
   "player-hat": (payload: { id: string; hat: string | null }) => void;
-  "furniture:state": (payload: { owned: string[]; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
+  "furniture:state": (payload: {
+    owned: string[];
+    placed: string[];
+    positions: Record<string, { col: number; row: number }>;
+  }) => void;
   "furniture:bought": (payload: { itemId: string; coins: number }) => void;
-  "furniture:player-update": (payload: { id: string; placed: string[]; positions: Record<string, { col: number; row: number }> }) => void;
+  "furniture:player-update": (payload: {
+    id: string;
+    placed: string[];
+    positions: Record<string, { col: number; row: number }>;
+  }) => void;
   "admin:announce": (payload: { message: string }) => void;
   "profile:data": (data: {
-    userId: string; name: string; color: number; hat: string | null;
-    level: number; xp: number; xpProgress: number; xpToNext: number;
-    coins: number; streak: number; degradation: number;
-    achievements: string[]; isAdmin: boolean;
+    userId: string;
+    name: string;
+    color: number;
+    hat: string | null;
+    level: number;
+    xp: number;
+    xpProgress: number;
+    xpToNext: number;
+    coins: number;
+    streak: number;
+    degradation: number;
+    achievements: string[];
+    isAdmin: boolean;
   }) => void;
   "guild:state": (data: GuildData) => void;
-  "guild:boss-attacked": (payload: { damage: number; newHp: number; maxHp: number }) => void;
-  "guild:boss-defeated": (payload: { bossLevel: number; reward: number }) => void;
+  "guild:boss-attacked": (payload: {
+    damage: number;
+    newHp: number;
+    maxHp: number;
+  }) => void;
+  "guild:boss-defeated": (payload: {
+    bossLevel: number;
+    reward: number;
+  }) => void;
+  "session:replaced": () => void;
 }
 
 export interface GuildMember {

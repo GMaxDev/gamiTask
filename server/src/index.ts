@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
@@ -100,10 +100,14 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0`);
 } catch {}
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN degradation INTEGER NOT NULL DEFAULT 0`);
+  db.exec(
+    `ALTER TABLE users ADD COLUMN degradation INTEGER NOT NULL DEFAULT 0`,
+  );
 } catch {}
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN lastDailyResetAt INTEGER NOT NULL DEFAULT 0`);
+  db.exec(
+    `ALTER TABLE users ADD COLUMN lastDailyResetAt INTEGER NOT NULL DEFAULT 0`,
+  );
 } catch {}
 try {
   db.exec(`ALTER TABLE users ADD COLUMN ownedItems TEXT NOT NULL DEFAULT ''`);
@@ -112,10 +116,14 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN equippedHat TEXT`);
 } catch {}
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN ownedFurniture TEXT NOT NULL DEFAULT ''`);
+  db.exec(
+    `ALTER TABLE users ADD COLUMN ownedFurniture TEXT NOT NULL DEFAULT ''`,
+  );
 } catch {}
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN furniturePositions TEXT NOT NULL DEFAULT '{}'`);
+  db.exec(
+    `ALTER TABLE users ADD COLUMN furniturePositions TEXT NOT NULL DEFAULT '{}'`,
+  );
 } catch {}
 try {
   db.exec(`ALTER TABLE users ADD COLUMN email TEXT`);
@@ -127,17 +135,27 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN displayName TEXT`);
 } catch {}
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN avatarColor INTEGER NOT NULL DEFAULT 0`);
+  db.exec(
+    `ALTER TABLE users ADD COLUMN avatarColor INTEGER NOT NULL DEFAULT 0`,
+  );
 } catch {}
 try {
   db.exec(`ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0`);
 } catch {}
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN placedFurniture TEXT NOT NULL DEFAULT ''`);
-  db.exec(`UPDATE users SET placedFurniture = ownedFurniture WHERE placedFurniture = '' AND ownedFurniture != ''`);
+  db.exec(
+    `ALTER TABLE users ADD COLUMN placedFurniture TEXT NOT NULL DEFAULT ''`,
+  );
+  db.exec(
+    `UPDATE users SET placedFurniture = ownedFurniture WHERE placedFurniture = '' AND ownedFurniture != ''`,
+  );
 } catch {}
-db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`);
-db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`);
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`,
+);
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`,
+);
 
 // ── Tables Guildes ───────────────────────────────────────────────────────────
 db.exec(`
@@ -202,11 +220,21 @@ const sql = {
   setDegradation: db.prepare("UPDATE users SET degradation = ? WHERE id = ?"),
   setOwnedItems: db.prepare("UPDATE users SET ownedItems = ? WHERE id = ?"),
   setEquippedHat: db.prepare("UPDATE users SET equippedHat = ? WHERE id = ?"),
-  setOwnedFurniture: db.prepare("UPDATE users SET ownedFurniture = ? WHERE id = ?"),
-  setFurniturePositions: db.prepare("UPDATE users SET furniturePositions = ? WHERE id = ?"),
-  setPlacedFurniture: db.prepare("UPDATE users SET placedFurniture = ? WHERE id = ?"),
-  getFurniture: db.prepare("SELECT ownedFurniture, placedFurniture FROM users WHERE id = ?"),
-  setAvatarInfo: db.prepare("UPDATE users SET displayName = ?, avatarColor = ? WHERE id = ?"),
+  setOwnedFurniture: db.prepare(
+    "UPDATE users SET ownedFurniture = ? WHERE id = ?",
+  ),
+  setFurniturePositions: db.prepare(
+    "UPDATE users SET furniturePositions = ? WHERE id = ?",
+  ),
+  setPlacedFurniture: db.prepare(
+    "UPDATE users SET placedFurniture = ? WHERE id = ?",
+  ),
+  getFurniture: db.prepare(
+    "SELECT ownedFurniture, placedFurniture FROM users WHERE id = ?",
+  ),
+  setAvatarInfo: db.prepare(
+    "UPDATE users SET displayName = ?, avatarColor = ? WHERE id = ?",
+  ),
   getUserByGoogleId: db.prepare("SELECT * FROM users WHERE googleId = ?"),
   insertGoogleUser: db.prepare(
     "INSERT INTO users (id, coins, email, googleId, displayName, avatarColor, isAdmin) VALUES (?, 0, ?, ?, ?, 0, ?)",
@@ -237,11 +265,15 @@ const sql = {
   getGuildMembers: db.prepare(
     "SELECT gm.userId, COALESCE(u.displayName, u.id) as name, u.avatarColor as color FROM guild_members gm JOIN users u ON u.id = gm.userId WHERE gm.guildId = ?",
   ),
-  getGuildMemberIds: db.prepare("SELECT userId FROM guild_members WHERE guildId = ?"),
+  getGuildMemberIds: db.prepare(
+    "SELECT userId FROM guild_members WHERE guildId = ?",
+  ),
   getUserGuild: db.prepare(
     "SELECT g.* FROM guilds g JOIN guild_members gm ON gm.guildId = g.id WHERE gm.userId = ?",
   ),
-  insertGuildMember: db.prepare("INSERT OR IGNORE INTO guild_members (userId, guildId) VALUES (?, ?)"),
+  insertGuildMember: db.prepare(
+    "INSERT OR IGNORE INTO guild_members (userId, guildId) VALUES (?, ?)",
+  ),
   deleteGuildMember: db.prepare("DELETE FROM guild_members WHERE userId = ?"),
   deleteGuildMembers: db.prepare("DELETE FROM guild_members WHERE guildId = ?"),
   updateBossHp: db.prepare("UPDATE guilds SET bossHp = ? WHERE id = ?"),
@@ -249,7 +281,9 @@ const sql = {
     "UPDATE guilds SET bossHp = ?, bossMaxHp = ?, bossLevel = ?, bossDefeated = bossDefeated + 1 WHERE id = ?",
   ),
   transferGuildOwner: db.prepare("UPDATE guilds SET ownerId = ? WHERE id = ?"),
-  countGuildMembers: db.prepare("SELECT COUNT(*) as cnt FROM guild_members WHERE guildId = ?"),
+  countGuildMembers: db.prepare(
+    "SELECT COUNT(*) as cnt FROM guild_members WHERE guildId = ?",
+  ),
 };
 
 /** Calcule le niveau à partir des XP totaux. Formule : level = floor(sqrt(xp / 50)) */
@@ -258,10 +292,21 @@ function computeLevel(xp: number): number {
 }
 
 interface GuildRow {
-  id: string; name: string; ownerId: string; level: number;
-  bossHp: number; bossMaxHp: number; bossLevel: number; bossDefeated: number; createdAt: number;
+  id: string;
+  name: string;
+  ownerId: string;
+  level: number;
+  bossHp: number;
+  bossMaxHp: number;
+  bossLevel: number;
+  bossDefeated: number;
+  createdAt: number;
 }
-interface GuildMemberRow { userId: string; name: string; color: number; }
+interface GuildMemberRow {
+  userId: string;
+  name: string;
+  color: number;
+}
 
 /** Émet guild:state à tous les membres en ligne d'une guilde */
 function emitGuildState(
@@ -309,14 +354,19 @@ function handleBossDefeat(
   const newBossMaxHp = 100 * newBossLevel;
   sql.defeatBoss.run(newBossMaxHp, newBossMaxHp, newBossLevel, guild.id);
   const reward = 50 * guild.bossLevel;
-  const memberIds = (sql.getGuildMemberIds.all(guild.id) as { userId: string }[]).map((m) => m.userId);
+  const memberIds = (
+    sql.getGuildMemberIds.all(guild.id) as { userId: string }[]
+  ).map((m) => m.userId);
   for (const userId of memberIds) {
     sql.addCoins.run(reward, userId);
     const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
     for (const [socketId, uid] of socketToUserId.entries()) {
       if (uid === userId) {
         io.to(socketId).emit("coins:update", { coins: newCoins });
-        io.to(socketId).emit("guild:boss-defeated", { bossLevel: guild.bossLevel, reward });
+        io.to(socketId).emit("guild:boss-defeated", {
+          bossLevel: guild.bossLevel,
+          reward,
+        });
         const p = players.get(socketId);
         if (p) p.coins = newCoins;
         break;
@@ -326,8 +376,13 @@ function handleBossDefeat(
 }
 
 /** Construit le payload positions pour furniture:state (defaults FURNITURE_ITEMS + overrides DB) */
-function getFurniturePosPayload(furniturePosJson: string): Record<string, { col: number; row: number }> {
-  const saved = JSON.parse(furniturePosJson || "{}") as Record<string, { col: number; row: number }>;
+function getFurniturePosPayload(
+  furniturePosJson: string,
+): Record<string, { col: number; row: number }> {
+  const saved = JSON.parse(furniturePosJson || "{}") as Record<
+    string,
+    { col: number; row: number }
+  >;
   const out: Record<string, { col: number; row: number }> = {};
   for (const item of FURNITURE_ITEMS) {
     out[item.id] = saved[item.id] ?? { col: item.col, row: item.row };
@@ -336,7 +391,10 @@ function getFurniturePosPayload(furniturePosJson: string): Record<string, { col:
 }
 
 /** Retourne les meubles effectivement placés dans la chambre (avec fallback pour migration) */
-function getEffectivePlaced(placedFurniture: string, ownedFurniture: string): string[] {
+function getEffectivePlaced(
+  placedFurniture: string,
+  ownedFurniture: string,
+): string[] {
   const placed = (placedFurniture ?? "").split(",").filter(Boolean);
   if (placed.length === 0 && (ownedFurniture ?? "").length > 0) {
     return (ownedFurniture ?? "").split(",").filter(Boolean);
@@ -352,10 +410,21 @@ const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 app.post("/auth/google", async (req, res): Promise<void> => {
   const { credential } = req.body as { credential?: string };
-  if (!credential) { res.status(400).json({ error: "Missing credential" }); return; }
-  if (!GOOGLE_CLIENT_ID) { res.status(500).json({ error: "Server misconfigured: GOOGLE_CLIENT_ID not set" }); return; }
+  if (!credential) {
+    res.status(400).json({ error: "Missing credential" });
+    return;
+  }
+  if (!GOOGLE_CLIENT_ID) {
+    res
+      .status(500)
+      .json({ error: "Server misconfigured: GOOGLE_CLIENT_ID not set" });
+    return;
+  }
   try {
-    const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    const ticket = await googleOAuthClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
     const payload = ticket.getPayload()!;
     const googleId = payload.sub;
     const email = payload.email ?? null;
@@ -365,7 +434,13 @@ app.post("/auth/google", async (req, res): Promise<void> => {
     let userId: string;
     if (!user) {
       userId = randomUUID();
-      sql.insertGoogleUser.run(userId, email, googleId, googleName, isAdminLogin ? 1 : 0);
+      sql.insertGoogleUser.run(
+        userId,
+        email,
+        googleId,
+        googleName,
+        isAdminLogin ? 1 : 0,
+      );
       user = sql.getUserByGoogleId.get(googleId) as UserRow;
     } else {
       userId = user.id;
@@ -373,13 +448,15 @@ app.post("/auth/google", async (req, res): Promise<void> => {
       if (isAdminLogin && !user.isAdmin) sql.setAdminFlag.run(1, userId);
       user = sql.getUserByGoogleId.get(googleId) as UserRow;
     }
-    const token = jwt.sign({ userId, googleId }, JWT_SECRET, { expiresIn: "30d" });
+    const token = jwt.sign({ userId, googleId }, JWT_SECRET, {
+      expiresIn: "30d",
+    });
     res.json({
       userId,
       token,
       name: user.displayName ?? googleName,
       color: user.avatarColor ?? 0,
-      isAdmin: isAdminLogin || !!(user.isAdmin),
+      isAdmin: isAdminLogin || !!user.isAdmin,
     });
   } catch (err) {
     console.error("[auth/google]", err);
@@ -389,12 +466,19 @@ app.post("/auth/google", async (req, res): Promise<void> => {
 
 app.post("/auth/token", (req, res): void => {
   const { token } = req.body as { token?: string };
-  if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+  if (!token) {
+    res.status(400).json({ error: "Missing token" });
+    return;
+  }
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
     const user = sql.getUser.get(decoded.userId) as UserRow | undefined;
-    if (!user) { res.status(404).json({ error: "User not found" }); return; }
-    const isAdmin = !!ADMIN_EMAIL && user.email === ADMIN_EMAIL || !!(user.isAdmin);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const isAdmin =
+      (!!ADMIN_EMAIL && user.email === ADMIN_EMAIL) || !!user.isAdmin;
     res.json({
       userId: user.id,
       token,
@@ -438,7 +522,10 @@ function checkAndApplyDailyReset(
     if (cnt > 0) {
       const memberGuild = sql.getUserGuild.get(userId) as GuildRow | undefined;
       if (memberGuild) {
-        const attackHp = Math.min(memberGuild.bossMaxHp, memberGuild.bossHp + cnt * 5);
+        const attackHp = Math.min(
+          memberGuild.bossMaxHp,
+          memberGuild.bossHp + cnt * 5,
+        );
         sql.updateBossHp.run(attackHp, memberGuild.id);
         emitGuildState(io, socketToUserId, memberGuild.id);
       }
@@ -450,11 +537,15 @@ function checkAndApplyDailyReset(
 }
 
 /** Émet un xp:update à un socket après avoir mis à jour les XP du joueur */
-function getSetBonuses(owned: string[]): { xpPomo: number; coinsPomo: number; coinsTask: number } {
+function getSetBonuses(owned: string[]): {
+  xpPomo: number;
+  coinsPomo: number;
+  coinsTask: number;
+} {
   const b = { xpPomo: 0, coinsPomo: 0, coinsTask: 0 };
   for (const set of FURNITURE_SETS) {
     if (set.items.every((id) => owned.includes(id))) {
-      b.xpPomo    += set.xpPomoBonus    ?? 0;
+      b.xpPomo += set.xpPomoBonus ?? 0;
       b.coinsPomo += set.coinsPomoBonus ?? 0;
       b.coinsTask += set.coinsTaskBonus ?? 0;
     }
@@ -535,14 +626,54 @@ const ACHIEVEMENTS: Array<{
   desc: string;
   icon: string;
 }> = [
-  { key: "first-task",       label: "1ère tâche !",    desc: "Première tâche complétée",          icon: "✅" },
-  { key: "task-10",          label: "10 tâches !",      desc: "10 tâches complétées",              icon: "🔟" },
-  { key: "task-50",          label: "50 tâches !",      desc: "50 tâches complétées",              icon: "🏆" },
-  { key: "first-pomo",       label: "1er Pomodoro !",   desc: "Premier pomodoro terminé",          icon: "🍅" },
-  { key: "streak-5",         label: "Streak ×5 !",      desc: "5 pomodoros consécutifs",           icon: "🔥" },
-  { key: "coins-100",        label: "100 pièces !",     desc: "100 pièces accumulées",             icon: "💰" },
-  { key: "coins-500",        label: "500 pièces !",     desc: "500 pièces accumulées",             icon: "👑" },
-  { key: "first-collective", label: "Pomo collectif !", desc: "Premier pomo collectif terminé",    icon: "🌐" },
+  {
+    key: "first-task",
+    label: "1ère tâche !",
+    desc: "Première tâche complétée",
+    icon: "✅",
+  },
+  {
+    key: "task-10",
+    label: "10 tâches !",
+    desc: "10 tâches complétées",
+    icon: "🔟",
+  },
+  {
+    key: "task-50",
+    label: "50 tâches !",
+    desc: "50 tâches complétées",
+    icon: "🏆",
+  },
+  {
+    key: "first-pomo",
+    label: "1er Pomodoro !",
+    desc: "Premier pomodoro terminé",
+    icon: "🍅",
+  },
+  {
+    key: "streak-5",
+    label: "Streak ×5 !",
+    desc: "5 pomodoros consécutifs",
+    icon: "🔥",
+  },
+  {
+    key: "coins-100",
+    label: "100 pièces !",
+    desc: "100 pièces accumulées",
+    icon: "💰",
+  },
+  {
+    key: "coins-500",
+    label: "500 pièces !",
+    desc: "500 pièces accumulées",
+    icon: "👑",
+  },
+  {
+    key: "first-collective",
+    label: "Pomo collectif !",
+    desc: "Premier pomo collectif terminé",
+    icon: "🌐",
+  },
 ];
 
 function tryUnlock(
@@ -619,14 +750,17 @@ function pomoTick(
             emitXpUpdate(sock, userId, 75);
           }
           // Nettoyage coopératif : le pomo collectif réduit la dégradation de chaque participant
-          const currentDeg = (sql.getUser.get(userId) as UserRow).degradation ?? 0;
+          const currentDeg =
+            (sql.getUser.get(userId) as UserRow).degradation ?? 0;
           if (currentDeg > 0) {
             const newDeg = currentDeg - 1;
             sql.setDegradation.run(newDeg, userId);
             io.to(sid).emit("degradation:update", { level: newDeg });
           }
           // Boss de guilde : pomo collectif inflige 15 dégâts au boss
-          const memberGuild = sql.getUserGuild.get(userId) as GuildRow | undefined;
+          const memberGuild = sql.getUserGuild.get(userId) as
+            | GuildRow
+            | undefined;
           if (memberGuild) {
             const freshGuild = sql.getGuild.get(memberGuild.id) as GuildRow;
             const newBossHp = Math.max(0, freshGuild.bossHp - 15);
@@ -634,7 +768,11 @@ function pomoTick(
             if (newBossHp <= 0) {
               handleBossDefeat(io, socketToUserId, players, freshGuild);
             } else {
-              io.to(sid).emit("guild:boss-attacked", { damage: 15, newHp: newBossHp, maxHp: freshGuild.bossMaxHp });
+              io.to(sid).emit("guild:boss-attacked", {
+                damage: 15,
+                newHp: newBossHp,
+                maxHp: freshGuild.bossMaxHp,
+              });
               emitGuildState(io, socketToUserId, freshGuild.id);
             }
           }
@@ -714,14 +852,38 @@ io.on("connection", (socket) => {
 
   socket.on("join", ({ name, color, userId }) => {
     sql.upsertUser.run(userId);
+
+    const existingSockets = Array.from(socketToUserId.entries())
+      .filter(([, uid]) => uid === userId)
+      .map(([sid]) => sid)
+      .filter((sid) => sid !== socket.id);
+
+    for (const previousSocketId of existingSockets) {
+      const previousSocket = io.sockets.sockets.get(previousSocketId);
+      players.delete(previousSocketId);
+      socketToUserId.delete(previousSocketId);
+      socket.broadcast.emit("player-left", { id: previousSocketId });
+      previousSocket?.emit("session:replaced");
+    }
+    if (existingSockets.length > 0) {
+      broadcastLeaderboard(io);
+    }
+
     const user = sql.getUser.get(userId) as UserRow;
     // Spawn toujours au point d'entrée fixe — la position persistée est ignorée au login
     const spawnCol = 1;
     const spawnRow = 10;
     // Calculer le mobilier avant le broadcast player-joined pour que les autres voient les meubles du nouveau joueur
-    const ownedFurnitureList = (user.ownedFurniture ?? "").split(",").filter(Boolean);
-    const placedFurnitureList = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
-    const furniturePositionsPayload = getFurniturePosPayload(user.furniturePositions ?? "{}");
+    const ownedFurnitureList = (user.ownedFurniture ?? "")
+      .split(",")
+      .filter(Boolean);
+    const placedFurnitureList = getEffectivePlaced(
+      user.placedFurniture ?? "",
+      user.ownedFurniture ?? "",
+    );
+    const furniturePositionsPayload = getFurniturePosPayload(
+      user.furniturePositions ?? "{}",
+    );
     const player: Player = {
       id: socket.id,
       name,
@@ -757,9 +919,16 @@ io.on("connection", (socket) => {
     socket.emit("xp:update", { xp, level, xpToNext, levelUp: false });
     // Envoyer l'état cosmétiques initial
     const ownedList = (user.ownedItems ?? "").split(",").filter(Boolean);
-    socket.emit("cosmetics:state", { owned: ownedList, equippedHat: user.equippedHat ?? null });
+    socket.emit("cosmetics:state", {
+      owned: ownedList,
+      equippedHat: user.equippedHat ?? null,
+    });
     // Envoyer l'état mobilier initial (privé — contient owned)
-    socket.emit("furniture:state", { owned: ownedFurnitureList, placed: placedFurnitureList, positions: furniturePositionsPayload });
+    socket.emit("furniture:state", {
+      owned: ownedFurnitureList,
+      placed: placedFurnitureList,
+      positions: furniturePositionsPayload,
+    });
     // Vérifier le reset quotidien des dailies + envoyer la dégradation
     checkAndApplyDailyReset(socket, userId);
     broadcastLeaderboard(io);
@@ -767,7 +936,15 @@ io.on("connection", (socket) => {
 
   socket.on("move", ({ col, row }) => {
     if (!allow(socket.id, "move", 30, 1000)) return;
-    if (!Number.isInteger(col) || !Number.isInteger(row) || col < 0 || col >= 12 || row < 0 || row >= 12) return;
+    if (
+      !Number.isInteger(col) ||
+      !Number.isInteger(row) ||
+      col < 0 ||
+      col >= 12 ||
+      row < 0 ||
+      row >= 12
+    )
+      return;
     const p = players.get(socket.id);
     if (!p) return;
     p.col = col;
@@ -809,16 +986,21 @@ io.on("connection", (socket) => {
     });
   });
 
-  const VALID_EMOJIS = new Set(["👍","🎉","🔥","❤️"]);
+  const VALID_EMOJIS = new Set(["👍", "🎉", "🔥", "❤️"]);
   socket.on("chat:react", ({ msgTs, emoji }) => {
     if (!allow(socket.id, "chat:react", 10, 5000)) return;
     if (!VALID_EMOJIS.has(emoji)) return;
     const p = players.get(socket.id);
     if (!p) return;
-    io.emit("chat:react", { msgTs, emoji, fromId: socket.id, fromColor: p.color });
+    io.emit("chat:react", {
+      msgTs,
+      emoji,
+      fromId: socket.id,
+      fromColor: p.color,
+    });
   });
 
-  const VALID_EMOTES = new Set(["😂","😍","😎","🥳","😭","🤯"]);
+  const VALID_EMOTES = new Set(["😂", "😍", "😎", "🥳", "😭", "🤯"]);
   socket.on("chat:emote", ({ emoji }) => {
     if (!allow(socket.id, "chat:emote", 5, 3000)) return;
     if (!VALID_EMOTES.has(emoji)) return;
@@ -880,8 +1062,14 @@ io.on("connection", (socket) => {
       sql.addCoins.run(10, userId);
       coins += 10;
       // Bonus Feng Shui : +2🪙 par plante, +2🪙 par étagère
-      const furnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
-      const ownedFurniture = getEffectivePlaced(furnitureRow?.placedFurniture ?? "", furnitureRow?.ownedFurniture ?? "");
+      const furnitureRow = sql.getFurniture.get(userId) as {
+        ownedFurniture: string;
+        placedFurniture: string;
+      };
+      const ownedFurniture = getEffectivePlaced(
+        furnitureRow?.placedFurniture ?? "",
+        furnitureRow?.ownedFurniture ?? "",
+      );
       let fengBonus = 0;
       if (ownedFurniture.includes("plant")) fengBonus += 2;
       if (ownedFurniture.includes("bookshelf")) fengBonus += 2;
@@ -944,7 +1132,10 @@ io.on("connection", (socket) => {
   socket.on("debug:unlock", ({ userId, key }) => {
     sql.insertAchievement.run(userId, ""); // no-op flush
     // Supprimer cet achievement pour permettre le re-déclenchement en debug
-    db.prepare("DELETE FROM achievements WHERE userId = ? AND key = ?").run(userId, key);
+    db.prepare("DELETE FROM achievements WHERE userId = ? AND key = ?").run(
+      userId,
+      key,
+    );
     tryUnlock(io, socket, userId, key);
   });
 
@@ -986,7 +1177,10 @@ io.on("connection", (socket) => {
     if (level === 0) return;
     const lvls = Math.max(1, Math.min(levels ?? 1, level)); // entre 1 et le niveau actuel
     // Feng Shui : Canapé réduit le coût de base de 10
-    const cleanFurniture = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const cleanFurniture = getEffectivePlaced(
+      user.placedFurniture ?? "",
+      user.ownedFurniture ?? "",
+    );
     const baseCost = cleanFurniture.includes("couch") ? 40 : 50;
     const cost = baseCost * lvls;
     if (user.coins < cost) return;
@@ -1012,17 +1206,34 @@ io.on("connection", (socket) => {
     sql.addCoins.run(-item.price, userId);
     const newOwned = [...owned, itemId].join(",");
     sql.setOwnedFurniture.run(newOwned, userId);
-    const newPlacedOnBuy = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const newPlacedOnBuy = getEffectivePlaced(
+      user.placedFurniture ?? "",
+      user.ownedFurniture ?? "",
+    );
     const newPlacedList = [...newPlacedOnBuy, itemId];
     sql.setPlacedFurniture.run(newPlacedList.join(","), userId);
     const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
     socket.emit("coins:update", { coins: newCoins });
     socket.emit("furniture:bought", { itemId, coins: newCoins });
-    const buyPositionsPayload = getFurniturePosPayload(user.furniturePositions ?? "{}");
-    socket.emit("furniture:state", { owned: [...owned, itemId], placed: newPlacedList, positions: buyPositionsPayload });
+    const buyPositionsPayload = getFurniturePosPayload(
+      user.furniturePositions ?? "{}",
+    );
+    socket.emit("furniture:state", {
+      owned: [...owned, itemId],
+      placed: newPlacedList,
+      positions: buyPositionsPayload,
+    });
     const p = players.get(socket.id);
-    if (p) { p.coins = newCoins; p.placed = newPlacedList; p.positions = buyPositionsPayload; }
-    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: newPlacedList, positions: buyPositionsPayload });
+    if (p) {
+      p.coins = newCoins;
+      p.placed = newPlacedList;
+      p.positions = buyPositionsPayload;
+    }
+    socket.broadcast.emit("furniture:player-update", {
+      id: socket.id,
+      placed: newPlacedList,
+      positions: buyPositionsPayload,
+    });
     broadcastLeaderboard(io);
   });
   // ── Déplacer un meuble (Feng Shui) ─────────────────────────────────────────────
@@ -1035,15 +1246,33 @@ io.on("connection", (socket) => {
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
     if (!owned.includes(itemId)) return;
-    const positions = JSON.parse((user.furniturePositions as string | null) ?? "{}") as Record<string, { col: number; row: number }>;
+    const positions = JSON.parse(
+      (user.furniturePositions as string | null) ?? "{}",
+    ) as Record<string, { col: number; row: number }>;
     positions[itemId] = { col, row };
     sql.setFurniturePositions.run(JSON.stringify(positions), userId);
-    const movedPlaced = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
-    const movedPositionsPayload = getFurniturePosPayload(JSON.stringify(positions));
-    socket.emit("furniture:state", { owned, placed: movedPlaced, positions: movedPositionsPayload });
+    const movedPlaced = getEffectivePlaced(
+      user.placedFurniture ?? "",
+      user.ownedFurniture ?? "",
+    );
+    const movedPositionsPayload = getFurniturePosPayload(
+      JSON.stringify(positions),
+    );
+    socket.emit("furniture:state", {
+      owned,
+      placed: movedPlaced,
+      positions: movedPositionsPayload,
+    });
     const mp = players.get(socket.id);
-    if (mp) { mp.placed = movedPlaced; mp.positions = movedPositionsPayload; }
-    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: movedPlaced, positions: movedPositionsPayload });
+    if (mp) {
+      mp.placed = movedPlaced;
+      mp.positions = movedPositionsPayload;
+    }
+    socket.broadcast.emit("furniture:player-update", {
+      id: socket.id,
+      placed: movedPlaced,
+      positions: movedPositionsPayload,
+    });
   });
   // ── Ranger / Sortir un meuble de la chambre (toggle-place) ───────────────────
   socket.on("furniture:toggle-place", ({ userId, itemId }) => {
@@ -1052,16 +1281,32 @@ io.on("connection", (socket) => {
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
     if (!owned.includes(itemId)) return;
-    const placed = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
+    const placed = getEffectivePlaced(
+      user.placedFurniture ?? "",
+      user.ownedFurniture ?? "",
+    );
     const newPlaced = placed.includes(itemId)
       ? placed.filter((id) => id !== itemId)
       : [...placed, itemId];
     sql.setPlacedFurniture.run(newPlaced.join(","), userId);
-    const togglePositionsPayload = getFurniturePosPayload(user.furniturePositions ?? "{}");
-    socket.emit("furniture:state", { owned, placed: newPlaced, positions: togglePositionsPayload });
+    const togglePositionsPayload = getFurniturePosPayload(
+      user.furniturePositions ?? "{}",
+    );
+    socket.emit("furniture:state", {
+      owned,
+      placed: newPlaced,
+      positions: togglePositionsPayload,
+    });
     const tp = players.get(socket.id);
-    if (tp) { tp.placed = newPlaced; tp.positions = togglePositionsPayload; }
-    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: newPlaced, positions: togglePositionsPayload });
+    if (tp) {
+      tp.placed = newPlaced;
+      tp.positions = togglePositionsPayload;
+    }
+    socket.broadcast.emit("furniture:player-update", {
+      id: socket.id,
+      placed: newPlaced,
+      positions: togglePositionsPayload,
+    });
   });
   // ── Confirmer le placement fantôme d'un meuble ─────────────────────────────
   socket.on("furniture:place", ({ userId, itemId, col, row }) => {
@@ -1073,24 +1318,46 @@ io.on("connection", (socket) => {
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
     if (!owned.includes(itemId)) return;
-    const placedIds = getEffectivePlaced(user.placedFurniture ?? "", user.ownedFurniture ?? "");
-    const effectivePos = getFurniturePosPayload(user.furniturePositions ?? "{}");
+    const placedIds = getEffectivePlaced(
+      user.placedFurniture ?? "",
+      user.ownedFurniture ?? "",
+    );
+    const effectivePos = getFurniturePosPayload(
+      user.furniturePositions ?? "{}",
+    );
     for (const otherId of placedIds) {
       if (otherId !== itemId) {
         const pos = effectivePos[otherId];
         if (pos && pos.col === col && pos.row === row) return;
       }
     }
-    const positions = JSON.parse((user.furniturePositions as string | null) ?? "{}") as Record<string, { col: number; row: number }>;
+    const positions = JSON.parse(
+      (user.furniturePositions as string | null) ?? "{}",
+    ) as Record<string, { col: number; row: number }>;
     positions[itemId] = { col, row };
     sql.setFurniturePositions.run(JSON.stringify(positions), userId);
-    const newPlacedAfter = placedIds.includes(itemId) ? placedIds : [...placedIds, itemId];
+    const newPlacedAfter = placedIds.includes(itemId)
+      ? placedIds
+      : [...placedIds, itemId];
     sql.setPlacedFurniture.run(newPlacedAfter.join(","), userId);
-    const placePositionsPayload = getFurniturePosPayload(JSON.stringify(positions));
-    socket.emit("furniture:state", { owned, placed: newPlacedAfter, positions: placePositionsPayload });
+    const placePositionsPayload = getFurniturePosPayload(
+      JSON.stringify(positions),
+    );
+    socket.emit("furniture:state", {
+      owned,
+      placed: newPlacedAfter,
+      positions: placePositionsPayload,
+    });
     const pp = players.get(socket.id);
-    if (pp) { pp.placed = newPlacedAfter; pp.positions = placePositionsPayload; }
-    socket.broadcast.emit("furniture:player-update", { id: socket.id, placed: newPlacedAfter, positions: placePositionsPayload });
+    if (pp) {
+      pp.placed = newPlacedAfter;
+      pp.positions = placePositionsPayload;
+    }
+    socket.broadcast.emit("furniture:player-update", {
+      id: socket.id,
+      placed: newPlacedAfter,
+      positions: placePositionsPayload,
+    });
   });
   // ── Acheter un item dans le shop ─────────────────────────────────────────────
   socket.on("shop:buy", ({ userId, itemId }) => {
@@ -1107,7 +1374,10 @@ io.on("connection", (socket) => {
     const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
     socket.emit("coins:update", { coins: newCoins });
     socket.emit("shop:bought", { itemId, coins: newCoins });
-    socket.emit("cosmetics:state", { owned: [...owned, itemId], equippedHat: user.equippedHat ?? null });
+    socket.emit("cosmetics:state", {
+      owned: [...owned, itemId],
+      equippedHat: user.equippedHat ?? null,
+    });
     const p = players.get(socket.id);
     if (p) p.coins = newCoins;
     broadcastLeaderboard(io);
@@ -1141,8 +1411,14 @@ io.on("connection", (socket) => {
     sql.saveStreak.run(newStreak, now, userId);
     sql.addCoins.run(25 + bonus, userId);
     // Bonus Feng Shui pomodoro
-    const pFurnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
-    const pFurniture = getEffectivePlaced(pFurnitureRow?.placedFurniture ?? "", pFurnitureRow?.ownedFurniture ?? "");
+    const pFurnitureRow = sql.getFurniture.get(userId) as {
+      ownedFurniture: string;
+      placedFurniture: string;
+    };
+    const pFurniture = getEffectivePlaced(
+      pFurnitureRow?.placedFurniture ?? "",
+      pFurnitureRow?.ownedFurniture ?? "",
+    );
     const setB = getSetBonuses(pFurniture);
     let pomoFengBonus = 0;
     if (pFurniture.includes("coffee")) pomoFengBonus += 5;
@@ -1176,7 +1452,11 @@ io.on("connection", (socket) => {
       if (newBossHp <= 0) {
         handleBossDefeat(io, socketToUserId, players, memberGuild);
       } else {
-        socket.emit("guild:boss-attacked", { damage: 10, newHp: newBossHp, maxHp: memberGuild.bossMaxHp });
+        socket.emit("guild:boss-attacked", {
+          damage: 10,
+          newHp: newBossHp,
+          maxHp: memberGuild.bossMaxHp,
+        });
       }
       emitGuildState(io, socketToUserId, memberGuild.id);
     }
@@ -1246,7 +1526,7 @@ io.on("connection", (socket) => {
     const uid = socketToUserId.get(socket.id);
     if (!uid) return false;
     const u = sql.getUser.get(uid) as UserRow | undefined;
-    return !!(u?.isAdmin) || (!!ADMIN_EMAIL && u?.email === ADMIN_EMAIL);
+    return !!u?.isAdmin || (!!ADMIN_EMAIL && u?.email === ADMIN_EMAIL);
   }
 
   socket.on("admin:give-coins", ({ targetUserId, amount }) => {
@@ -1298,7 +1578,19 @@ io.on("connection", (socket) => {
 
   socket.on("admin:announce", ({ message }) => {
     if (!isAdmin()) return;
-    const safe = message.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] ?? c).slice(0, 200);
+    const safe = message
+      .replace(
+        /[<>&"']/g,
+        (c) =>
+          ({
+            "<": "&lt;",
+            ">": "&gt;",
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[c] ?? c,
+      )
+      .slice(0, 200);
     if (!safe.trim()) return;
     io.emit("admin:announce", { message: safe });
   });
@@ -1312,7 +1604,9 @@ io.on("connection", (socket) => {
     if (!user) return;
     // Prefer in-memory player name/color (always up to date for connected players)
     const inMemoryPlayer = players.get(targetSid);
-    const achievementKeys = (sql.getUserAchievements.all(targetUserId) as { key: string }[]).map((r) => r.key);
+    const achievementKeys = (
+      sql.getUserAchievements.all(targetUserId) as { key: string }[]
+    ).map((r) => r.key);
     const xp = user.xp ?? 0;
     const lvl = computeLevel(xp);
     const xpForThisLevel = 50 * lvl * lvl;
@@ -1370,13 +1664,16 @@ io.on("connection", (socket) => {
     const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
     if (!guild) return;
     sql.deleteGuildMember.run(userId);
-    const remaining = (sql.countGuildMembers.get(guild.id) as { cnt: number }).cnt;
+    const remaining = (sql.countGuildMembers.get(guild.id) as { cnt: number })
+      .cnt;
     if (remaining === 0) {
       // Dissoudre la guilde
       sql.deleteGuild.run(guild.id);
     } else if (guild.ownerId === userId) {
       // Transférer la propriété au premier membre restant
-      const [nextMember] = sql.getGuildMemberIds.all(guild.id) as { userId: string }[];
+      const [nextMember] = sql.getGuildMemberIds.all(guild.id) as {
+        userId: string;
+      }[];
       if (nextMember) sql.transferGuildOwner.run(nextMember.userId, guild.id);
       emitGuildState(io, socketToUserId, guild.id);
     } else {
@@ -1384,8 +1681,15 @@ io.on("connection", (socket) => {
     }
     // Émettre une guilde vide au joueur qui part
     socket.emit("guild:state", {
-      id: "", name: "", ownerId: "", level: 0,
-      bossHp: 0, bossMaxHp: 100, bossLevel: 1, bossDefeated: 0, members: [],
+      id: "",
+      name: "",
+      ownerId: "",
+      level: 0,
+      bossHp: 0,
+      bossMaxHp: 100,
+      bossLevel: 1,
+      bossDefeated: 0,
+      members: [],
     } as GuildData);
   });
 
@@ -1458,7 +1762,10 @@ app.post("/api/feedback", async (req, res): Promise<void> => {
       return;
     }
 
-    const issue = await response.json() as { number: number; html_url: string };
+    const issue = (await response.json()) as {
+      number: number;
+      html_url: string;
+    };
     res.json({ number: issue.number, url: issue.html_url });
   } catch (e) {
     console.error("[feedback] Fetch error:", e);
@@ -1470,4 +1777,3 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 httpServer.listen(PORT, () => {
   console.log(`[+] Server running on port ${PORT}`);
 });
-

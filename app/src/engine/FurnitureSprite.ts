@@ -3,13 +3,49 @@ import { TILE_WIDTH, TILE_HEIGHT } from "./IsoEngine";
 
 const CONFIGS: Record<
   string,
-  { topColor: number; sideColor: number; h: number; emoji: string; bonus: string }
+  {
+    topColor: number;
+    sideColor: number;
+    h: number;
+    emoji: string;
+    bonus: string;
+  }
 > = {
-  plant:     { topColor: 0x2d6a2d, sideColor: 0x1e4a1e, h: 10, emoji: "🪴", bonus: "+2 coins/tache" },
-  lamp:      { topColor: 0xd4892a, sideColor: 0xa05c10, h: 22, emoji: "💡", bonus: "+10 XP/pomo" },
-  coffee:    { topColor: 0x6b3a1e, sideColor: 0x4a2510, h: 12, emoji: "☕", bonus: "+5 coins/pomo" },
-  bookshelf: { topColor: 0x8b3a1a, sideColor: 0x5c2410, h: 20, emoji: "📚", bonus: "+2 coins/tache" },
-  couch:     { topColor: 0xc47830, sideColor: 0x8b5020, h: 8,  emoji: "🛋️", bonus: "Nettoyage -10" },
+  plant: {
+    topColor: 0x2d6a2d,
+    sideColor: 0x1e4a1e,
+    h: 10,
+    emoji: "🪴",
+    bonus: "+2 coins/tache",
+  },
+  lamp: {
+    topColor: 0xd4892a,
+    sideColor: 0xa05c10,
+    h: 22,
+    emoji: "💡",
+    bonus: "+10 XP/pomo",
+  },
+  coffee: {
+    topColor: 0x6b3a1e,
+    sideColor: 0x4a2510,
+    h: 12,
+    emoji: "☕",
+    bonus: "+5 coins/pomo",
+  },
+  bookshelf: {
+    topColor: 0x8b3a1a,
+    sideColor: 0x5c2410,
+    h: 20,
+    emoji: "📚",
+    bonus: "+2 coins/tache",
+  },
+  couch: {
+    topColor: 0xc47830,
+    sideColor: 0x8b5020,
+    h: 8,
+    emoji: "🛋️",
+    bonus: "Nettoyage -10",
+  },
 };
 
 export class FurnitureSprite {
@@ -33,8 +69,12 @@ export class FurnitureSprite {
     this.tooltip.visible = false;
     this.container.addChild(this.tooltip);
 
-    this.container.on("pointerover", () => { this.tooltip.visible = true; });
-    this.container.on("pointerout",  () => { this.tooltip.visible = false; });
+    this.container.on("pointerover", () => {
+      this.tooltip.visible = true;
+    });
+    this.container.on("pointerout", () => {
+      this.tooltip.visible = false;
+    });
     this.container.on("pointerdown", (e: PIXI.FederatedPointerEvent) => {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -65,10 +105,16 @@ export class FurnitureSprite {
   }
 
   private _draw(itemId: string): void {
-    const cfg = CONFIGS[itemId] ?? { topColor: 0x444444, sideColor: 0x222222, h: 12, emoji: "?", bonus: "" };
+    const cfg = CONFIGS[itemId] ?? {
+      topColor: 0x444444,
+      sideColor: 0x222222,
+      h: 12,
+      emoji: "?",
+      bonus: "",
+    };
     const hw = TILE_WIDTH / 4;
     const hh = TILE_HEIGHT / 4;
-    const h  = cfg.h;
+    const h = cfg.h;
     const g = new PIXI.Graphics();
     g.poly([0, -hh - h, hw, -h, 0, hh - h, -hw, -h]);
     g.fill(cfg.topColor);

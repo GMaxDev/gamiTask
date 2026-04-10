@@ -25,7 +25,8 @@ function loadSoundSettings(): void {
     const volume = localStorage.getItem("gamitask-sounds-volume");
     const ambient = localStorage.getItem("gamitask-sounds-ambient-enabled");
     if (enabled !== null) soundsEnabled = enabled === "true";
-    if (volume !== null) masterVolume = Math.max(0, Math.min(1, parseFloat(volume)));
+    if (volume !== null)
+      masterVolume = Math.max(0, Math.min(1, parseFloat(volume)));
     if (ambient !== null) ambientEnabled = ambient === "true";
     const type = localStorage.getItem("gamitask-sounds-ambient-type");
     if (type === "cafe" || type === "pluie" || type === "nuit") {
@@ -41,7 +42,10 @@ function saveSoundSettings(): void {
   try {
     localStorage.setItem("gamitask-sounds-enabled", soundsEnabled.toString());
     localStorage.setItem("gamitask-sounds-volume", masterVolume.toString());
-    localStorage.setItem("gamitask-sounds-ambient-enabled", ambientEnabled.toString());
+    localStorage.setItem(
+      "gamitask-sounds-ambient-enabled",
+      ambientEnabled.toString(),
+    );
     localStorage.setItem("gamitask-sounds-ambient-type", ambientType);
   } catch {
     // Ignore les erreurs localStorage
@@ -149,7 +153,8 @@ function createAmbientLoop(): void {
 function updateAmbientGain(): void {
   if (!ambientNode) return;
   const preset = getAmbientPreset(ambientType);
-  const target = soundsEnabled && ambientEnabled ? masterVolume * preset.baseGain : 0;
+  const target =
+    soundsEnabled && ambientEnabled ? masterVolume * preset.baseGain : 0;
   ambientNode.gain.gain.setTargetAtTime(target, getCtx().currentTime, 0.5);
 }
 
@@ -193,7 +198,6 @@ function playTone(
   osc.start(now);
   osc.stop(now + decay + 0.05);
 }
-
 
 /** Cloche de fin de focus (ding doux x2) */
 export function playPomoDone(): void {

@@ -9,7 +9,10 @@ declare global {
             client_id: string;
             callback: (res: { credential: string }) => void;
           }) => void;
-          renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void;
+          renderButton: (
+            el: HTMLElement,
+            opts: Record<string, unknown>,
+          ) => void;
         };
       };
     };
@@ -93,7 +96,7 @@ export function AuthScreen({ onAuth, onGuest }: Props) {
     return () => {
       if (document.head.contains(script)) document.head.removeChild(script);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
