@@ -32,6 +32,7 @@ import {
 } from "./engine/SoundEngine";
 import { AuthScreen, type AuthResult } from "./components/AuthScreen";
 import { FeedbackModal } from "./components/FeedbackModal";
+import { AudioPanel } from "./components/AudioPanel";
 
 function loadPomoConfig(): PomodoroConfig {
   try {
@@ -264,6 +265,7 @@ function Room({
   const [debugOpen, setDebugOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [audioPanelOpen, setAudioPanelOpen] = useState(false);
   const [adminTarget, setAdminTarget] = useState(LOCAL_USER_ID);
   const [adminAmount, setAdminAmount] = useState("100");
   const [adminMsg, setAdminMsg] = useState("");
@@ -1280,6 +1282,15 @@ function Room({
               <span className="topbar-button-label">Profil</span>
             </button>
             <button
+              id="audio-btn"
+              onClick={() => setAudioPanelOpen(true)}
+              aria-label="Paramètres audio"
+              title="Paramètres audio"
+            >
+              <span className="topbar-icon">🔊</span>
+              <span className="topbar-button-label">Audio</span>
+            </button>
+            <button
               id="feedback-btn"
               onClick={() => setFeedbackOpen(true)}
               aria-label="Feedback"
@@ -1704,6 +1715,11 @@ function Room({
           userName={LOCAL_NAME}
           onClose={() => setFeedbackOpen(false)}
         />
+      )}
+
+      {/* ── Panel Audio ── */}
+      {audioPanelOpen && (
+        <AudioPanel onClose={() => setAudioPanelOpen(false)} />
       )}
 
       {/* ── Panel Guilde ── */}
