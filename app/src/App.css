@@ -65,40 +65,79 @@
 #top-bar {
   pointer-events: auto;
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
   align-items: center;
-  flex-wrap: wrap;
+  gap: 0;
+  padding: 8px 4px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(251, 191, 36, 0.08));
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: var(--blur);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-height: 72px;
 }
 
 .top-bar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: wrap;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 .top-bar-group--timer {
-  min-width: min(100%, 360px);
+  min-width: fit-content;
+  justify-content: flex-start;
+  padding: 0;
+  gap: 4px;
 }
 .top-bar-group--actions {
-  gap: 6px;
+  gap: 4px;
+  justify-content: center;
+  flex-grow: 1;
 }
 .top-bar-group--status {
   justify-content: flex-end;
-  gap: 8px;
+  gap: 4px;
+  min-width: fit-content;
+  padding: 0;
+}
+
+#top-bar button {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-mid);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#top-bar button:hover {
+  background: transparent;
+  color: var(--text);
+}
+#top-bar button.active {
+  background: transparent;
+  color: var(--accent);
 }
 
 #top-bar button .topbar-icon {
   display: block;
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1;
 }
 #top-bar button .topbar-button-label {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--text-mid);
-  line-height: 1.1;
-  margin-top: 2px;
+  line-height: 1;
   letter-spacing: 0.02em;
 }
 
@@ -107,32 +146,30 @@
   pointer-events: auto;
   display: flex;
   gap: 2px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 4px;
   backdrop-filter: var(--blur);
-  box-shadow: var(--shadow);
 }
 #zoom-controls button {
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   color: var(--text-mid);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  width: 28px;
-  height: 28px;
+  width: auto;
+  height: auto;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition:
-    background 0.15s,
-    color 0.15s;
+  padding: 0;
+  transition: all 0.15s ease;
 }
 #zoom-controls button:hover {
-  background: var(--accent-dim);
+  background: transparent;
   color: var(--text);
 }
 
@@ -140,29 +177,33 @@
 #timer-panel {
   pointer-events: auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-md);
+  background: rgba(248, 113, 113, 0.05);
+  border: 1px solid rgba(248, 113, 113, 0.25);
   border-radius: var(--radius-lg);
-  padding: 7px 14px;
+  padding: 6px 10px;
   width: fit-content;
   backdrop-filter: var(--blur);
-  box-shadow: var(--shadow);
-  transition: border-color 0.4s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  flex-wrap: nowrap;
 }
 #timer-panel[data-phase="short-break"],
 #timer-panel[data-phase="long-break"] {
+  background: rgba(74, 222, 128, 0.05);
   border-color: rgba(74, 222, 128, 0.35);
 }
 #timer-panel[data-phase="focus"][data-status="running"] {
+  background: rgba(248, 113, 113, 0.1);
   border-color: rgba(248, 113, 113, 0.4);
 }
 #timer-panel[data-status="paused"] {
+  background: rgba(251, 191, 36, 0.05);
   border-color: rgba(251, 191, 36, 0.35);
 }
 #timer-panel.collective {
+  background: rgba(251, 191, 36, 0.08);
   border-color: rgba(251, 191, 36, 0.45);
 }
 #timer-panel.collective #timer-label {
@@ -174,11 +215,11 @@
 }
 
 #timer-label {
-  color: var(--accent);
+  color: var(--red);
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   letter-spacing: 0.01em;
-  transition: color 0.4s;
+  transition: color 0.3s ease;
 }
 #timer-panel[data-phase="focus"][data-status="running"] #timer-label {
   color: var(--red);
@@ -356,18 +397,19 @@
 /* ─── Coins & Streak ──────────────────────────────────────────────── */
 #coins-badge {
   pointer-events: none;
-  background: var(--bg-panel);
+  background: rgba(251, 191, 36, 0.08);
   border: 1px solid rgba(251, 191, 36, 0.35);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   color: var(--gold);
-  font-size: 0.83rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  height: 32px;
-  padding: 0 11px;
+  height: auto;
+  padding: 4px 10px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 4px;
   backdrop-filter: var(--blur);
-  box-shadow: var(--shadow);
   white-space: nowrap;
 }
 #streak-badge {
@@ -378,11 +420,11 @@
   color: #fb923c;
   font-size: 0.83rem;
   font-weight: 700;
-  height: 32px;
-  padding: 0 11px;
+  height: auto;
+  padding: 4px 10px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   backdrop-filter: var(--blur);
   box-shadow: var(--shadow);
   white-space: nowrap;
@@ -434,11 +476,11 @@
   color: var(--accent);
   font-size: 0.83rem;
   font-weight: 700;
-  height: 32px;
-  padding: 0 11px;
+  height: auto;
+  padding: 4px 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   backdrop-filter: var(--blur);
   box-shadow: var(--shadow);
   white-space: nowrap;
@@ -541,7 +583,6 @@
   font-weight: 600;
 }
 #task-progress {
-  position: relative;
   height: 3px;
   background: rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
@@ -603,7 +644,6 @@
 }
 .task-text {
   flex: 1;
-  position: relative;
   color: var(--text);
   font-size: 0.81rem;
   line-height: 1.35;
@@ -1238,8 +1278,8 @@
   font-size: 0.8rem;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text);
 }
 .chat-control-btn.active {
@@ -1308,7 +1348,6 @@
   text-align: center;
 }
 #chat-input-wrap {
-  position: relative;
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
@@ -1491,14 +1530,12 @@
   display: flex;
   flex-direction: column;
   padding: 1px 0;
-  position: relative;
   border-radius: 5px;
 }
 .chat-line-body {
   display: flex;
   gap: 6px;
   align-items: baseline;
-  position: relative;
 }
 .chat-author {
   color: var(--accent);
@@ -2218,7 +2255,7 @@
 .auth-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(139, 92, 246, 0.25);
+  border: 3px solid rgba(139, 92, 246, 0.2);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -2241,7 +2278,6 @@
   backdrop-filter: blur(2px);
 }
 #profile-panel {
-  position: relative;
   background: rgba(22, 15, 42, 0.97);
   border: 1px solid var(--border-md);
   border-radius: var(--radius-lg);
@@ -2429,7 +2465,7 @@
 }
 .profile-achievement.unlocked {
   background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  border: 1px solid rgba(139, 92, 246, 0.2);
 }
 .profile-achievement.locked {
   background: rgba(255, 255, 255, 0.02);
@@ -2483,9 +2519,8 @@
   backdrop-filter: blur(3px);
 }
 #guild-panel {
-  position: relative;
   background: var(--bg-panel);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 28px 28px 24px;
   width: min(420px, 92vw);
@@ -2560,7 +2595,7 @@
 }
 #guild-boss-bar-wrap {
   height: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 5px;
   overflow: hidden;
 }
@@ -2667,7 +2702,7 @@
 .guild-tab {
   flex: 1;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: rgba(255, 255, 255, 0.5);
   padding: 8px;
@@ -2772,7 +2807,6 @@
   backdrop-filter: blur(3px);
 }
 #onboarding-card {
-  position: relative;
   background: rgba(22, 15, 42, 0.98);
   border: 1px solid var(--border-md);
   border-radius: var(--radius-lg);
@@ -3024,7 +3058,6 @@
   z-index: 2000;
 }
 .feedback-modal {
-  position: relative;
   background: #1e1a2e;
   border: 1px solid rgba(139, 92, 246, 0.4);
   border-radius: 16px;
@@ -3051,7 +3084,7 @@
 }
 .feedback-close:hover {
   color: #e2d9f3;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
 }
 .feedback-form {
   display: flex;
@@ -3080,7 +3113,7 @@
   transition: all 0.15s;
 }
 .feedback-type-btn.active {
-  background: rgba(139, 92, 246, 0.25);
+  background: rgba(139, 92, 246, 0.2);
   border-color: rgba(139, 92, 246, 0.7);
   color: #c4b5fd;
   font-weight: 600;
@@ -3098,7 +3131,7 @@
 .feedback-input,
 .feedback-textarea {
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  border: 1px solid rgba(139, 92, 246, 0.2);
   border-radius: 8px;
   color: #e2d9f3;
   font-size: 0.95rem;
@@ -3304,7 +3337,7 @@
 }
 
 .audio-preview-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
 }
 
