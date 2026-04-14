@@ -120,6 +120,7 @@ export type RoomCallbacks = {
   }) => void;
   onGuildBossDefeated: (payload: { bossLevel: number; reward: number }) => void;
   onEmote: (id: string, emoji: string) => void;
+  onPublicTasksUpdate: (socketId: string, taskIds: string[]) => void;
 };
 
 export class SocketClient {
@@ -186,6 +187,9 @@ export class SocketClient {
     );
     this.socket.on("chat:emote", ({ id, emoji }) =>
       callbacks.onEmote(id, emoji),
+    );
+    this.socket.on("tasks:public-update", ({ socketId, taskIds }) =>
+      callbacks.onPublicTasksUpdate(socketId, taskIds),
     );
     this.socket.on("xp:update", ({ xp, level, xpToNext, levelUp }) =>
       callbacks.onXpUpdate(xp, level, xpToNext, levelUp),

@@ -12,6 +12,7 @@ export interface Player {
   hat?: string | null;
   placed?: string[];
   positions?: Record<string, { col: number; row: number }>;
+  pendingTaskIds?: string[];
 }
 
 export interface ShopItem {
@@ -313,6 +314,10 @@ export interface ServerToClientEvents {
     ts: number;
   }) => void;
   "task:completed-public": (payload: { socketId: string }) => void;
+  "tasks:public-update": (payload: {
+    socketId: string;
+    taskIds: string[];
+  }) => void;
   "chat:typing": (payload: { id: string; name: string; color: number }) => void;
   "chat:react": (payload: {
     msgTs: number;

@@ -101,7 +101,7 @@
 }
 .top-bar-group--status {
   justify-content: flex-end;
-  gap: 4px;
+  gap: 6px;
   min-width: fit-content;
   padding: 0;
 }
@@ -150,31 +150,47 @@
   pointer-events: auto;
   display: flex;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
-  padding: 4px;
+  padding: 3px;
   backdrop-filter: var(--blur);
 }
 #zoom-controls button {
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   color: var(--text-mid);
-  font-size: 0.95rem;
-  font-weight: 700;
-  width: auto;
-  height: auto;
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  transition: all 0.15s ease;
+  gap: 2px;
+  padding: 6px 10px;
+  min-width: 58px;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
 }
 #zoom-controls button:hover {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text);
+}
+#zoom-controls button:active {
+  transform: scale(0.93);
+  transition: transform 0.07s;
+}
+.zoom-icon {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.zoom-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* ─── Timer Panel ─────────────────────────────────────────────────── */
@@ -485,41 +501,43 @@
 /* ─── Coins & Streak ──────────────────────────────────────────────── */
 #coins-badge {
   pointer-events: none;
-  background: rgba(251, 191, 36, 0.08);
-  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.4);
   border-radius: var(--radius-md);
   color: var(--gold);
-  font-size: 0.82rem;
+  font-size: 1rem;
   font-weight: 700;
   height: auto;
-  padding: 4px 10px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   backdrop-filter: var(--blur);
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 #streak-badge {
   pointer-events: none;
   background: var(--bg-panel);
-  border: 1px solid rgba(251, 115, 22, 0.35);
+  border: 1px solid rgba(251, 115, 22, 0.4);
   border-radius: var(--radius);
   color: #fb923c;
-  font-size: 0.83rem;
+  font-size: 1rem;
   font-weight: 700;
   height: auto;
-  padding: 4px 10px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   backdrop-filter: var(--blur);
   box-shadow: var(--shadow);
   white-space: nowrap;
   transition: border-color 0.3s;
+  letter-spacing: 0.01em;
 }
 #streak-badge.pop {
-  border-color: rgba(249, 115, 22, 0.8);
+  border-color: rgba(249, 115, 22, 0.9);
   animation: streak-pop 0.4s ease;
 }
 @keyframes streak-pop {
@@ -535,7 +553,7 @@
 }
 .streak-bonus {
   color: var(--gold);
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   animation: streak-bonus-fly 2.5s ease forwards;
 }
 @keyframes streak-bonus-fly {
@@ -559,31 +577,32 @@
 #xp-badge {
   pointer-events: none;
   background: var(--bg-panel);
-  border: 1px solid rgba(139, 92, 246, 0.4);
+  border: 1px solid rgba(139, 92, 246, 0.45);
   border-radius: var(--radius);
   color: var(--accent);
-  font-size: 0.83rem;
+  font-size: 1rem;
   font-weight: 700;
   height: auto;
-  padding: 4px 10px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   backdrop-filter: var(--blur);
   box-shadow: var(--shadow);
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 #xp-bar {
-  width: 44px;
-  height: 4px;
+  width: 64px;
+  height: 6px;
   background: rgba(139, 92, 246, 0.2);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 #xp-bar-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.5s ease;
 }
 

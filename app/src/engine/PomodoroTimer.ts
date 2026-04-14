@@ -167,6 +167,9 @@ export class PomodoroTimer {
       remaining: this.state.remaining,
     });
     this.emit({ type: "status-change", status: "idle" });
+
+    // Enchaîner automatiquement la phase suivante
+    this.start();
   }
 
   destroy(): void {

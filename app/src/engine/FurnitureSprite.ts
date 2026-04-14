@@ -54,18 +54,21 @@ export class FurnitureSprite {
   private tooltip: PIXI.Container;
   public onSelect?: () => void;
 
-  constructor(itemId: string) {
+  constructor(itemId: string, ownerName?: string) {
     this.container = new PIXI.Container();
     this.container.eventMode = "static";
-    this.container.cursor = "pointer";
+    // Objet d'un autre joueur → curseur neutre, non déplaçable
+    this.container.cursor = ownerName ? "default" : "pointer";
 
     this.selectRing = new PIXI.Graphics();
     this.container.addChild(this.selectRing);
 
     this._draw(itemId);
 
-    const bonus = (CONFIGS[itemId] ?? { bonus: "" }).bonus;
-    this.tooltip = this._buildTooltip(bonus);
+    const tooltipText = ownerName
+      ? `👤 ${ownerName}`
+      : (CONFIGS[itemId] ?? { bonus: "" }).bonus;
+    this.tooltip = this._buildTooltip(tooltipText);
     this.tooltip.visible = false;
     this.container.addChild(this.tooltip);
 
@@ -75,11 +78,15 @@ export class FurnitureSprite {
     this.container.on("pointerout", () => {
       this.tooltip.visible = false;
     });
-    this.container.on("pointerdown", (e: PIXI.FederatedPointerEvent) => {
-      if (e.button !== 0) return;
-      e.stopPropagation();
-      this.onSelect?.();
-    });
+
+    // Seul le propriétaire peut déplacer son mobilier
+    if (!ownerName) {
+      this.container.on("pointerdown", (e: PIXI.FederatedPointerEvent) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        this.onSelect?.();
+      });
+    }
   }
 
   private _buildTooltip(text: string): PIXI.Container {

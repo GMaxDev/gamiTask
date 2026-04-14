@@ -353,6 +353,9 @@ function Room({
         if (p.placed && p.positions) {
           scene.setOtherPlayerFurniture(p.id, p.placed, p.positions);
         }
+        if (p.pendingTaskIds?.length) {
+          scene.setOtherPlayerScrolls(p.id, p.name, p.pendingTaskIds);
+        }
       }
       if (pending.length > 0) {
         setRoomMembers(
@@ -431,8 +434,15 @@ function Room({
 
   // ── Parchemins physiques : sync tâches → scène ───────────────
   useEffect(() => {
-    sceneRef.current?.setTasks(tasks);
-  }, [tasks]);
+    sceneRef.current?.setTasks(
+      tasks.map((t) => ({
+        id: t.id,
+        done: t.done,
+        text: t.text,
+        ownerName: LOCAL_NAME,
+      })),
+    );
+  }, [tasks, LOCAL_NAME]);
 
   // ── Mobilier Feng Shui : sync positions → scène après re-render ─────────
   useEffect(() => {
@@ -455,6 +465,9 @@ function Room({
           scene.setRemoteAvatarState(p.id, p.state);
           if (p.placed && p.positions) {
             scene.setOtherPlayerFurniture(p.id, p.placed, p.positions);
+          }
+          if (p.pendingTaskIds?.length) {
+            scene.setOtherPlayerScrolls(p.id, p.name, p.pendingTaskIds);
           }
         }
         setRoomMembers(
@@ -484,6 +497,9 @@ function Room({
             p.placed,
             p.positions,
           );
+        }
+        if (p.pendingTaskIds?.length) {
+          sceneRef.current?.setOtherPlayerScrolls(p.id, p.name, p.pendingTaskIds);
         }
         setRoomMembers((prev) => {
           const next = new Map(prev);
@@ -734,6 +750,9 @@ function Room({
       onEmote: (id, emoji) => {
         sceneRef.current?.showRemoteEmote(id, emoji);
       },
+      onPublicTasksUpdate: (socketId, taskIds) => {
+        sceneRef.current?.setOtherPlayerScrolls(socketId, "", taskIds);
+      },
     });
     socketRef.current = client;
     return () => {
@@ -776,10 +795,6 @@ function Room({
     setDisplay(formatTime(pomoConfigRef.current.focus * 60));
     setPhase("focus");
     setStatus("idle");
-  }, []);
-
-  const handleCenter = useCallback(() => {
-    sceneRef.current?.centerView();
   }, []);
 
   const handleSaveConfig = useCallback(() => {
@@ -1230,25 +1245,27 @@ function Room({
             <div id="zoom-controls">
               <button
                 onClick={() => sceneRef.current?.zoomIn()}
-                aria-label="Zoom +"
+                aria-label="Zoom avant"
+                title="Zoom avant"
               >
-                +
+                <span className="zoom-icon">+</span>
+                <span className="zoom-label">Zoom +</span>
               </button>
               <button
                 onClick={() => sceneRef.current?.zoomOut()}
-                aria-label="Zoom −"
+                aria-label="Zoom arrière"
+                title="Zoom arrière"
               >
-                −
-              </button>
-              <button onClick={handleCenter} aria-label="Recentrer (Espace)">
-                ⊕
+                <span className="zoom-icon">−</span>
+                <span className="zoom-label">Zoom −</span>
               </button>
               <button
                 onClick={() => sceneRef.current?.fitToScreen()}
-                aria-label="Ajuster à l'écran"
+                aria-label="Vue d'ensemble"
                 title="Ajuster la carte à l'écran"
               >
-                ⧉
+                <span className="zoom-icon">⛶</span>
+                <span className="zoom-label">Vue d'ensemble</span>
               </button>
             </div>
             <button

@@ -53,9 +53,24 @@ export class GameScene {
   /** Atlas de textures des tuiles ISO chargées depuis le tileset */
   private tileset = new Map<string, PIXI.Texture>();
   private remoteAvatars = new Map<string, AvatarSprite>();
+  private playerNames = new Map<string, string>();
   private scrollMap = new Map<
     string,
-    { sprite: ScrollSprite; col: number; row: number }
+    {
+      sprite: ScrollSprite;
+      col: number;
+      row: number;
+      ownerName: string;
+      taskText: string | null;
+    }
+  >();
+  private _pendingTaskData = new Map<
+    string,
+    { ownerName: string; taskText: string | null }
+  >();
+  private otherScrollMaps = new Map<
+    string,
+    Map<string, { sprite: ScrollSprite; col: number; row: number }>
   >();
   private furnitureSprites = new Map<string, FurnitureSprite>();
   /** Mobilier des autres joueurs : socketId → (itemId → sprite) */
@@ -543,8 +558,9 @@ export class GameScene {
     const { x, y } = gridToScreen(6, 6, 0, 0);
     npc.x = x;
     npc.y = y - 10;
+    npc.scale.set(2);
     npc.alpha = 0;
-    npc.zIndex = isoDepth(6, 6);
+    npc.zIndex = 99999;
     this.spriteLayer.addChild(npc);
     this.guardianNPC = npc;
 
@@ -685,6 +701,7 @@ export class GameScene {
     if (hat) avatar.setHat(hat);
     this.spriteLayer.addChild(avatar.container);
     this.remoteAvatars.set(id, avatar);
+    this.playerNames.set(id, name);
     this.updateSpriteDepth();
   }
 
@@ -693,6 +710,76 @@ export class GameScene {
     if (!avatar) return;
     this.spriteLayer.removeChild(avatar.container);
     this.remoteAvatars.delete(id);
+    this.playerNames.delete(id);
+    this.removeOtherPlayerScrolls(id);
+  }
+
+  // ── Other players' scrolls ────────────────────────────────────────────────
+
+  /** Returns the union of all used scroll positions (local + all remote). */
+  private _allScrollPositions(): Set<string> {
+    const used = new Set<string>();
+    for (const e of this.scrollMap.values()) used.add(`${e.col},${e.row}`);
+    for (const map of this.otherScrollMaps.values())
+      for (const e of map.values()) used.add(`${e.col},${e.row}`);
+    return used;
+  }
+
+  /** Synchronise les parchemins visibles pour les tâches d'un autre joueur. */
+  setOtherPlayerScrolls(
+    socketId: string,
+    ownerName: string,
+    taskIds: string[],
+  ): void {
+    // Resolve name from playerNames if not provided
+    const resolvedName =
+      ownerName || this.playerNames.get(socketId) || "Joueur";
+
+    let spriteMap = this.otherScrollMaps.get(socketId);
+    if (!spriteMap) {
+      spriteMap = new Map();
+      this.otherScrollMaps.set(socketId, spriteMap);
+    }
+
+    // Supprimer les parchemins des tâches qui ne sont plus présentes
+    const taskIdSet = new Set(taskIds);
+    for (const [tid, entry] of [...spriteMap.entries()]) {
+      if (!taskIdSet.has(tid)) {
+        if (entry.sprite.container.parent)
+          this.spriteLayer.removeChild(entry.sprite.container);
+        entry.sprite.destroy();
+        spriteMap.delete(tid);
+      }
+    }
+
+    // Ajouter les nouveaux parchemins
+    const usedPositions = this._allScrollPositions();
+    for (const tid of taskIds) {
+      if (spriteMap.has(tid)) continue;
+      const pos = this._getFreeTile(usedPositions);
+      if (!pos) break;
+      const [col, row] = pos;
+      usedPositions.add(`${col},${row}`);
+      const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+      const sprite = new ScrollSprite(resolvedName, null);
+      sprite.container.x = x;
+      sprite.container.y = y;
+      sprite.container.zIndex = isoDepth(col, row) + 0.3;
+      this.spriteLayer.addChild(sprite.container);
+      spriteMap.set(tid, { sprite, col, row });
+    }
+  }
+
+  /** Supprime tous les parchemins d'un joueur (lors de sa déconnexion). */
+  removeOtherPlayerScrolls(socketId: string): void {
+    const spriteMap = this.otherScrollMaps.get(socketId);
+    if (!spriteMap) return;
+    for (const entry of spriteMap.values()) {
+      if (entry.sprite.container.parent)
+        this.spriteLayer.removeChild(entry.sprite.container);
+      entry.sprite.destroy();
+    }
+    this.otherScrollMaps.delete(socketId);
   }
 
   moveRemoteAvatar(id: string, col: number, row: number): void {
@@ -736,17 +823,98 @@ export class GameScene {
     this.remoteAvatars.get(socketId)?.setHat(hatId);
   }
 
+  /** Retourne la première case libre du pool (ni meuble, ni parchemin existant, ni bloquée). */
+  private _getFreeTile(usedPositions: Set<string>): [number, number] | null {
+    for (const [c, r] of GameScene.SCROLL_TILE_POOL) {
+      const key = `${c},${r}`;
+      if (
+        !usedPositions.has(key) &&
+        !this.occupiedCells.has(key) &&
+        !isBlocked(c, r)
+      ) {
+        return [c, r];
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Rebalance les parchemins après un changement du mobilier :
+   * - Déplace les parchemins dont la case est désormais occupée par un meuble.
+   * - Essaie de placer les parchemins en attente si des cases se libèrent.
+   */
+  private _rebalanceScrolls(): void {
+    const usedPositions = new Set<string>(
+      [...this.scrollMap.values()].map((e) => `${e.col},${e.row}`),
+    );
+
+    // Déplacer les parchemins sur une case de meuble
+    for (const [taskId, entry] of [...this.scrollMap.entries()]) {
+      const cellKey = `${entry.col},${entry.row}`;
+      if (this.occupiedCells.has(cellKey)) {
+        usedPositions.delete(cellKey);
+        const newPos = this._getFreeTile(usedPositions);
+        if (newPos) {
+          const [col, row] = newPos;
+          const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+          entry.sprite.container.x = x;
+          entry.sprite.container.y = y;
+          entry.sprite.container.zIndex = isoDepth(col, row) + 0.3;
+          usedPositions.add(`${col},${row}`);
+          this.scrollMap.set(taskId, { ...entry, col, row });
+        } else {
+          // Plus de place — mettre en attente
+          this.scrollMap.delete(taskId);
+          this._pendingTaskData.set(taskId, {
+            ownerName: entry.ownerName,
+            taskText: entry.taskText,
+          });
+          entry.sprite.destroy();
+        }
+      }
+    }
+
+    // Tenter de placer les parchemins en attente si des cases se sont libérées
+    for (const [taskId, data] of [...this._pendingTaskData.entries()]) {
+      const pos = this._getFreeTile(usedPositions);
+      if (!pos) break;
+      const [col, row] = pos;
+      usedPositions.add(`${col},${row}`);
+      const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
+      const sprite = new ScrollSprite(data.ownerName, data.taskText);
+      sprite.container.x = x;
+      sprite.container.y = y;
+      sprite.container.zIndex = isoDepth(col, row) + 0.3;
+      this.spriteLayer.addChild(sprite.container);
+      this.scrollMap.set(taskId, {
+        sprite,
+        col,
+        row,
+        ownerName: data.ownerName,
+        taskText: data.taskText,
+      });
+      this._pendingTaskData.delete(taskId);
+    }
+  }
+
   /** Synchronise les parchemins physiques avec la liste de tâches actuelle. */
-  setTasks(tasks: { id: string; done: boolean }[]): void {
+  setTasks(
+    tasks: { id: string; done: boolean; text: string; ownerName: string }[],
+  ): void {
     const undoneIds = new Set(tasks.filter((t) => !t.done).map((t) => t.id));
     const doneIds = new Set(tasks.filter((t) => t.done).map((t) => t.id));
 
-    // Supprimer les parchemins des tâches désormais complétées (animation pop)
+    // Supprimer les parchemins des tâches complétées (animation pop)
     for (const [id, entry] of [...this.scrollMap.entries()]) {
       if (doneIds.has(id)) {
         this.scrollMap.delete(id);
         entry.sprite.popOut(() => entry.sprite.destroy());
       }
+    }
+
+    // Purger les tâches complétées/supprimées du backlog
+    for (const id of [...this._pendingTaskData.keys()]) {
+      if (!undoneIds.has(id)) this._pendingTaskData.delete(id);
     }
 
     // Supprimer les parchemins des tâches supprimées (instantané)
@@ -757,29 +925,41 @@ export class GameScene {
       }
     }
 
-    // Ajouter les parchemins pour les nouvelles tâches non complétées
-    const usedPositions = new Set(
+    // Positions déjà utilisées par les parchemins actifs
+    const usedPositions = new Set<string>(
       [...this.scrollMap.values()].map((e) => `${e.col},${e.row}`),
     );
 
+    // Ajouter les nouveaux parchemins
     for (const task of tasks) {
       if (task.done || this.scrollMap.has(task.id)) continue;
+      if (this._pendingTaskData.has(task.id)) continue;
 
-      const pos = GameScene.SCROLL_TILE_POOL.find(
-        ([c, r]) => !usedPositions.has(`${c},${r}`),
-      );
-      if (!pos) break; // pool épuisé
+      const pos = this._getFreeTile(usedPositions);
+      if (!pos) {
+        // Aucune case disponible — mettre en attente
+        this._pendingTaskData.set(task.id, {
+          ownerName: task.ownerName,
+          taskText: task.text,
+        });
+        continue;
+      }
 
       const [col, row] = pos;
       usedPositions.add(`${col},${row}`);
-
       const { x, y } = gridToScreen(col, row, this.offsetX, this.offsetY);
-      const sprite = new ScrollSprite();
+      const sprite = new ScrollSprite(task.ownerName, task.text);
       sprite.container.x = x;
       sprite.container.y = y;
       sprite.container.zIndex = isoDepth(col, row) + 0.3;
       this.spriteLayer.addChild(sprite.container);
-      this.scrollMap.set(task.id, { sprite, col, row });
+      this.scrollMap.set(task.id, {
+        sprite,
+        col,
+        row,
+        ownerName: task.ownerName,
+        taskText: task.text,
+      });
     }
   }
 
@@ -841,6 +1021,9 @@ export class GameScene {
         this.currentPositions[id] = { col: slot.col, row: slot.row };
       }
     }
+
+    // Déplacer les parchemins qui chevauchent un meuble, placer ceux en attente
+    this._rebalanceScrolls();
   }
 
   private _selectFurnitureForMove(id: string): void {
@@ -873,6 +1056,8 @@ export class GameScene {
       }
     }
 
+    const ownerName = this.playerNames.get(socketId) ?? "Joueur";
+
     // Ajouter ou repositionner les meubles placés
     for (const itemId of placed) {
       const pos = positions[itemId];
@@ -889,11 +1074,10 @@ export class GameScene {
         existingSprite.container.y = y;
         existingSprite.container.zIndex = isoDepth(pos.col, pos.row) + 0.4;
       } else {
-        const sprite = new FurnitureSprite(itemId);
+        const sprite = new FurnitureSprite(itemId, ownerName);
         sprite.container.x = x;
         sprite.container.y = y;
         sprite.container.zIndex = isoDepth(pos.col, pos.row) + 0.4;
-        // Pas de onSelect pour le mobilier des autres (non interactif)
         this.spriteLayer.addChild(sprite.container);
         spriteMap.set(itemId, sprite);
       }
