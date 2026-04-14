@@ -1312,6 +1312,7 @@ function Room({
               }}
               aria-label="Mon profil"
               title="Mon profil"
+              className={profileData ? "active" : ""}
             >
               <span className="topbar-icon">👤</span>
               <span className="topbar-button-label">Profil</span>
@@ -1321,6 +1322,7 @@ function Room({
               onClick={() => setAudioPanelOpen(true)}
               aria-label="Paramètres audio"
               title="Paramètres audio"
+              className={audioPanelOpen ? "active" : ""}
             >
               <span className="topbar-icon">🔊</span>
               <span className="topbar-button-label">Audio</span>
@@ -1330,6 +1332,7 @@ function Room({
               onClick={() => setFeedbackOpen(true)}
               aria-label="Feedback"
               title="Signaler un bug ou soumettre une idée"
+              className={feedbackOpen ? "active" : ""}
             >
               <span className="topbar-icon">📢</span>
               <span className="topbar-button-label">Aide</span>

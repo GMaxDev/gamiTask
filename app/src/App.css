@@ -57,7 +57,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 14px;
+  /* padding: 14px; */
   gap: 0;
 }
 
@@ -67,8 +67,12 @@
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 8px 4px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(251, 191, 36, 0.08));
+  padding: 10px 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.08),
+    rgba(251, 191, 36, 0.08)
+  );
   border-bottom: 1px solid var(--border);
   backdrop-filter: var(--blur);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -359,16 +363,16 @@
 #logout-btn,
 #feedback-btn {
   pointer-events: auto;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: none;
   border-radius: var(--radius);
-  color: var(--text);
+  color: var(--text-mid);
   font-size: 0.95rem;
   min-width: 72px;
   height: 52px;
   cursor: pointer;
-  backdrop-filter: var(--blur);
-  box-shadow: var(--shadow);
+  backdrop-filter: none;
+  box-shadow: none;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -376,22 +380,106 @@
   gap: 4px;
   padding: 12px 10px 8px;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s,
-    transform 0.15s;
+    background 0.18s,
+    color 0.18s,
+    transform 0.12s,
+    box-shadow 0.18s;
 }
-#task-toggle-btn:hover,
+
+/* Press animation */
+#task-toggle-btn:active,
+#shop-toggle-btn:active,
+#leaderboard-toggle-btn:active,
+#guild-toggle-btn:active,
+#profile-self-btn:active,
+#audio-btn:active,
+#feedback-btn:active,
+#logout-btn:active {
+  transform: scale(0.92);
+  transition: transform 0.07s;
+}
+
+/* Tâches — bleu */
+#task-toggle-btn:hover {
+  background: rgba(96, 165, 250, 0.1);
+  color: #93c5fd;
+}
 #task-toggle-btn.active {
-  background: rgba(96, 165, 250, 0.18);
-  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.16);
   color: var(--blue);
+  box-shadow: inset 0 -2px 0 rgba(96, 165, 250, 0.75);
 }
-#leaderboard-toggle-btn:hover,
+
+/* Boutique — or */
+#shop-toggle-btn:hover {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fcd34d;
+}
+#shop-toggle-btn.active {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--gold);
+  box-shadow: inset 0 -2px 0 rgba(251, 191, 36, 0.75);
+}
+
+/* Classement — or */
+#leaderboard-toggle-btn:hover {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fcd34d;
+}
 #leaderboard-toggle-btn.active {
   background: rgba(251, 191, 36, 0.15);
-  border-color: rgba(251, 191, 36, 0.5);
   color: var(--gold);
+  box-shadow: inset 0 -2px 0 rgba(251, 191, 36, 0.75);
+}
+
+/* Guilde — violet */
+#guild-toggle-btn:hover {
+  background: rgba(139, 92, 246, 0.12);
+  color: #c4b5fd;
+}
+#guild-toggle-btn.active {
+  background: rgba(139, 92, 246, 0.2);
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 rgba(139, 92, 246, 0.8);
+}
+
+/* Profil — vert */
+#profile-self-btn:hover {
+  background: rgba(74, 222, 128, 0.1);
+  color: #86efac;
+}
+#profile-self-btn.active {
+  background: rgba(74, 222, 128, 0.14);
+  color: var(--green);
+  box-shadow: inset 0 -2px 0 rgba(74, 222, 128, 0.75);
+}
+
+/* Audio — indigo */
+#audio-btn:hover {
+  background: rgba(129, 140, 248, 0.12);
+  color: #a5b4fc;
+}
+#audio-btn.active {
+  background: rgba(129, 140, 248, 0.18);
+  color: #818cf8;
+  box-shadow: inset 0 -2px 0 rgba(129, 140, 248, 0.8);
+}
+
+/* Aide — orange */
+#feedback-btn:hover {
+  background: rgba(249, 115, 22, 0.1);
+  color: #fdba74;
+}
+#feedback-btn.active {
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+  box-shadow: inset 0 -2px 0 rgba(249, 115, 22, 0.8);
+}
+
+/* Déconnexion — rouge */
+#logout-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
 }
 
 /* ─── Coins & Streak ──────────────────────────────────────────────── */
@@ -1240,6 +1328,7 @@
   box-shadow: var(--shadow-lg);
   align-self: flex-end;
   display: flex;
+  margin: 20px;
   flex-direction: column;
 }
 #chat-header {
