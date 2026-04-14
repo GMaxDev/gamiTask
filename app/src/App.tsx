@@ -16,6 +16,7 @@ import type {
   SharedPomoState,
   ProfileData,
   GuildData,
+  VideoState,
 } from "./net/types";
 import { TaskPanel } from "./components/TaskPanel";
 import { ShopPanel } from "./components/ShopPanel";
@@ -33,6 +34,7 @@ import {
 import { AuthScreen, type AuthResult } from "./components/AuthScreen";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { AudioPanel } from "./components/AudioPanel";
+import { AmbiancePanel } from "./components/AmbiancePanel";
 
 function loadPomoConfig(): PomodoroConfig {
   try {
@@ -196,6 +198,8 @@ function Room({
   const socketRef = useRef<SocketClient | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const dmEndRef = useRef<HTMLDivElement>(null);
+  // Stack pour la touche Échap : liste ordonnée des panels ouverts (le dernier = le plus récent)
+  const panelStackRef = useRef<string[]>([]);
   // Joueurs reçus avant que la scène soit prête (room-state arrive avant init async PixiJS)
   const pendingRoomRef = useRef<import("./net/types").Player[] | null>(null);
 
@@ -284,6 +288,8 @@ function Room({
   const [adminOpen, setAdminOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [audioPanelOpen, setAudioPanelOpen] = useState(false);
+  const [ambiancePanelOpen, setAmbiancePanelOpen] = useState(false);
+  const [sharedVideo, setSharedVideo] = useState<VideoState | null>(null);
   const [adminTarget, setAdminTarget] = useState(LOCAL_USER_ID);
   const [adminAmount, setAdminAmount] = useState("100");
   const [adminMsg, setAdminMsg] = useState("");
@@ -753,6 +759,10 @@ function Room({
       onPublicTasksUpdate: (socketId, taskIds) => {
         sceneRef.current?.setOtherPlayerScrolls(socketId, "", taskIds);
       },
+      onVideoState: (state) => setSharedVideo(state),
+      onVideoUpdate: (state) => {
+        setSharedVideo(state.videoId ? state : null);
+      },
     });
     socketRef.current = client;
     return () => {
@@ -831,6 +841,82 @@ function Room({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // ── Suivi de la pile d'ouverture des panels ────────────────────────────────
+  // Chaque useEffect ajoute/retire l'id du panel au ref de pile quand son état change.
+  // Le ref est utilisé par le handler Échap ci-dessous (setters stables, pas de deps).
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (taskPanelOpen) { if (!s.includes("tasks")) s.push("tasks"); }
+    else { panelStackRef.current = s.filter((p) => p !== "tasks"); }
+  }, [taskPanelOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (shopOpen) { if (!s.includes("shop")) s.push("shop"); }
+    else { panelStackRef.current = s.filter((p) => p !== "shop"); }
+  }, [shopOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (leaderboardOpen) { if (!s.includes("leaderboard")) s.push("leaderboard"); }
+    else { panelStackRef.current = s.filter((p) => p !== "leaderboard"); }
+  }, [leaderboardOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (guildPanelOpen) { if (!s.includes("guild")) s.push("guild"); }
+    else { panelStackRef.current = s.filter((p) => p !== "guild"); }
+  }, [guildPanelOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (profileData) { if (!s.includes("profile")) s.push("profile"); }
+    else { panelStackRef.current = s.filter((p) => p !== "profile"); }
+  }, [profileData]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (feedbackOpen) { if (!s.includes("feedback")) s.push("feedback"); }
+    else { panelStackRef.current = s.filter((p) => p !== "feedback"); }
+  }, [feedbackOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (audioPanelOpen) { if (!s.includes("audio")) s.push("audio"); }
+    else { panelStackRef.current = s.filter((p) => p !== "audio"); }
+  }, [audioPanelOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (ambiancePanelOpen) { if (!s.includes("ambiance")) s.push("ambiance"); }
+    else { panelStackRef.current = s.filter((p) => p !== "ambiance"); }
+  }, [ambiancePanelOpen]);
+  useEffect(() => {
+    const s = panelStackRef.current;
+    if (openDm) { if (!s.includes("dm")) s.push("dm"); }
+    else { panelStackRef.current = s.filter((p) => p !== "dm"); }
+  }, [openDm]);
+
+  // Échap → ferme le dernier panel ouvert
+  useEffect(() => {
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Laisser le comportement natif si on est dans un input
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const stack = panelStackRef.current;
+      if (stack.length === 0) return;
+      e.preventDefault();
+      const top = stack[stack.length - 1];
+      switch (top) {
+        case "tasks":       setTaskPanelOpen(false); break;
+        case "shop":        setShopOpen(false); break;
+        case "leaderboard": setLeaderboardOpen(false); break;
+        case "guild":       setGuildPanelOpen(false); break;
+        case "profile":     setProfileData(null); break;
+        case "feedback":    setFeedbackOpen(false); break;
+        case "audio":       setAudioPanelOpen(false); break;
+        case "ambiance":    setAmbiancePanelOpen(false); break;
+        case "dm":          setOpenDm(null); break;
+      }
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, []); // setters React sont stables, panelStackRef est un ref — aucune dépendance nécessaire
 
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery === null) return [];
@@ -1335,6 +1421,18 @@ function Room({
               <span className="topbar-button-label">Profil</span>
             </button>
             <button
+              id="ambiance-btn"
+              onClick={() => setAmbiancePanelOpen((o) => !o)}
+              aria-label="Ambiance"
+              title="Diffuser une vidéo YouTube dans la room"
+              className={ambiancePanelOpen ? "active" : ""}
+            >
+              <span className="topbar-icon">
+                🎵{sharedVideo?.videoId ? <span className="ambiance-live-dot" /> : null}
+              </span>
+              <span className="topbar-button-label">Ambiance</span>
+            </button>
+            <button
               id="audio-btn"
               onClick={() => setAudioPanelOpen(true)}
               aria-label="Paramètres audio"
@@ -1830,6 +1928,15 @@ function Room({
       {audioPanelOpen && (
         <AudioPanel onClose={() => setAudioPanelOpen(false)} />
       )}
+
+      {/* ── Panel Ambiance (always mounted so YT player stays alive) ── */}
+      <AmbiancePanel
+        open={ambiancePanelOpen}
+        onClose={() => setAmbiancePanelOpen(false)}
+        socket={socketRef.current}
+        socketId={mySocketId}
+        videoState={sharedVideo}
+      />
 
       {/* ── Panel Guilde ── */}
       {guildPanelOpen && (

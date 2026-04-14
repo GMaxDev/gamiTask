@@ -162,6 +162,16 @@ export interface SharedPomoState {
   session: number;
 }
 
+export interface VideoState {
+  videoId: string | null;
+  playing: boolean;
+  timestamp: number;
+  syncedAt: number;
+  playbackRate: number;
+  ownerId: string | null;
+  ownerName: string;
+}
+
 export interface ProfileData {
   userId: string;
   name: string;
@@ -255,6 +265,13 @@ export interface ClientToServerEvents {
   "guild:join": (payload: { guildId: string }) => void;
   "guild:leave": () => void;
   "guild:state-request": () => void;
+  "video:set": (payload: { videoId: string }) => void;
+  "video:sync": (payload: {
+    timestamp: number;
+    playing: boolean;
+    rate: number;
+  }) => void;
+  "video:stop": () => void;
 }
 
 export interface ServerToClientEvents {
@@ -379,6 +396,8 @@ export interface ServerToClientEvents {
     bossLevel: number;
     reward: number;
   }) => void;
+  "video:state": (state: VideoState) => void;
+  "video:update": (state: VideoState) => void;
 }
 
 export interface GuildMember {

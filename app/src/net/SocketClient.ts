@@ -9,6 +9,7 @@ import type {
   PomodoroPhase,
   ProfileData,
   GuildData,
+  VideoState,
 } from "./types";
 
 export type ChatMessage = {
@@ -121,6 +122,8 @@ export type RoomCallbacks = {
   onGuildBossDefeated: (payload: { bossLevel: number; reward: number }) => void;
   onEmote: (id: string, emoji: string) => void;
   onPublicTasksUpdate: (socketId: string, taskIds: string[]) => void;
+  onVideoState: (state: VideoState) => void;
+  onVideoUpdate: (state: VideoState) => void;
 };
 
 export class SocketClient {
@@ -223,6 +226,8 @@ export class SocketClient {
     this.socket.on("guild:boss-defeated", (payload) =>
       callbacks.onGuildBossDefeated(payload),
     );
+    this.socket.on("video:state", (state) => callbacks.onVideoState(state));
+    this.socket.on("video:update", (state) => callbacks.onVideoUpdate(state));
   }
 
   get socketId(): string | undefined {
@@ -401,6 +406,18 @@ export class SocketClient {
 
   requestGuildState(): void {
     this.socket.emit("guild:state-request");
+  }
+
+  setVideo(videoId: string): void {
+    this.socket.emit("video:set", { videoId });
+  }
+
+  syncVideo(timestamp: number, playing: boolean, rate: number): void {
+    this.socket.emit("video:sync", { timestamp, playing, rate });
+  }
+
+  stopVideo(): void {
+    this.socket.emit("video:stop");
   }
 
   destroy(): void {

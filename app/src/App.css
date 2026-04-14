@@ -2386,6 +2386,7 @@
   backdrop-filter: blur(2px);
 }
 #profile-panel {
+  position: relative;
   background: rgba(22, 15, 42, 0.97);
   border: 1px solid var(--border-md);
   border-radius: var(--radius-lg);
@@ -2627,6 +2628,7 @@
   backdrop-filter: blur(3px);
 }
 #guild-panel {
+  position: relative;
   background: var(--bg-panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
@@ -2915,6 +2917,7 @@
   backdrop-filter: blur(3px);
 }
 #onboarding-card {
+  position: relative;
   background: rgba(22, 15, 42, 0.98);
   border: 1px solid var(--border-md);
   border-radius: var(--radius-lg);
@@ -3166,6 +3169,7 @@
   z-index: 2000;
 }
 .feedback-modal {
+  position: relative;
   background: #1e1a2e;
   border: 1px solid rgba(139, 92, 246, 0.4);
   border-radius: 16px;
@@ -3609,4 +3613,310 @@
   #admin-toggle-btn {
     display: none;
   }
+}
+
+/* ─── Ambiance Panel ──────────────────────────────────────────────── */
+#ambiance-panel {
+  pointer-events: auto;
+  position: fixed;
+  top: 82px;
+  right: 20px;
+  width: 340px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-lg);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  /* Slide off-screen when closed (keeps YT player alive in DOM) */
+  transform: translateX(calc(100% + 30px));
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#ambiance-panel.open {
+  transform: translateX(0);
+}
+
+.ambiance-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ambiance-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.ambiance-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s;
+}
+.ambiance-close:hover {
+  color: var(--text);
+}
+
+.ambiance-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ambiance-url-row {
+  display: flex;
+  gap: 6px;
+}
+.ambiance-url-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ambiance-url-input::placeholder {
+  color: var(--text-dim);
+}
+.ambiance-url-input:focus {
+  border-color: var(--accent);
+}
+.ambiance-launch-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.ambiance-launch-btn:hover {
+  opacity: 0.85;
+}
+.ambiance-launch-btn:active {
+  transform: scale(0.95);
+}
+
+.ambiance-error {
+  color: var(--red);
+  font-size: 0.78rem;
+  margin: 0;
+}
+.ambiance-hint {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Player container */
+.ambiance-player-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The fixed-size slot where YT.Player renders */
+.ambiance-yt-slot {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+}
+.ambiance-yt-slot iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* Transparent overlay for non-owners: blocks click-to-pause on the video */
+.ambiance-player-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: default;
+}
+
+/* ── Volume row (visible to everyone) ── */
+.ambiance-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ambiance-mute-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 5px 8px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.ambiance-mute-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.ambiance-mute-btn.muted {
+  color: var(--red);
+  border-color: rgba(224, 112, 112, 0.35);
+}
+
+.ambiance-volume-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) calc(var(--val, 70) * 1%),
+    rgba(255, 255, 255, 0.15) calc(var(--val, 70) * 1%),
+    rgba(255, 255, 255, 0.15) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+.ambiance-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.ambiance-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.ambiance-volume-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+.ambiance-volume-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Owner controls row ── */
+.ambiance-owner-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.ambiance-owner-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ambiance-playpause-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 5px 10px;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.ambiance-playpause-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.ambiance-playpause-btn:active {
+  transform: scale(0.93);
+}
+
+.ambiance-rates {
+  display: flex;
+  gap: 2px;
+}
+.ambiance-rate-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 5px;
+  transition: background 0.12s, color 0.12s;
+}
+.ambiance-rate-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+.ambiance-rate-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ambiance-stop-btn {
+  background: rgba(224, 112, 112, 0.1);
+  border: 1px solid rgba(224, 112, 112, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--red);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.ambiance-stop-btn:hover {
+  background: rgba(224, 112, 112, 0.2);
+}
+
+.ambiance-owner-badge {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* Live indicator dot on the nav button */
+.ambiance-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #4ade80;
+  border-radius: 50%;
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.7); }
 }
