@@ -15,6 +15,7 @@ import {
   type Task,
   type SharedPomoState,
   type PomodoroPhase,
+  type VideoState,
   type ClientToServerEvents,
   type ServerToClientEvents,
   type GuildData,
@@ -719,6 +720,17 @@ const sharedPomo: SharedPomoState & {
 };
 const pomoParticipants = new Set<string>();
 
+// ── Shared Video State ───────────────────────────────────────────────────────
+const sharedVideo: VideoState = {
+  videoId: null,
+  playing: false,
+  timestamp: 0,
+  syncedAt: 0,
+  playbackRate: 1,
+  ownerId: null,
+  ownerName: "",
+};
+
 function pomoTick(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
 ): void {
@@ -798,6 +810,8 @@ function pomoTick(
         session: nextSession,
       });
     }
+    // Enchaîner automatiquement la phase suivante
+    startPomoIfNeeded(io);
   } else {
     sharedPomo.remaining -= 1;
     for (const sid of pomoParticipants) {
@@ -847,9 +861,6 @@ function broadcastLeaderboard(
 io.on("connection", (socket) => {
   console.log(`[+] connected: ${socket.id}`);
 
-  // Send current room state to the newcomer
-  socket.emit("room-state", Array.from(players.values()));
-
   socket.on("join", ({ name, color, userId }) => {
     sql.upsertUser.run(userId);
 
@@ -884,6 +895,9 @@ io.on("connection", (socket) => {
     const furniturePositionsPayload = getFurniturePosPayload(
       user.furniturePositions ?? "{}",
     );
+    const pendingTaskIds = (sql.getTasks.all(userId) as TaskRow[])
+      .filter((r) => !r.done)
+      .map((r) => r.id);
     const player: Player = {
       id: socket.id,
       name,
@@ -895,12 +909,18 @@ io.on("connection", (socket) => {
       hat: user.equippedHat ?? null,
       placed: placedFurnitureList,
       positions: furniturePositionsPayload,
+      pendingTaskIds,
     };
     players.set(socket.id, player);
     socketToUserId.set(socket.id, userId);
     // Persister le pseudo + couleur choisis au join (utile pour les comptes Google)
     sql.setAvatarInfo.run(name, color, userId);
     socket.broadcast.emit("player-joined", player);
+    // Send existing players to the newcomer (after join so the client is ready)
+    const otherPlayers = Array.from(players.values()).filter(
+      (p) => p.id !== socket.id,
+    );
+    socket.emit("room-state", otherPlayers);
     console.log(`[join] ${name} @ (${spawnCol},${spawnRow})`);
 
     // Envoyer ses tâches + pièces + position sauvegardée
@@ -932,6 +952,18 @@ io.on("connection", (socket) => {
     // Vérifier le reset quotidien des dailies + envoyer la dégradation
     checkAndApplyDailyReset(socket, userId);
     broadcastLeaderboard(io);
+
+    // Envoyer l'état vidéo courant au nouveau joueur
+    if (sharedVideo.videoId) {
+      const elapsed = sharedVideo.playing
+        ? Date.now() / 1000 - sharedVideo.syncedAt
+        : 0;
+      socket.emit("video:state", {
+        ...sharedVideo,
+        timestamp: sharedVideo.timestamp + elapsed * sharedVideo.playbackRate,
+        syncedAt: Date.now() / 1000,
+      });
+    }
   });
 
   socket.on("move", ({ col, row }) => {
@@ -1048,6 +1080,14 @@ io.on("connection", (socket) => {
       type: safeType,
     };
     socket.emit("task:added", task);
+    const p = players.get(socket.id);
+    if (p) {
+      p.pendingTaskIds = [...(p.pendingTaskIds ?? []), id];
+      socket.broadcast.emit("tasks:public-update", {
+        socketId: socket.id,
+        taskIds: p.pendingTaskIds,
+      });
+    }
   });
 
   socket.on("task:toggle", ({ userId, taskId }) => {
@@ -1100,7 +1140,18 @@ io.on("connection", (socket) => {
       socket.broadcast.emit("task:completed-public", { socketId: socket.id });
     }
     const p = players.get(socket.id);
-    if (p) p.coins = coins;
+    if (p) {
+      p.coins = coins;
+      if (newDone === 1) {
+        p.pendingTaskIds = (p.pendingTaskIds ?? []).filter((id) => id !== taskId);
+      } else {
+        p.pendingTaskIds = [...(p.pendingTaskIds ?? []), taskId];
+      }
+      socket.broadcast.emit("tasks:public-update", {
+        socketId: socket.id,
+        taskIds: p.pendingTaskIds,
+      });
+    }
     broadcastLeaderboard(io);
   });
 
@@ -1108,6 +1159,14 @@ io.on("connection", (socket) => {
     if (!allow(socket.id, "task:delete", 10, 10000)) return;
     sql.deleteTask.run(taskId, userId);
     socket.emit("task:deleted", { taskId });
+    const p = players.get(socket.id);
+    if (p) {
+      p.pendingTaskIds = (p.pendingTaskIds ?? []).filter((id) => id !== taskId);
+      socket.broadcast.emit("tasks:public-update", {
+        socketId: socket.id,
+        taskIds: p.pendingTaskIds,
+      });
+    }
   });
 
   socket.on("task:update", ({ userId, taskId, text, category }) => {
@@ -1503,8 +1562,56 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ── Video ambiance ────────────────────────────────────────────────────────
+
+  socket.on("video:set", ({ videoId }) => {
+    if (!allow(socket.id, "video:set", 5, 10000)) return;
+    const p = players.get(socket.id);
+    if (!p) return;
+    // Validate: only accept 11-char YouTube video IDs
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
+    sharedVideo.videoId = videoId;
+    sharedVideo.playing = true;
+    sharedVideo.timestamp = 0;
+    sharedVideo.syncedAt = Date.now() / 1000;
+    sharedVideo.playbackRate = 1;
+    sharedVideo.ownerId = socket.id;
+    sharedVideo.ownerName = p.name;
+    io.emit("video:update", { ...sharedVideo });
+    console.log(`[video] ${p.name} set video: ${videoId}`);
+  });
+
+  socket.on("video:sync", ({ timestamp, playing, rate }) => {
+    if (sharedVideo.ownerId !== socket.id) return;
+    sharedVideo.timestamp = Math.max(0, timestamp);
+    sharedVideo.playing = playing;
+    sharedVideo.playbackRate = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(rate) ? rate : 1;
+    sharedVideo.syncedAt = Date.now() / 1000;
+    socket.broadcast.emit("video:update", { ...sharedVideo });
+  });
+
+  socket.on("video:stop", () => {
+    if (sharedVideo.ownerId !== socket.id) return;
+    sharedVideo.videoId = null;
+    sharedVideo.playing = false;
+    sharedVideo.timestamp = 0;
+    sharedVideo.ownerId = null;
+    sharedVideo.ownerName = "";
+    io.emit("video:update", { ...sharedVideo });
+    console.log(`[video] stopped by ${socket.id}`);
+  });
+
   socket.on("disconnect", () => {
     cleanRateLimit(socket.id);
+    // Si le propriétaire de la vidéo se déconnecte, arrêter la diffusion
+    if (sharedVideo.ownerId === socket.id) {
+      sharedVideo.videoId = null;
+      sharedVideo.playing = false;
+      sharedVideo.timestamp = 0;
+      sharedVideo.ownerId = null;
+      sharedVideo.ownerName = "";
+      socket.broadcast.emit("video:update", { ...sharedVideo });
+    }
     players.delete(socket.id);
     socketToUserId.delete(socket.id);
     socket.broadcast.emit("player-left", { id: socket.id });

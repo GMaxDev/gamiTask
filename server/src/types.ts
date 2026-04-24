@@ -12,6 +12,7 @@ export interface Player {
   hat?: string | null;
   placed?: string[];
   positions?: Record<string, { col: number; row: number }>;
+  pendingTaskIds?: string[];
 }
 
 export interface ShopItem {
@@ -161,6 +162,18 @@ export interface SharedPomoState {
   session: number;
 }
 
+export interface VideoState {
+  videoId: string | null;
+  playing: boolean;
+  /** Seconds into the video at the time of syncedAt */
+  timestamp: number;
+  /** Unix timestamp (seconds) when `timestamp` was recorded */
+  syncedAt: number;
+  playbackRate: number;
+  ownerId: string | null;
+  ownerName: string;
+}
+
 // Événements Client → Serveur
 export interface ClientToServerEvents {
   join: (payload: {
@@ -239,6 +252,13 @@ export interface ClientToServerEvents {
   "guild:join": (payload: { guildId: string }) => void;
   "guild:leave": () => void;
   "guild:state-request": () => void;
+  "video:set": (payload: { videoId: string }) => void;
+  "video:sync": (payload: {
+    timestamp: number;
+    playing: boolean;
+    rate: number;
+  }) => void;
+  "video:stop": () => void;
 }
 
 // Événements Serveur → Client
@@ -299,6 +319,10 @@ export interface ServerToClientEvents {
     ts: number;
   }) => void;
   "task:completed-public": (payload: { socketId: string }) => void;
+  "tasks:public-update": (payload: {
+    socketId: string;
+    taskIds: string[];
+  }) => void;
   "chat:typing": (payload: { id: string; name: string; color: number }) => void;
   "chat:react": (payload: {
     msgTs: number;
@@ -375,6 +399,8 @@ export interface ServerToClientEvents {
     reward: number;
   }) => void;
   "session:replaced": () => void;
+  "video:state": (state: VideoState) => void;
+  "video:update": (state: VideoState) => void;
 }
 
 export interface GuildMember {
