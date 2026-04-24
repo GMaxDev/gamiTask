@@ -25,6 +25,7 @@ export interface AuthResult {
   name: string;
   color: number;
   isAdmin: boolean;
+  isGoogleUser: boolean;
 }
 
 interface Props {

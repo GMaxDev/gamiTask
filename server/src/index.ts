@@ -11,6 +11,16 @@ import {
   SHOP_ITEMS,
   FURNITURE_ITEMS,
   FURNITURE_SETS,
+  PUBLIC_ROOM_IDS,
+  PUBLIC_ROOMS_META,
+  PRIVATE_ROOM_THEME,
+  MAX_PUBLIC_ROOM,
+  MAX_PRIVATE_ROOM,
+  DEFAULT_ROOM_ID,
+  isPublicRoomId,
+  type RoomSummary,
+  type RoomId,
+  type PublicRoomId,
   type Player,
   type Task,
   type SharedPomoState,
@@ -177,6 +187,16 @@ db.exec(`
   );
 `);
 
+// ── Table Private Rooms ─────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS private_rooms (
+    id        TEXT    PRIMARY KEY,
+    name      TEXT    NOT NULL,
+    ownerId   TEXT    NOT NULL UNIQUE,
+    createdAt INTEGER NOT NULL
+  );
+`);
+
 const sql = {
   upsertUser: db.prepare(
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
@@ -285,7 +305,23 @@ const sql = {
   countGuildMembers: db.prepare(
     "SELECT COUNT(*) as cnt FROM guild_members WHERE guildId = ?",
   ),
+  // Private rooms
+  getAllPrivateRooms: db.prepare("SELECT * FROM private_rooms"),
+  getPrivateRoomByOwner: db.prepare(
+    "SELECT * FROM private_rooms WHERE ownerId = ?",
+  ),
+  insertPrivateRoom: db.prepare(
+    "INSERT INTO private_rooms (id, name, ownerId, createdAt) VALUES (?, ?, ?, ?)",
+  ),
+  deletePrivateRoom: db.prepare("DELETE FROM private_rooms WHERE id = ?"),
 };
+
+interface PrivateRoomRow {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: number;
+}
 
 /** Calcule le niveau à partir des XP totaux. Formule : level = floor(sqrt(xp / 50)) */
 function computeLevel(xp: number): number {
@@ -347,8 +383,6 @@ function emitGuildState(
 /** Gère la défaite du boss : récompense les membres, monte le boss de niveau */
 function handleBossDefeat(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
-  socketToUserId: Map<string, string>,
-  players: Map<string, Player & { coins?: number }>,
   guild: GuildRow,
 ): void {
   const newBossLevel = guild.bossLevel + 1;
@@ -368,7 +402,7 @@ function handleBossDefeat(
           bossLevel: guild.bossLevel,
           reward,
         });
-        const p = players.get(socketId);
+        const p = getPlayer(socketId);
         if (p) p.coins = newCoins;
         break;
       }
@@ -458,11 +492,16 @@ app.post("/auth/google", async (req, res): Promise<void> => {
       name: user.displayName ?? googleName,
       color: user.avatarColor ?? 0,
       isAdmin: isAdminLogin || !!user.isAdmin,
+      isGoogleUser: true,
     });
   } catch (err) {
     console.error("[auth/google]", err);
     res.status(401).json({ error: "Invalid Google credential" });
   }
+});
+
+app.get("/api/rooms", (_req, res): void => {
+  res.json({ rooms: buildRoomSummaries() });
 });
 
 app.post("/auth/token", (req, res): void => {
@@ -486,6 +525,7 @@ app.post("/auth/token", (req, res): void => {
       name: user.displayName ?? "",
       color: user.avatarColor ?? 0,
       isAdmin,
+      isGoogleUser: !!user.googleId,
     });
   } catch {
     res.status(401).json({ error: "Token invalide ou expiré" });
@@ -568,8 +608,8 @@ function emitXpUpdate(
   const levelUp = level > prevLevel;
   socket.emit("xp:update", { xp, level, xpToNext, levelUp });
   if (levelUp) {
-    const p = players.get(socket.id);
-    socket.broadcast.emit("level-up:public", {
+    const p = getPlayer(socket.id);
+    broadcastToOwnRoom(socket, "level-up:public", {
       socketId: socket.id,
       name: p?.name ?? "?",
       color: p?.color ?? 0xffffff,
@@ -694,7 +734,7 @@ function tryUnlock(
     desc: def.desc,
     icon: def.icon,
   });
-  socket.broadcast.emit("achievement:public", {
+  broadcastToOwnRoom(socket,"achievement:public", {
     socketId: socket.id,
     label: def.label,
     icon: def.icon,
@@ -708,48 +748,146 @@ const DURATIONS: Record<PomodoroPhase, number> = {
   "long-break": 15 * 60,
 };
 
-const sharedPomo: SharedPomoState & {
-  intervalId: ReturnType<typeof setInterval> | null;
-} = {
-  phase: "focus",
-  remaining: DURATIONS["focus"],
-  running: false,
-  participants: 0,
-  session: 0,
-  intervalId: null,
-};
-const pomoParticipants = new Set<string>();
+// ── État par-room ────────────────────────────────────────────────────────────
+interface RoomState {
+  id: RoomId;
+  name: string;
+  emoji: string;
+  accent: number;
+  floorTint: number;
+  background: number;
+  description: string;
+  capacity: number;
+  isPrivate: boolean;
+  ownerId: string | null;
+  ownerName: string | null;
+  players: Map<string, Player>;
+  sharedPomo: SharedPomoState & {
+    intervalId: ReturnType<typeof setInterval> | null;
+  };
+  pomoParticipants: Set<string>;
+  sharedVideo: VideoState;
+}
 
-// ── Shared Video State ───────────────────────────────────────────────────────
-const sharedVideo: VideoState = {
-  videoId: null,
-  playing: false,
-  timestamp: 0,
-  syncedAt: 0,
-  playbackRate: 1,
-  ownerId: null,
-  ownerName: "",
-};
+function createPublicRoomState(id: PublicRoomId): RoomState {
+  const meta = PUBLIC_ROOMS_META[id];
+  return {
+    id,
+    name: meta.name,
+    emoji: meta.emoji,
+    accent: meta.accent,
+    floorTint: meta.floorTint,
+    background: meta.background,
+    description: meta.description,
+    capacity: MAX_PUBLIC_ROOM,
+    isPrivate: false,
+    ownerId: null,
+    ownerName: null,
+    players: new Map(),
+    sharedPomo: {
+      phase: "focus",
+      remaining: DURATIONS["focus"],
+      running: false,
+      participants: 0,
+      session: 0,
+      intervalId: null,
+    },
+    pomoParticipants: new Set(),
+    sharedVideo: {
+      videoId: null,
+      playing: false,
+      timestamp: 0,
+      syncedAt: 0,
+      playbackRate: 1,
+      ownerId: null,
+      ownerName: "",
+    },
+  };
+}
+
+function createPrivateRoomState(
+  id: RoomId,
+  name: string,
+  ownerId: string,
+  ownerName: string,
+): RoomState {
+  return {
+    id,
+    name,
+    emoji: PRIVATE_ROOM_THEME.emoji,
+    accent: PRIVATE_ROOM_THEME.accent,
+    floorTint: PRIVATE_ROOM_THEME.floorTint,
+    background: PRIVATE_ROOM_THEME.background,
+    description: `Room privée de ${ownerName}`,
+    capacity: MAX_PRIVATE_ROOM,
+    isPrivate: true,
+    ownerId,
+    ownerName,
+    players: new Map(),
+    sharedPomo: {
+      phase: "focus",
+      remaining: DURATIONS["focus"],
+      running: false,
+      participants: 0,
+      session: 0,
+      intervalId: null,
+    },
+    pomoParticipants: new Set(),
+    sharedVideo: {
+      videoId: null,
+      playing: false,
+      timestamp: 0,
+      syncedAt: 0,
+      playbackRate: 1,
+      ownerId: null,
+      ownerName: "",
+    },
+  };
+}
+
+const rooms: Map<RoomId, RoomState> = new Map();
+for (const id of PUBLIC_ROOM_IDS) rooms.set(id, createPublicRoomState(id));
+
+// Load private rooms from DB at boot
+for (const row of sql.getAllPrivateRooms.all() as PrivateRoomRow[]) {
+  const owner = sql.getUser.get(row.ownerId) as UserRow | undefined;
+  const ownerName = owner?.displayName ?? "Invité";
+  rooms.set(row.id, createPrivateRoomState(row.id, row.name, row.ownerId, ownerName));
+}
+
+// Mapping socket → room pour les lookups rapides
+const socketToRoom = new Map<string, RoomId>();
+// Mapping socket → userId (global, un utilisateur n'a qu'une session quel que soit la room)
+const socketToUserId = new Map<string, string>();
+
+function getRoom(socketId: string): RoomState | undefined {
+  const rid = socketToRoom.get(socketId);
+  return rid ? rooms.get(rid) : undefined;
+}
+
+function getPlayer(socketId: string): Player | undefined {
+  return getRoom(socketId)?.players.get(socketId);
+}
 
 function pomoTick(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: RoomState,
 ): void {
-  if (sharedPomo.remaining <= 1) {
-    // Avancer de phase
+  const sp = room.sharedPomo;
+  if (sp.remaining <= 1) {
     let nextPhase: PomodoroPhase;
-    let nextSession = sharedPomo.session;
-    if (sharedPomo.phase === "focus") {
+    let nextSession = sp.session;
+    if (sp.phase === "focus") {
       nextSession += 1;
       nextPhase = nextSession % 4 === 0 ? "long-break" : "short-break";
-      // Récompenser tous les participants collectifs avec +25 pièces
-      for (const sid of pomoParticipants) {
+      for (const sid of room.pomoParticipants) {
         const userId = socketToUserId.get(sid);
         if (userId) {
           sql.upsertUser.run(userId);
           sql.addCoins.run(25, userId);
           const coins = (sql.getCoins.get(userId) as UserRow).coins;
           io.to(sid).emit("coins:update", { coins });
-          const cp = players.get(sid);
+          const cp = room.players.get(sid);
           if (cp) cp.coins = coins;
           const sock = io.sockets.sockets.get(sid) as
             | Socket<ClientToServerEvents, ServerToClientEvents>
@@ -758,10 +896,8 @@ function pomoTick(
             tryUnlock(io, sock, userId, "first-collective");
             if (coins >= 100) tryUnlock(io, sock, userId, "coins-100");
             if (coins >= 500) tryUnlock(io, sock, userId, "coins-500");
-            // XP : +75 par pomo collectif terminé
             emitXpUpdate(sock, userId, 75);
           }
-          // Nettoyage coopératif : le pomo collectif réduit la dégradation de chaque participant
           const currentDeg =
             (sql.getUser.get(userId) as UserRow).degradation ?? 0;
           if (currentDeg > 0) {
@@ -769,7 +905,6 @@ function pomoTick(
             sql.setDegradation.run(newDeg, userId);
             io.to(sid).emit("degradation:update", { level: newDeg });
           }
-          // Boss de guilde : pomo collectif inflige 15 dégâts au boss
           const memberGuild = sql.getUserGuild.get(userId) as
             | GuildRow
             | undefined;
@@ -778,7 +913,7 @@ function pomoTick(
             const newBossHp = Math.max(0, freshGuild.bossHp - 15);
             sql.updateBossHp.run(newBossHp, freshGuild.id);
             if (newBossHp <= 0) {
-              handleBossDefeat(io, socketToUserId, players, freshGuild);
+              handleBossDefeat(io, freshGuild);
             } else {
               io.to(sid).emit("guild:boss-attacked", {
                 damage: 15,
@@ -790,35 +925,33 @@ function pomoTick(
           }
         }
       }
-      broadcastLeaderboard(io);
+      broadcastLeaderboard(io, room);
     } else {
       nextPhase = "focus";
     }
-    sharedPomo.phase = nextPhase;
-    sharedPomo.remaining = DURATIONS[nextPhase];
-    sharedPomo.session = nextSession;
-    sharedPomo.running = false;
-    if (sharedPomo.intervalId) {
-      clearInterval(sharedPomo.intervalId);
-      sharedPomo.intervalId = null;
+    sp.phase = nextPhase;
+    sp.remaining = DURATIONS[nextPhase];
+    sp.session = nextSession;
+    sp.running = false;
+    if (sp.intervalId) {
+      clearInterval(sp.intervalId);
+      sp.intervalId = null;
     }
-    // Notifier tous les participants
-    for (const sid of pomoParticipants) {
+    for (const sid of room.pomoParticipants) {
       io.to(sid).emit("pomo:phase", {
         phase: nextPhase,
-        remaining: sharedPomo.remaining,
+        remaining: sp.remaining,
         session: nextSession,
       });
     }
-    // Enchaîner automatiquement la phase suivante
-    startPomoIfNeeded(io);
+    startPomoIfNeeded(io, room);
   } else {
-    sharedPomo.remaining -= 1;
-    for (const sid of pomoParticipants) {
+    sp.remaining -= 1;
+    for (const sid of room.pomoParticipants) {
       io.to(sid).emit("pomo:tick", {
-        remaining: sharedPomo.remaining,
-        phase: sharedPomo.phase,
-        session: sharedPomo.session,
+        remaining: sp.remaining,
+        phase: sp.phase,
+        session: sp.session,
       });
     }
   }
@@ -826,10 +959,12 @@ function pomoTick(
 
 function startPomoIfNeeded(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: RoomState,
 ): void {
-  if (!sharedPomo.running && pomoParticipants.size > 0) {
-    sharedPomo.running = true;
-    sharedPomo.intervalId = setInterval(() => pomoTick(io), 1000);
+  const sp = room.sharedPomo;
+  if (!sp.running && room.pomoParticipants.size > 0) {
+    sp.running = true;
+    sp.intervalId = setInterval(() => pomoTick(io, room), 1000);
   }
 }
 
@@ -839,14 +974,12 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] },
 });
 
-// Room state — single room for MVP
-const players = new Map<string, Player>();
-const socketToUserId = new Map<string, string>();
-
+// Leaderboard par room : chaque room voit son propre classement
 function broadcastLeaderboard(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: RoomState,
 ): void {
-  const entries = Array.from(players.values())
+  const entries = Array.from(room.players.values())
     .map((p) => ({
       id: p.id,
       name: p.name,
@@ -855,36 +988,128 @@ function broadcastLeaderboard(
       state: p.state,
     }))
     .sort((a, b) => b.coins - a.coins);
-  io.emit("leaderboard-update", entries);
+  io.to(room.id).emit("leaderboard-update", entries);
+}
+
+/** Broadcast leaderboard for a socket's current room (convenience). */
+function broadcastLeaderboardForSocket(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  socketId: string,
+): void {
+  const r = getRoom(socketId);
+  if (r) broadcastLeaderboard(io, r);
+}
+
+/** Emit to all sockets in the sender's room except the sender. */
+function broadcastToOwnRoom<E extends keyof ServerToClientEvents>(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
+  event: E,
+  ...args: Parameters<ServerToClientEvents[E]>
+): void {
+  const rid = socketToRoom.get(socket.id);
+  if (!rid) return;
+  (socket.to(rid).emit as (e: E, ...a: Parameters<ServerToClientEvents[E]>) => boolean)(event, ...args);
+}
+
+/** Emit to all sockets in a given socket's room (including itself). */
+function emitToOwnRoom<E extends keyof ServerToClientEvents>(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  socketId: string,
+  event: E,
+  ...args: Parameters<ServerToClientEvents[E]>
+): void {
+  const rid = socketToRoom.get(socketId);
+  if (!rid) return;
+  (io.to(rid).emit as (e: E, ...a: Parameters<ServerToClientEvents[E]>) => boolean)(event, ...args);
+}
+
+function buildRoomSummaries(): RoomSummary[] {
+  const out: RoomSummary[] = [];
+  for (const r of rooms.values()) {
+    out.push({
+      id: r.id,
+      name: r.name,
+      emoji: r.emoji,
+      accent: r.accent,
+      floorTint: r.floorTint,
+      background: r.background,
+      description: r.description,
+      capacity: r.capacity,
+      count: r.players.size,
+      isPrivate: r.isPrivate,
+      ownerId: r.ownerId,
+      ownerName: r.ownerName,
+    });
+  }
+  return out;
+}
+
+function broadcastRoomsList(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+): void {
+  io.emit("rooms:list", { rooms: buildRoomSummaries() });
 }
 
 io.on("connection", (socket) => {
   console.log(`[+] connected: ${socket.id}`);
+  // Envoi initial de la liste des rooms (utile pour l'écran de sélection avant join)
+  socket.emit("rooms:list", { rooms: buildRoomSummaries() });
 
-  socket.on("join", ({ name, color, userId }) => {
+  socket.on("join", ({ name, color, userId, roomId }) => {
     sql.upsertUser.run(userId);
 
+    const requestedRoomId: RoomId = roomId ?? DEFAULT_ROOM_ID;
+    const existingRoom = rooms.get(requestedRoomId);
+    const targetRoomId: RoomId = existingRoom ? requestedRoomId : DEFAULT_ROOM_ID;
+    const targetRoom = existingRoom ?? rooms.get(DEFAULT_ROOM_ID)!;
+
+    // Kick previous sockets of the same user across all rooms
     const existingSockets = Array.from(socketToUserId.entries())
       .filter(([, uid]) => uid === userId)
       .map(([sid]) => sid)
       .filter((sid) => sid !== socket.id);
 
+    const affectedRooms = new Set<RoomId>();
     for (const previousSocketId of existingSockets) {
       const previousSocket = io.sockets.sockets.get(previousSocketId);
-      players.delete(previousSocketId);
+      const prevRoomId = socketToRoom.get(previousSocketId);
+      if (prevRoomId) {
+        const prevRoom = rooms.get(prevRoomId);
+        if (!prevRoom) continue;
+        prevRoom.players.delete(previousSocketId);
+        prevRoom.pomoParticipants.delete(previousSocketId);
+        if (prevRoom.sharedVideo.ownerId === previousSocketId) {
+          prevRoom.sharedVideo.videoId = null;
+          prevRoom.sharedVideo.playing = false;
+          prevRoom.sharedVideo.timestamp = 0;
+          prevRoom.sharedVideo.ownerId = null;
+          prevRoom.sharedVideo.ownerName = "";
+          io.to(prevRoom.id).emit("video:update", { ...prevRoom.sharedVideo });
+        }
+        io.to(prevRoom.id).emit("player-left", { id: previousSocketId });
+        affectedRooms.add(prevRoomId);
+      }
+      socketToRoom.delete(previousSocketId);
       socketToUserId.delete(previousSocketId);
-      socket.broadcast.emit("player-left", { id: previousSocketId });
+      previousSocket?.leave(prevRoomId ?? targetRoomId);
       previousSocket?.emit("session:replaced");
     }
-    if (existingSockets.length > 0) {
-      broadcastLeaderboard(io);
+    for (const rid of affectedRooms) {
+      const r = rooms.get(rid);
+      if (r) broadcastLeaderboard(io, r);
+    }
+
+    // Capacity check (après kick des sockets précédentes du même user pour éviter un faux full)
+    if (targetRoom.players.size >= targetRoom.capacity) {
+      socket.emit("room:full", { roomId: targetRoomId });
+      // Rollback si la précédente room est vide : rien à faire côté state, on laisse juste le client gérer
+      if (affectedRooms.size > 0) broadcastRoomsList(io);
+      return;
     }
 
     const user = sql.getUser.get(userId) as UserRow;
-    // Spawn toujours au point d'entrée fixe — la position persistée est ignorée au login
     const spawnCol = 1;
     const spawnRow = 10;
-    // Calculer le mobilier avant le broadcast player-joined pour que les autres voient les meubles du nouveau joueur
     const ownedFurnitureList = (user.ownedFurniture ?? "")
       .split(",")
       .filter(Boolean);
@@ -911,19 +1136,34 @@ io.on("connection", (socket) => {
       positions: furniturePositionsPayload,
       pendingTaskIds,
     };
-    players.set(socket.id, player);
+    // Habbo-style : les meubles d'un joueur ne s'affichent QUE dans sa propre
+    // room privée. Dans tout autre contexte (rooms publiques, room privée d'un
+    // autre user), on strip placed/positions.
+    const shouldHideFurniture = !(
+      targetRoom.isPrivate && targetRoom.ownerId === userId
+    );
+    if (shouldHideFurniture) {
+      player.placed = [];
+      player.positions = {};
+    }
+    targetRoom.players.set(socket.id, player);
+    socketToRoom.set(socket.id, targetRoomId);
     socketToUserId.set(socket.id, userId);
-    // Persister le pseudo + couleur choisis au join (utile pour les comptes Google)
+    socket.join(targetRoomId);
     sql.setAvatarInfo.run(name, color, userId);
-    socket.broadcast.emit("player-joined", player);
-    // Send existing players to the newcomer (after join so the client is ready)
-    const otherPlayers = Array.from(players.values()).filter(
+
+    // Announce assigned room to the client first (so client can correct UI)
+    socket.emit("room:info", { roomId: targetRoomId });
+    // Broadcast to existing occupants
+    socket.to(targetRoomId).emit("player-joined", player);
+    // Send existing players to the newcomer
+    const otherPlayers = Array.from(targetRoom.players.values()).filter(
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
-    console.log(`[join] ${name} @ (${spawnCol},${spawnRow})`);
+    console.log(`[join] ${name} → room:${targetRoomId} @ (${spawnCol},${spawnRow})`);
 
-    // Envoyer ses tâches + pièces + position sauvegardée
+    // Per-user initial state (independent of room)
     const rows = sql.getTasks.all(userId) as TaskRow[];
     const tasks: Task[] = rows.map((r) => ({
       ...r,
@@ -932,38 +1172,199 @@ io.on("connection", (socket) => {
       type: (r.type as "task" | "daily") ?? "task",
     }));
     socket.emit("tasks:state", { tasks, coins: user.coins });
-    // Envoyer l'état XP initial
     const xp = user.xp ?? 0;
     const level = computeLevel(xp);
     const xpToNext = 50 * (level + 1) * (level + 1) - xp;
     socket.emit("xp:update", { xp, level, xpToNext, levelUp: false });
-    // Envoyer l'état cosmétiques initial
     const ownedList = (user.ownedItems ?? "").split(",").filter(Boolean);
     socket.emit("cosmetics:state", {
       owned: ownedList,
       equippedHat: user.equippedHat ?? null,
     });
-    // Envoyer l'état mobilier initial (privé — contient owned)
     socket.emit("furniture:state", {
       owned: ownedFurnitureList,
       placed: placedFurnitureList,
       positions: furniturePositionsPayload,
     });
-    // Vérifier le reset quotidien des dailies + envoyer la dégradation
     checkAndApplyDailyReset(socket, userId);
-    broadcastLeaderboard(io);
+    broadcastLeaderboard(io, targetRoom);
+    broadcastRoomsList(io);
 
-    // Envoyer l'état vidéo courant au nouveau joueur
-    if (sharedVideo.videoId) {
-      const elapsed = sharedVideo.playing
-        ? Date.now() / 1000 - sharedVideo.syncedAt
+    // Send current video state of this room to the newcomer
+    const roomVideo = targetRoom.sharedVideo;
+    if (roomVideo.videoId) {
+      const elapsed = roomVideo.playing
+        ? Date.now() / 1000 - roomVideo.syncedAt
         : 0;
       socket.emit("video:state", {
-        ...sharedVideo,
-        timestamp: sharedVideo.timestamp + elapsed * sharedVideo.playbackRate,
+        ...roomVideo,
+        timestamp: roomVideo.timestamp + elapsed * roomVideo.playbackRate,
         syncedAt: Date.now() / 1000,
       });
     }
+  });
+
+  // ── Room switch ──────────────────────────────────────────────────────────
+  socket.on("room:switch", ({ roomId }) => {
+    if (!allow(socket.id, "room:switch", 5, 10000)) return;
+    const targetRoom = rooms.get(roomId);
+    if (!targetRoom) return;
+    const currentRoom = getRoom(socket.id);
+    if (!currentRoom) return;
+    if (currentRoom.id === roomId) return;
+    if (targetRoom.players.size >= targetRoom.capacity) {
+      socket.emit("room:full", { roomId });
+      return;
+    }
+    const existing = currentRoom.players.get(socket.id);
+    if (!existing) return;
+    const userId = socketToUserId.get(socket.id);
+
+    // Leave pomo participation if any
+    if (currentRoom.pomoParticipants.delete(socket.id)) {
+      currentRoom.sharedPomo.participants = currentRoom.pomoParticipants.size;
+      if (currentRoom.pomoParticipants.size === 0 && currentRoom.sharedPomo.intervalId) {
+        clearInterval(currentRoom.sharedPomo.intervalId);
+        currentRoom.sharedPomo.intervalId = null;
+        currentRoom.sharedPomo.running = false;
+      }
+    }
+
+    // If owned video in old room, stop it for that room
+    if (currentRoom.sharedVideo.ownerId === socket.id) {
+      currentRoom.sharedVideo.videoId = null;
+      currentRoom.sharedVideo.playing = false;
+      currentRoom.sharedVideo.timestamp = 0;
+      currentRoom.sharedVideo.ownerId = null;
+      currentRoom.sharedVideo.ownerName = "";
+      io.to(currentRoom.id).emit("video:update", { ...currentRoom.sharedVideo });
+    }
+
+    // Remove from old room
+    currentRoom.players.delete(socket.id);
+    socket.to(currentRoom.id).emit("player-left", { id: socket.id });
+    socket.leave(currentRoom.id);
+    broadcastLeaderboard(io, currentRoom);
+
+    // Re-spawn at entry point
+    const spawnCol = 1;
+    const spawnRow = 10;
+    const shouldHideFurniture = !(
+      targetRoom.isPrivate && targetRoom.ownerId === userId
+    );
+    const rePlayer: Player = {
+      ...existing,
+      col: spawnCol,
+      row: spawnRow,
+      state: "idle",
+      placed: shouldHideFurniture ? [] : existing.placed,
+      positions: shouldHideFurniture ? {} : existing.positions,
+    };
+    targetRoom.players.set(socket.id, rePlayer);
+    socketToRoom.set(socket.id, roomId);
+    socket.join(roomId);
+
+    socket.emit("room:info", { roomId });
+    socket.to(roomId).emit("player-joined", rePlayer);
+    const otherPlayers = Array.from(targetRoom.players.values()).filter(
+      (p) => p.id !== socket.id,
+    );
+    socket.emit("room-state", otherPlayers);
+    broadcastLeaderboard(io, targetRoom);
+    broadcastRoomsList(io);
+
+    // Send target room's current video state
+    const roomVideo = targetRoom.sharedVideo;
+    if (roomVideo.videoId) {
+      const elapsed = roomVideo.playing
+        ? Date.now() / 1000 - roomVideo.syncedAt
+        : 0;
+      socket.emit("video:state", {
+        ...roomVideo,
+        timestamp: roomVideo.timestamp + elapsed * roomVideo.playbackRate,
+        syncedAt: Date.now() / 1000,
+      });
+    } else {
+      socket.emit("video:update", { ...roomVideo });
+    }
+    console.log(`[room:switch] ${existing.name} ${currentRoom.id} → ${roomId}${userId ? " (" + userId.slice(0, 6) + ")" : ""}`);
+  });
+
+  // ── Rooms privées : création ──────────────────────────────────────────────
+  socket.on("room:create-private", ({ name }) => {
+    if (!allow(socket.id, "room:create-private", 3, 60000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
+    const user = sql.getUser.get(userId) as UserRow | undefined;
+    if (!user) return;
+    // Réservé aux comptes Google (persistants)
+    const row = db
+      .prepare("SELECT googleId FROM users WHERE id = ?")
+      .get(userId) as { googleId: string | null } | undefined;
+    if (!row?.googleId) return;
+    // Un utilisateur ne peut avoir qu'une seule room privée
+    const existing = sql.getPrivateRoomByOwner.get(userId) as
+      | PrivateRoomRow
+      | undefined;
+    if (existing) return;
+    const trimmed = name.trim().slice(0, 30);
+    if (!trimmed) return;
+    const roomId = randomUUID();
+    sql.insertPrivateRoom.run(roomId, trimmed, userId, Date.now());
+    const ownerName = user.displayName ?? "Invité";
+    rooms.set(roomId, createPrivateRoomState(roomId, trimmed, userId, ownerName));
+    broadcastRoomsList(io);
+    console.log(`[room:create-private] ${ownerName} → ${roomId} (${trimmed})`);
+  });
+
+  // ── Rooms privées : suppression (owner uniquement) ────────────────────────
+  socket.on("room:delete-private", () => {
+    if (!allow(socket.id, "room:delete-private", 3, 60000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
+    const existing = sql.getPrivateRoomByOwner.get(userId) as
+      | PrivateRoomRow
+      | undefined;
+    if (!existing) return;
+    const room = rooms.get(existing.id);
+    if (!room) return;
+    // Déplacer tous les occupants vers la room par défaut
+    const occupants = Array.from(room.players.keys());
+    const fallback = rooms.get(DEFAULT_ROOM_ID)!;
+    for (const sid of occupants) {
+      const sock = io.sockets.sockets.get(sid);
+      const p = room.players.get(sid);
+      room.players.delete(sid);
+      socket.to(room.id).emit("player-left", { id: sid });
+      sock?.leave(room.id);
+      if (!p || !sock) continue;
+      // Ré-inscrire dans la room par défaut
+      const movedPlayer: Player = {
+        ...p,
+        col: 1,
+        row: 10,
+        state: "idle",
+        // meubles préservés puisque la room par défaut est publique
+      };
+      fallback.players.set(sid, movedPlayer);
+      socketToRoom.set(sid, fallback.id);
+      sock.join(fallback.id);
+      sock.emit("private-room:deleted", {
+        roomId: room.id,
+        fallbackRoomId: fallback.id,
+      });
+      sock.emit("room:info", { roomId: fallback.id });
+      sock.to(fallback.id).emit("player-joined", movedPlayer);
+      const others = Array.from(fallback.players.values()).filter(
+        (op) => op.id !== sid,
+      );
+      sock.emit("room-state", others);
+    }
+    rooms.delete(existing.id);
+    sql.deletePrivateRoom.run(existing.id);
+    broadcastLeaderboard(io, fallback);
+    broadcastRoomsList(io);
+    console.log(`[room:delete-private] ${existing.id}`);
   });
 
   socket.on("move", ({ col, row }) => {
@@ -977,28 +1378,28 @@ io.on("connection", (socket) => {
       row >= 12
     )
       return;
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
     p.col = col;
     p.row = row;
-    socket.broadcast.emit("player-moved", { id: socket.id, col, row });
+    broadcastToOwnRoom(socket,"player-moved", { id: socket.id, col, row });
   });
 
   socket.on("avatar-state", ({ state }) => {
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
     p.state = state;
-    socket.broadcast.emit("player-state", { id: socket.id, state });
-    broadcastLeaderboard(io);
+    broadcastToOwnRoom(socket,"player-state", { id: socket.id, state });
+    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   socket.on("chat", ({ text }) => {
     if (!allow(socket.id, "chat", 5, 5000)) return;
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
     const safe = sanitize(text);
     if (!safe.trim()) return;
-    io.emit("chat-message", {
+    emitToOwnRoom(io, socket.id, "chat-message", {
       id: socket.id,
       name: p.name,
       color: p.color,
@@ -1009,9 +1410,9 @@ io.on("connection", (socket) => {
 
   socket.on("chat:typing", () => {
     if (!allow(socket.id, "chat:typing", 5, 3000)) return;
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
-    socket.broadcast.emit("chat:typing", {
+    broadcastToOwnRoom(socket,"chat:typing", {
       id: socket.id,
       name: p.name,
       color: p.color,
@@ -1022,9 +1423,9 @@ io.on("connection", (socket) => {
   socket.on("chat:react", ({ msgTs, emoji }) => {
     if (!allow(socket.id, "chat:react", 10, 5000)) return;
     if (!VALID_EMOJIS.has(emoji)) return;
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
-    io.emit("chat:react", {
+    emitToOwnRoom(io, socket.id, "chat:react", {
       msgTs,
       emoji,
       fromId: socket.id,
@@ -1036,16 +1437,16 @@ io.on("connection", (socket) => {
   socket.on("chat:emote", ({ emoji }) => {
     if (!allow(socket.id, "chat:emote", 5, 3000)) return;
     if (!VALID_EMOTES.has(emoji)) return;
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
-    io.emit("chat:emote", { id: socket.id, emoji });
+    emitToOwnRoom(io, socket.id, "chat:emote", { id: socket.id, emoji });
   });
 
   socket.on("private-message", ({ to, text }) => {
     if (!allow(socket.id, "private-message", 5, 5000)) return;
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (!p) return;
-    if (!players.has(to)) return;
+    if (!getPlayer(to)) return;
     const safe = sanitize(text);
     if (!safe.trim()) return;
     io.to(to).emit("private-message", {
@@ -1080,10 +1481,10 @@ io.on("connection", (socket) => {
       type: safeType,
     };
     socket.emit("task:added", task);
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) {
       p.pendingTaskIds = [...(p.pendingTaskIds ?? []), id];
-      socket.broadcast.emit("tasks:public-update", {
+      broadcastToOwnRoom(socket,"tasks:public-update", {
         socketId: socket.id,
         taskIds: p.pendingTaskIds,
       });
@@ -1137,9 +1538,9 @@ io.on("connection", (socket) => {
     }
     socket.emit("task:toggled", { taskId, done: !!newDone, coins });
     if (newDone === 1) {
-      socket.broadcast.emit("task:completed-public", { socketId: socket.id });
+      broadcastToOwnRoom(socket,"task:completed-public", { socketId: socket.id });
     }
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) {
       p.coins = coins;
       if (newDone === 1) {
@@ -1147,22 +1548,22 @@ io.on("connection", (socket) => {
       } else {
         p.pendingTaskIds = [...(p.pendingTaskIds ?? []), taskId];
       }
-      socket.broadcast.emit("tasks:public-update", {
+      broadcastToOwnRoom(socket,"tasks:public-update", {
         socketId: socket.id,
         taskIds: p.pendingTaskIds,
       });
     }
-    broadcastLeaderboard(io);
+    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   socket.on("task:delete", ({ userId, taskId }) => {
     if (!allow(socket.id, "task:delete", 10, 10000)) return;
     sql.deleteTask.run(taskId, userId);
     socket.emit("task:deleted", { taskId });
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) {
       p.pendingTaskIds = (p.pendingTaskIds ?? []).filter((id) => id !== taskId);
-      socket.broadcast.emit("tasks:public-update", {
+      broadcastToOwnRoom(socket,"tasks:public-update", {
         socketId: socket.id,
         taskIds: p.pendingTaskIds,
       });
@@ -1249,9 +1650,9 @@ io.on("connection", (socket) => {
     sql.setDegradation.run(newDegradation, userId);
     socket.emit("degradation:update", { level: newDegradation });
     socket.emit("coins:update", { coins: newCoins });
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) p.coins = newCoins;
-    broadcastLeaderboard(io);
+    broadcastLeaderboardForSocket(io, socket.id);
   });
   // ── Acheter un meuble (Feng Shui) ────────────────────────────────────────────────────
   socket.on("furniture:buy", ({ userId, itemId }) => {
@@ -1282,22 +1683,29 @@ io.on("connection", (socket) => {
       placed: newPlacedList,
       positions: buyPositionsPayload,
     });
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) {
       p.coins = newCoins;
       p.placed = newPlacedList;
       p.positions = buyPositionsPayload;
     }
-    socket.broadcast.emit("furniture:player-update", {
-      id: socket.id,
-      placed: newPlacedList,
-      positions: buyPositionsPayload,
-    });
-    broadcastLeaderboard(io);
+    // Ne broadcast les meubles que si l'acheteur est dans sa propre room privée
+    // (sinon personne ne doit les voir dans la scène)
+    const r = getRoom(socket.id);
+    if (r?.isPrivate && r.ownerId === userId) {
+      broadcastToOwnRoom(socket, "furniture:player-update", {
+        id: socket.id,
+        placed: newPlacedList,
+        positions: buyPositionsPayload,
+      });
+    }
+    broadcastLeaderboardForSocket(io, socket.id);
   });
   // ── Déplacer un meuble (Feng Shui) ─────────────────────────────────────────────
   socket.on("furniture:move", ({ userId, itemId, col, row }) => {
     if (!allow(socket.id, "furniture:move", 20, 5000)) return;
+    const r = getRoom(socket.id);
+    if (!r?.isPrivate || r.ownerId !== userId) return; // Placement uniquement dans sa propre room privée
     const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
     if (!item) return;
     if (col < 0 || col >= 12 || row < 0 || row >= 12) return;
@@ -1322,12 +1730,12 @@ io.on("connection", (socket) => {
       placed: movedPlaced,
       positions: movedPositionsPayload,
     });
-    const mp = players.get(socket.id);
+    const mp = getPlayer(socket.id);
     if (mp) {
       mp.placed = movedPlaced;
       mp.positions = movedPositionsPayload;
     }
-    socket.broadcast.emit("furniture:player-update", {
+    broadcastToOwnRoom(socket,"furniture:player-update", {
       id: socket.id,
       placed: movedPlaced,
       positions: movedPositionsPayload,
@@ -1336,6 +1744,8 @@ io.on("connection", (socket) => {
   // ── Ranger / Sortir un meuble de la chambre (toggle-place) ───────────────────
   socket.on("furniture:toggle-place", ({ userId, itemId }) => {
     if (!allow(socket.id, "furniture:toggle-place", 20, 5000)) return;
+    const r = getRoom(socket.id);
+    if (!r?.isPrivate || r.ownerId !== userId) return;
     sql.upsertUser.run(userId);
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
@@ -1356,12 +1766,12 @@ io.on("connection", (socket) => {
       placed: newPlaced,
       positions: togglePositionsPayload,
     });
-    const tp = players.get(socket.id);
+    const tp = getPlayer(socket.id);
     if (tp) {
       tp.placed = newPlaced;
       tp.positions = togglePositionsPayload;
     }
-    socket.broadcast.emit("furniture:player-update", {
+    broadcastToOwnRoom(socket,"furniture:player-update", {
       id: socket.id,
       placed: newPlaced,
       positions: togglePositionsPayload,
@@ -1370,6 +1780,8 @@ io.on("connection", (socket) => {
   // ── Confirmer le placement fantôme d'un meuble ─────────────────────────────
   socket.on("furniture:place", ({ userId, itemId, col, row }) => {
     if (!allow(socket.id, "furniture:place", 20, 5000)) return;
+    const r = getRoom(socket.id);
+    if (!r?.isPrivate || r.ownerId !== userId) return;
     const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
     if (!item) return;
     if (col < 0 || col >= 12 || row < 0 || row >= 12) return;
@@ -1407,12 +1819,12 @@ io.on("connection", (socket) => {
       placed: newPlacedAfter,
       positions: placePositionsPayload,
     });
-    const pp = players.get(socket.id);
+    const pp = getPlayer(socket.id);
     if (pp) {
       pp.placed = newPlacedAfter;
       pp.positions = placePositionsPayload;
     }
-    socket.broadcast.emit("furniture:player-update", {
+    broadcastToOwnRoom(socket,"furniture:player-update", {
       id: socket.id,
       placed: newPlacedAfter,
       positions: placePositionsPayload,
@@ -1437,9 +1849,9 @@ io.on("connection", (socket) => {
       owned: [...owned, itemId],
       equippedHat: user.equippedHat ?? null,
     });
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) p.coins = newCoins;
-    broadcastLeaderboard(io);
+    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   // ── Équiper / déséquiper un cosmétique ───────────────────────────────────────────
@@ -1450,9 +1862,9 @@ io.on("connection", (socket) => {
       if (!owned.includes(hatId)) return;
     }
     sql.setEquippedHat.run(hatId, userId);
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) p.hat = hatId;
-    socket.broadcast.emit("player-hat", { id: socket.id, hat: hatId });
+    broadcastToOwnRoom(socket,"player-hat", { id: socket.id, hat: hatId });
   });
   // ── Pomodoro personnel complété ──────────────────────────────────────────
   socket.on("pomodoro:complete", ({ userId }) => {
@@ -1509,7 +1921,7 @@ io.on("connection", (socket) => {
       const newBossHp = Math.max(0, memberGuild.bossHp - 10);
       sql.updateBossHp.run(newBossHp, memberGuild.id);
       if (newBossHp <= 0) {
-        handleBossDefeat(io, socketToUserId, players, memberGuild);
+        handleBossDefeat(io, memberGuild);
       } else {
         socket.emit("guild:boss-attacked", {
           damage: 10,
@@ -1519,112 +1931,120 @@ io.on("connection", (socket) => {
       }
       emitGuildState(io, socketToUserId, memberGuild.id);
     }
-    const p = players.get(socket.id);
+    const p = getPlayer(socket.id);
     if (p) p.coins = coins;
-    broadcastLeaderboard(io);
+    broadcastLeaderboardForSocket(io, socket.id);
   });
 
-  // ── Pomodoro collectif ───────────────────────────────────────────────────
+  // ── Pomodoro collectif (par room) ────────────────────────────────────────
   socket.on("pomo:join", () => {
-    if (pomoParticipants.has(socket.id)) return;
-    pomoParticipants.add(socket.id);
-    sharedPomo.participants = pomoParticipants.size;
-    // Démarrer le timer d'abord pour que running soit correct dans pomo:state
-    startPomoIfNeeded(io);
-    // Envoyer l'état actuel au nouveau participant
+    const room = getRoom(socket.id);
+    if (!room) return;
+    if (room.pomoParticipants.has(socket.id)) return;
+    room.pomoParticipants.add(socket.id);
+    room.sharedPomo.participants = room.pomoParticipants.size;
+    startPomoIfNeeded(io, room);
     socket.emit("pomo:state", {
-      phase: sharedPomo.phase,
-      remaining: sharedPomo.remaining,
-      running: sharedPomo.running,
-      participants: sharedPomo.participants,
-      session: sharedPomo.session,
+      phase: room.sharedPomo.phase,
+      remaining: room.sharedPomo.remaining,
+      running: room.sharedPomo.running,
+      participants: room.sharedPomo.participants,
+      session: room.sharedPomo.session,
     });
-    // Notifier tous les participants du nouveau compte
-    for (const sid of pomoParticipants) {
+    for (const sid of room.pomoParticipants) {
       io.to(sid).emit("pomo:tick", {
-        remaining: sharedPomo.remaining,
-        phase: sharedPomo.phase,
-        session: sharedPomo.session,
+        remaining: room.sharedPomo.remaining,
+        phase: room.sharedPomo.phase,
+        session: room.sharedPomo.session,
       });
     }
     console.log(
-      `[pomo:join] ${socket.id} — ${pomoParticipants.size} participant(s)`,
+      `[pomo:join] ${socket.id} (room:${room.id}) — ${room.pomoParticipants.size} participant(s)`,
     );
   });
 
   socket.on("pomo:leave", () => {
-    pomoParticipants.delete(socket.id);
-    sharedPomo.participants = pomoParticipants.size;
-    if (pomoParticipants.size === 0 && sharedPomo.intervalId) {
-      clearInterval(sharedPomo.intervalId);
-      sharedPomo.intervalId = null;
-      sharedPomo.running = false;
+    const room = getRoom(socket.id);
+    if (!room) return;
+    room.pomoParticipants.delete(socket.id);
+    room.sharedPomo.participants = room.pomoParticipants.size;
+    if (room.pomoParticipants.size === 0 && room.sharedPomo.intervalId) {
+      clearInterval(room.sharedPomo.intervalId);
+      room.sharedPomo.intervalId = null;
+      room.sharedPomo.running = false;
     }
   });
 
-  // ── Video ambiance ────────────────────────────────────────────────────────
-
+  // ── Video ambiance (par room) ────────────────────────────────────────────
   socket.on("video:set", ({ videoId }) => {
     if (!allow(socket.id, "video:set", 5, 10000)) return;
-    const p = players.get(socket.id);
+    const room = getRoom(socket.id);
+    if (!room) return;
+    const p = room.players.get(socket.id);
     if (!p) return;
-    // Validate: only accept 11-char YouTube video IDs
     if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
-    sharedVideo.videoId = videoId;
-    sharedVideo.playing = true;
-    sharedVideo.timestamp = 0;
-    sharedVideo.syncedAt = Date.now() / 1000;
-    sharedVideo.playbackRate = 1;
-    sharedVideo.ownerId = socket.id;
-    sharedVideo.ownerName = p.name;
-    io.emit("video:update", { ...sharedVideo });
-    console.log(`[video] ${p.name} set video: ${videoId}`);
+    room.sharedVideo.videoId = videoId;
+    room.sharedVideo.playing = true;
+    room.sharedVideo.timestamp = 0;
+    room.sharedVideo.syncedAt = Date.now() / 1000;
+    room.sharedVideo.playbackRate = 1;
+    room.sharedVideo.ownerId = socket.id;
+    room.sharedVideo.ownerName = p.name;
+    io.to(room.id).emit("video:update", { ...room.sharedVideo });
+    console.log(`[video] ${p.name} set video in room:${room.id}: ${videoId}`);
   });
 
   socket.on("video:sync", ({ timestamp, playing, rate }) => {
-    if (sharedVideo.ownerId !== socket.id) return;
-    sharedVideo.timestamp = Math.max(0, timestamp);
-    sharedVideo.playing = playing;
-    sharedVideo.playbackRate = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(rate) ? rate : 1;
-    sharedVideo.syncedAt = Date.now() / 1000;
-    socket.broadcast.emit("video:update", { ...sharedVideo });
+    const room = getRoom(socket.id);
+    if (!room) return;
+    if (room.sharedVideo.ownerId !== socket.id) return;
+    room.sharedVideo.timestamp = Math.max(0, timestamp);
+    room.sharedVideo.playing = playing;
+    room.sharedVideo.playbackRate = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(rate) ? rate : 1;
+    room.sharedVideo.syncedAt = Date.now() / 1000;
+    socket.to(room.id).emit("video:update", { ...room.sharedVideo });
   });
 
   socket.on("video:stop", () => {
-    if (sharedVideo.ownerId !== socket.id) return;
-    sharedVideo.videoId = null;
-    sharedVideo.playing = false;
-    sharedVideo.timestamp = 0;
-    sharedVideo.ownerId = null;
-    sharedVideo.ownerName = "";
-    io.emit("video:update", { ...sharedVideo });
-    console.log(`[video] stopped by ${socket.id}`);
+    const room = getRoom(socket.id);
+    if (!room) return;
+    if (room.sharedVideo.ownerId !== socket.id) return;
+    room.sharedVideo.videoId = null;
+    room.sharedVideo.playing = false;
+    room.sharedVideo.timestamp = 0;
+    room.sharedVideo.ownerId = null;
+    room.sharedVideo.ownerName = "";
+    io.to(room.id).emit("video:update", { ...room.sharedVideo });
+    console.log(`[video] stopped in room:${room.id} by ${socket.id}`);
   });
 
   socket.on("disconnect", () => {
     cleanRateLimit(socket.id);
-    // Si le propriétaire de la vidéo se déconnecte, arrêter la diffusion
-    if (sharedVideo.ownerId === socket.id) {
-      sharedVideo.videoId = null;
-      sharedVideo.playing = false;
-      sharedVideo.timestamp = 0;
-      sharedVideo.ownerId = null;
-      sharedVideo.ownerName = "";
-      socket.broadcast.emit("video:update", { ...sharedVideo });
-    }
-    players.delete(socket.id);
-    socketToUserId.delete(socket.id);
-    socket.broadcast.emit("player-left", { id: socket.id });
-    // Quitter le pomo collectif si participant
-    if (pomoParticipants.delete(socket.id)) {
-      sharedPomo.participants = pomoParticipants.size;
-      if (pomoParticipants.size === 0 && sharedPomo.intervalId) {
-        clearInterval(sharedPomo.intervalId);
-        sharedPomo.intervalId = null;
-        sharedPomo.running = false;
+    const room = getRoom(socket.id);
+    if (room) {
+      if (room.sharedVideo.ownerId === socket.id) {
+        room.sharedVideo.videoId = null;
+        room.sharedVideo.playing = false;
+        room.sharedVideo.timestamp = 0;
+        room.sharedVideo.ownerId = null;
+        room.sharedVideo.ownerName = "";
+        io.to(room.id).emit("video:update", { ...room.sharedVideo });
       }
+      room.players.delete(socket.id);
+      socket.to(room.id).emit("player-left", { id: socket.id });
+      if (room.pomoParticipants.delete(socket.id)) {
+        room.sharedPomo.participants = room.pomoParticipants.size;
+        if (room.pomoParticipants.size === 0 && room.sharedPomo.intervalId) {
+          clearInterval(room.sharedPomo.intervalId);
+          room.sharedPomo.intervalId = null;
+          room.sharedPomo.running = false;
+        }
+      }
+      broadcastLeaderboard(io, room);
+      broadcastRoomsList(io);
     }
-    broadcastLeaderboard(io);
+    socketToRoom.delete(socket.id);
+    socketToUserId.delete(socket.id);
     console.log(`[-] disconnected: ${socket.id}`);
   });
 
@@ -1645,12 +2065,12 @@ io.on("connection", (socket) => {
     for (const [sid, uid] of socketToUserId.entries()) {
       if (uid === targetUserId) {
         io.to(sid).emit("coins:update", { coins: user.coins });
-        const p = players.get(sid);
+        const p = getPlayer(sid);
         if (p) p.coins = user.coins;
         break;
       }
     }
-    broadcastLeaderboard(io);
+    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   socket.on("admin:give-xp", ({ targetUserId, xp: amount }) => {
@@ -1710,7 +2130,7 @@ io.on("connection", (socket) => {
     const user = sql.getUser.get(targetUserId) as UserRow | undefined;
     if (!user) return;
     // Prefer in-memory player name/color (always up to date for connected players)
-    const inMemoryPlayer = players.get(targetSid);
+    const inMemoryPlayer = getPlayer(targetSid);
     const achievementKeys = (
       sql.getUserAchievements.all(targetUserId) as { key: string }[]
     ).map((r) => r.key);

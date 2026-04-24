@@ -136,7 +136,17 @@ export class GameScene {
   // Called when the local avatar's state changes (walking start/end)
   public onLocalStateChange?: (state: AvatarState) => void;
 
-  constructor(localName = "Vous", localColor = 0x4f8ef7) {
+  /** Couleurs d'ambiance appliquées à la scène (varient selon la room) */
+  private theme: { background: number; floorTint: number };
+
+  constructor(
+    localName = "Vous",
+    localColor = 0x4f8ef7,
+    theme: { background: number; floorTint: number } = {
+      background: 0x1a0e07,
+      floorTint: 0xffffff,
+    },
+  ) {
     this.app = new PIXI.Application();
     // We init async below
     this.worldContainer = new PIXI.Container();
@@ -145,13 +155,14 @@ export class GameScene {
     this.localAvatar = new AvatarSprite(localName, localColor);
     this.offsetX = 0;
     this.offsetY = 0;
+    this.theme = theme;
   }
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     await this.app.init({
       canvas,
       resizeTo: window,
-      backgroundColor: 0x1a0e07,
+      backgroundColor: this.theme.background,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -291,6 +302,8 @@ export class GameScene {
 
       if (blocked) {
         sprite.tint = 0x8b6644; // teinte chaude pour zones occupées
+      } else {
+        sprite.tint = this.theme.floorTint;
       }
       if (!blocked) {
         sprite.eventMode = "static";
@@ -299,7 +312,7 @@ export class GameScene {
           sprite.tint = 0xffcc88;
         });
         sprite.on("pointerout", () => {
-          sprite.tint = 0xffffff;
+          sprite.tint = this.theme.floorTint;
         });
       }
       return sprite;
@@ -686,6 +699,39 @@ export class GameScene {
   }
 
   // ── Remote avatars ────────────────────────────────────────────────────────
+
+  /**
+   * Met à jour le thème visuel (fond du canvas + tint des tuiles de sol).
+   * Utilisé lors d'un changement de room sans détruire la scène.
+   */
+  setTheme(theme: { background: number; floorTint: number }): void {
+    this.theme = theme;
+    if (this.app.renderer) {
+      // PixiJS v8 : background.color accepte un ColorSource (number OK)
+      (this.app.renderer.background as unknown as { color: number }).color =
+        theme.background;
+    }
+    for (const tile of this.tileLayer.children) {
+      const sprite = tile as PIXI.Sprite & { _blocked?: boolean };
+      // Ne retinter que les sprites à tint modifiable (sprites de sol non bloqués)
+      // On repère par l'absence d'eventMode="static"? Plus simple : on se fie au fait
+      // que les sols avaient un tint "ffffff", les bloqués "8b6644"
+      if (sprite.tint === undefined) continue;
+      if (sprite.eventMode === "static") {
+        // sol cliquable → appliquer le nouveau tint
+        sprite.tint = theme.floorTint;
+      }
+    }
+  }
+
+  /** Supprime tous les avatars distants (utilisé lors d'un changement de room) */
+  clearRemoteAvatars(): void {
+    const ids = Array.from(this.remoteAvatars.keys());
+    for (const id of ids) {
+      this.removeRemoteAvatar(id);
+      this.removeOtherPlayerFurniture(id);
+    }
+  }
 
   addRemoteAvatar(
     id: string,

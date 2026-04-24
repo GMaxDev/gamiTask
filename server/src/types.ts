@@ -174,6 +174,85 @@ export interface VideoState {
   ownerName: string;
 }
 
+// ── Rooms ─────────────────────────────────────────────────────────────────────
+// `RoomId` peut être un id public fixe OU un UUID de room privée.
+export type RoomId = string;
+
+export const PUBLIC_ROOM_IDS = ["ocean", "forest", "sunset"] as const;
+export type PublicRoomId = (typeof PUBLIC_ROOM_IDS)[number];
+export const DEFAULT_ROOM_ID: PublicRoomId = "ocean";
+
+export const MAX_PUBLIC_ROOM = 20;
+export const MAX_PRIVATE_ROOM = 10;
+
+export interface RoomMeta {
+  id: PublicRoomId;
+  name: string;
+  emoji: string;
+  accent: number;
+  floorTint: number;
+  background: number;
+  description: string;
+}
+
+export const PUBLIC_ROOMS_META: Record<PublicRoomId, RoomMeta> = {
+  ocean: {
+    id: "ocean",
+    name: "Océan",
+    emoji: "🌊",
+    accent: 0x06b6d4,
+    floorTint: 0x9ad1e8,
+    background: 0x0a1a2a,
+    description: "Ambiance marine, fraîche et profonde",
+  },
+  forest: {
+    id: "forest",
+    name: "Forêt",
+    emoji: "🌲",
+    accent: 0x5ecf6a,
+    floorTint: 0xb8e0a8,
+    background: 0x0f1a0e,
+    description: "Ambiance boisée, calme et végétale",
+  },
+  sunset: {
+    id: "sunset",
+    name: "Coucher de soleil",
+    emoji: "🌅",
+    accent: 0xf7a94f,
+    floorTint: 0xffd4a0,
+    background: 0x2a1a0a,
+    description: "Ambiance chaleureuse, orangée et douce",
+  },
+};
+
+/** Palette utilisée pour les rooms privées (même thème pour toutes pour cette v1) */
+export const PRIVATE_ROOM_THEME = {
+  emoji: "🏠",
+  accent: 0xa855f7,
+  floorTint: 0xd0b8e8,
+  background: 0x1a0a2a,
+};
+
+export function isPublicRoomId(v: unknown): v is PublicRoomId {
+  return typeof v === "string" && (PUBLIC_ROOM_IDS as readonly string[]).includes(v);
+}
+
+/** Résumé d'une room envoyé par le serveur aux clients pour l'écran de sélection */
+export interface RoomSummary {
+  id: RoomId;
+  name: string;
+  emoji: string;
+  accent: number;
+  floorTint: number;
+  background: number;
+  description: string;
+  capacity: number;
+  count: number;
+  isPrivate: boolean;
+  ownerId: string | null;
+  ownerName: string | null;
+}
+
 // Événements Client → Serveur
 export interface ClientToServerEvents {
   join: (payload: {
@@ -182,7 +261,11 @@ export interface ClientToServerEvents {
     col: number;
     row: number;
     userId: string;
+    roomId: RoomId;
   }) => void;
+  "room:switch": (payload: { roomId: RoomId }) => void;
+  "room:create-private": (payload: { name: string }) => void;
+  "room:delete-private": () => void;
   move: (payload: { col: number; row: number }) => void;
   "avatar-state": (payload: { state: AvatarState }) => void;
   chat: (payload: { text: string }) => void;
@@ -401,6 +484,13 @@ export interface ServerToClientEvents {
   "session:replaced": () => void;
   "video:state": (state: VideoState) => void;
   "video:update": (state: VideoState) => void;
+  "room:info": (payload: { roomId: RoomId }) => void;
+  "rooms:list": (payload: { rooms: RoomSummary[] }) => void;
+  "room:full": (payload: { roomId: RoomId }) => void;
+  "private-room:deleted": (payload: {
+    roomId: RoomId;
+    fallbackRoomId: RoomId;
+  }) => void;
 }
 
 export interface GuildMember {

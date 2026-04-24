@@ -10,6 +10,8 @@ import type {
   ProfileData,
   GuildData,
   VideoState,
+  RoomId,
+  RoomSummary,
 } from "./types";
 
 export type ChatMessage = {
@@ -124,6 +126,10 @@ export type RoomCallbacks = {
   onPublicTasksUpdate: (socketId: string, taskIds: string[]) => void;
   onVideoState: (state: VideoState) => void;
   onVideoUpdate: (state: VideoState) => void;
+  onRoomInfo: (roomId: RoomId) => void;
+  onRoomsList: (rooms: RoomSummary[]) => void;
+  onRoomFull: (roomId: RoomId) => void;
+  onPrivateRoomDeleted: (roomId: RoomId, fallbackRoomId: RoomId) => void;
 };
 
 export class SocketClient {
@@ -228,6 +234,12 @@ export class SocketClient {
     );
     this.socket.on("video:state", (state) => callbacks.onVideoState(state));
     this.socket.on("video:update", (state) => callbacks.onVideoUpdate(state));
+    this.socket.on("room:info", ({ roomId }) => callbacks.onRoomInfo(roomId));
+    this.socket.on("rooms:list", ({ rooms }) => callbacks.onRoomsList(rooms));
+    this.socket.on("room:full", ({ roomId }) => callbacks.onRoomFull(roomId));
+    this.socket.on("private-room:deleted", ({ roomId, fallbackRoomId }) =>
+      callbacks.onPrivateRoomDeleted(roomId, fallbackRoomId),
+    );
   }
 
   get socketId(): string | undefined {
@@ -240,8 +252,21 @@ export class SocketClient {
     col: number,
     row: number,
     userId: string,
+    roomId: RoomId,
   ): void {
-    this.socket.emit("join", { name, color, col, row, userId });
+    this.socket.emit("join", { name, color, col, row, userId, roomId });
+  }
+
+  switchRoom(roomId: RoomId): void {
+    this.socket.emit("room:switch", { roomId });
+  }
+
+  createPrivateRoom(name: string): void {
+    this.socket.emit("room:create-private", { name });
+  }
+
+  deletePrivateRoom(): void {
+    this.socket.emit("room:delete-private");
   }
 
   move(col: number, row: number): void {

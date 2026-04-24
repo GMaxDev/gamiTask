@@ -17,7 +17,17 @@ import type {
   ProfileData,
   GuildData,
   VideoState,
+  RoomId,
+  RoomSummary,
+  PublicRoomId,
 } from "./net/types";
+import {
+  PUBLIC_ROOMS_META,
+  PRIVATE_ROOM_THEME,
+  DEFAULT_ROOM_ID,
+  isPublicRoomId,
+} from "./net/types";
+import { RoomSelectScreen } from "./components/RoomSelectScreen";
 import { TaskPanel } from "./components/TaskPanel";
 import { ShopPanel } from "./components/ShopPanel";
 import { ProfilePanel } from "./components/ProfilePanel";
@@ -95,6 +105,16 @@ interface JoinInfo {
   colorCss: string;
   userId: string;
   isAdmin: boolean;
+  isGoogleUser: boolean;
+  roomId: RoomId;
+}
+
+const ROOM_STORAGE_KEY = "gamitask-selected-room";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+
+function loadSelectedPublicRoom(): PublicRoomId | null {
+  const raw = localStorage.getItem(ROOM_STORAGE_KEY);
+  return isPublicRoomId(raw) ? raw : null;
 }
 
 function hexToCSS(hex: number): string {
@@ -105,7 +125,7 @@ function JoinDialog({
   onJoin,
   prefill,
 }: {
-  onJoin: (info: Omit<JoinInfo, "userId" | "isAdmin">) => void;
+  onJoin: (info: Omit<JoinInfo, "userId" | "isAdmin" | "roomId" | "isGoogleUser">) => void;
   prefill?: { name: string; color: number };
 }) {
   const defaultColorIdx = prefill
@@ -175,15 +195,58 @@ function JoinDialog({
 function Room({
   joinInfo,
   onLogout,
+  onRoomChange,
+  roomsList,
+  onRoomsListUpdate,
 }: {
   joinInfo: JoinInfo;
   onLogout: () => void;
+  onRoomChange: (roomId: RoomId) => void;
+  roomsList: RoomSummary[];
+  onRoomsListUpdate: (rooms: RoomSummary[]) => void;
 }) {
   const LOCAL_NAME = joinInfo.name;
   const LOCAL_COLOR = joinInfo.color;
   // joinInfo.userId remplace le LOCAL_USER_ID du module (shadowing intentionnel)
   const LOCAL_USER_ID = joinInfo.userId;
   const IS_ADMIN = joinInfo.isAdmin;
+  const IS_GOOGLE_USER = joinInfo.isGoogleUser;
+  const ROOM_ID = joinInfo.roomId;
+  // Meta de la room : publique via PUBLIC_ROOMS_META, sinon thème privé générique.
+  // Le nom réel est récupéré depuis roomsList (mis à jour par le socket).
+  const currentRoomSummary = roomsList.find((r) => r.id === ROOM_ID);
+  const ROOM_META = isPublicRoomId(ROOM_ID)
+    ? PUBLIC_ROOMS_META[ROOM_ID]
+    : {
+        name: currentRoomSummary?.name ?? "Room privée",
+        emoji: PRIVATE_ROOM_THEME.emoji,
+        accent: PRIVATE_ROOM_THEME.accent,
+        floorTint: PRIVATE_ROOM_THEME.floorTint,
+        background: PRIVATE_ROOM_THEME.background,
+        description: currentRoomSummary?.description ?? "Room privée",
+      };
+  const isInPrivateRoom = !isPublicRoomId(ROOM_ID);
+  const isRoomOwner =
+    isInPrivateRoom && currentRoomSummary?.ownerId === LOCAL_USER_ID;
+  const [roomSwitcherOpen, setRoomSwitcherOpen] = useState(false);
+  const [roomFullToast, setRoomFullToast] = useState<string | null>(null);
+  // Refs stables pour accès à des valeurs fraîches dans des callbacks mémo'd
+  const joinInfoRef = useRef(joinInfo);
+  const onRoomChangeRef = useRef(onRoomChange);
+  const onRoomsListUpdateRef = useRef(onRoomsListUpdate);
+  const roomsListRef = useRef(roomsList);
+  useEffect(() => {
+    joinInfoRef.current = joinInfo;
+  }, [joinInfo]);
+  useEffect(() => {
+    onRoomChangeRef.current = onRoomChange;
+  }, [onRoomChange]);
+  useEffect(() => {
+    onRoomsListUpdateRef.current = onRoomsListUpdate;
+  }, [onRoomsListUpdate]);
+  useEffect(() => {
+    roomsListRef.current = roomsList;
+  }, [roomsList]);
 
   // Demander la permission de notifications navigateur dès l'entrée
   useEffect(() => {
@@ -325,7 +388,10 @@ function Room({
     if (!canvas) return;
     let cancelled = false;
     (async () => {
-      const scene = new GameScene(LOCAL_NAME, LOCAL_COLOR);
+      const scene = new GameScene(LOCAL_NAME, LOCAL_COLOR, {
+        background: ROOM_META.background,
+        floorTint: ROOM_META.floorTint,
+      });
       sceneRef.current = scene;
       await scene.init(canvas);
       if (cancelled) {
@@ -377,13 +443,28 @@ function Room({
         scene.localCol,
         scene.localRow,
         LOCAL_USER_ID,
+        joinInfo.roomId,
       );
     })();
     return () => {
       cancelled = true;
       sceneRef.current?.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [LOCAL_NAME, LOCAL_COLOR, LOCAL_USER_ID]);
+
+  // Réappliquer le thème + reset des avatars lorsqu'on change de room
+  // (le scene.initialized se fait dans useEffect au-dessus, donc on attend)
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene?.initialized) return;
+    scene.setTheme({
+      background: ROOM_META.background,
+      floorTint: ROOM_META.floorTint,
+    });
+    scene.clearRemoteAvatars();
+    setRoomMembers(new Map());
+  }, [ROOM_ID, ROOM_META.background, ROOM_META.floorTint]);
 
   // ── Timer Pomodoro ───────────────────────────────────────────
   useEffect(() => {
@@ -450,10 +531,14 @@ function Room({
     );
   }, [tasks, LOCAL_NAME]);
 
-  // ── Mobilier Feng Shui : sync positions → scène après re-render ─────────
+  // ── Mobilier : meubles visibles uniquement dans la room privée de l'owner ─
   useEffect(() => {
-    sceneRef.current?.setFurniture(placedFurniture, furniturePositions);
-  }, [placedFurniture, furniturePositions]);
+    if (isRoomOwner) {
+      sceneRef.current?.setFurniture(placedFurniture, furniturePositions);
+    } else {
+      sceneRef.current?.setFurniture([], {});
+    }
+  }, [placedFurniture, furniturePositions, isRoomOwner]);
 
   // ── Socket.IO ────────────────────────────────────────────────
   useEffect(() => {
@@ -478,13 +563,6 @@ function Room({
         }
         setRoomMembers(
           new Map(players.map((p) => [p.id, { name: p.name, color: p.color }])),
-        );
-        client.join(
-          LOCAL_NAME,
-          LOCAL_COLOR,
-          scene.localCol,
-          scene.localRow,
-          LOCAL_USER_ID,
         );
         client.requestGuildState();
       },
@@ -721,7 +799,7 @@ function Room({
         setOwnedFurniture(owned);
         setPlacedFurniture(activePlaced);
         setFurniturePositions(positions);
-        sceneRef.current?.setFurniture(activePlaced, positions);
+        // Le rendu de la scène est géré par l'effect qui vérifie isRoomOwner.
       },
       onFurnitureBought: () => {
         // furniture:state est déjà émis après l'achat
@@ -763,11 +841,35 @@ function Room({
       onVideoUpdate: (state) => {
         setSharedVideo(state.videoId ? state : null);
       },
+      onRoomInfo: (roomId) => {
+        // Le serveur nous a assigné/confirmé cette room. Synchroniser le state
+        // React seulement si différent (évite une boucle de setState).
+        const current = joinInfoRef.current?.roomId;
+        if (roomId !== current) onRoomChangeRef.current?.(roomId);
+      },
+      onRoomsList: (rooms) => {
+        onRoomsListUpdateRef.current?.(rooms);
+      },
+      onRoomFull: (roomId) => {
+        const r = roomsListRef.current.find((rr) => rr.id === roomId);
+        setRoomFullToast(
+          `🚫 Room ${r?.name ?? "cible"} pleine (${r?.capacity ?? "?"} max)`,
+        );
+        setTimeout(() => setRoomFullToast(null), 3500);
+      },
+      onPrivateRoomDeleted: (_roomId, fallbackRoomId) => {
+        setRoomFullToast(
+          "🗑️ Cette room privée a été supprimée. Retour dans la room par défaut.",
+        );
+        setTimeout(() => setRoomFullToast(null), 3500);
+        onRoomChangeRef.current?.(fallbackRoomId);
+      },
     });
     socketRef.current = client;
     return () => {
       client.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [LOCAL_NAME, LOCAL_COLOR, LOCAL_USER_ID]);
 
   // ── Onboarding : déclencher pour les nouveaux joueurs ──────────────────────
@@ -1453,6 +1555,17 @@ function Room({
               <span className="topbar-button-label">Aide</span>
             </button>
             <button
+              id="room-switch-btn"
+              type="button"
+              onClick={() => setRoomSwitcherOpen((o) => !o)}
+              aria-label="Changer de room"
+              title={`Room : ${ROOM_META.name}. Clique pour changer.`}
+              className={roomSwitcherOpen ? "active" : ""}
+            >
+              <span className="topbar-icon">{ROOM_META.emoji}</span>
+              <span className="topbar-button-label">{ROOM_META.name}</span>
+            </button>
+            <button
               id="logout-btn"
               type="button"
               onClick={onLogout}
@@ -1521,12 +1634,26 @@ function Room({
               ownedFurniture={ownedFurniture}
               placedFurniture={placedFurniture}
               onBuyFurniture={handleBuyFurniture}
-              onTogglePlace={(itemId) =>
-                socketRef.current?.toggleFurniturePlaced(LOCAL_USER_ID, itemId)
-              }
-              onStartPlacement={(itemId) =>
-                sceneRef.current?.startGhostPlacement(itemId)
-              }
+              onTogglePlace={(itemId) => {
+                if (!isRoomOwner) {
+                  setRoomFullToast(
+                    "🏠 Place tes meubles dans ta room privée",
+                  );
+                  setTimeout(() => setRoomFullToast(null), 3000);
+                  return;
+                }
+                socketRef.current?.toggleFurniturePlaced(LOCAL_USER_ID, itemId);
+              }}
+              onStartPlacement={(itemId) => {
+                if (!isRoomOwner) {
+                  setRoomFullToast(
+                    "🏠 Place tes meubles dans ta room privée",
+                  );
+                  setTimeout(() => setRoomFullToast(null), 3000);
+                  return;
+                }
+                sceneRef.current?.startGhostPlacement(itemId);
+              }}
               onClose={() => setShopOpen(false)}
             />
           )}
@@ -1929,6 +2056,39 @@ function Room({
         <AudioPanel onClose={() => setAudioPanelOpen(false)} />
       )}
 
+      {/* ── Room switcher ── */}
+      {roomSwitcherOpen && (
+        <RoomSelectScreen
+          rooms={roomsList}
+          title="Changer de room"
+          subtitle="Choisis une nouvelle ambiance. Ton progrès est conservé."
+          initialRoomId={ROOM_ID}
+          userId={LOCAL_USER_ID}
+          canCreatePrivate={IS_GOOGLE_USER}
+          onCreatePrivate={(name) => {
+            socketRef.current?.createPrivateRoom(name);
+          }}
+          onDeletePrivate={
+            isRoomOwner
+              ? () => {
+                  socketRef.current?.deletePrivateRoom();
+                  setRoomSwitcherOpen(false);
+                }
+              : undefined
+          }
+          onBack={() => setRoomSwitcherOpen(false)}
+          onSelect={(roomId) => {
+            setRoomSwitcherOpen(false);
+            if (roomId === ROOM_ID) return;
+            socketRef.current?.switchRoom(roomId);
+            onRoomChange(roomId);
+          }}
+        />
+      )}
+      {roomFullToast && (
+        <div id="room-full-toast">{roomFullToast}</div>
+      )}
+
       {/* ── Panel Ambiance (always mounted so YT player stays alive) ── */}
       <AmbiancePanel
         open={ambiancePanelOpen}
@@ -2089,6 +2249,42 @@ function App() {
   const [authUser, setAuthUser] = useState<AuthResult | null>(null);
   const [guestMode, setGuestMode] = useState(false);
   const [joinInfo, setJoinInfo] = useState<JoinInfo | null>(null);
+  const [pendingProfile, setPendingProfile] = useState<Omit<
+    JoinInfo,
+    "roomId"
+  > | null>(null);
+  const [roomsList, setRoomsList] = useState<RoomSummary[]>([]);
+
+  // Fetch initial rooms list (for room-select before socket exists)
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_URL}/api/rooms`)
+      .then((r) => r.json())
+      .then((data: { rooms?: RoomSummary[] }) => {
+        if (!cancelled && data.rooms) setRoomsList(data.rooms);
+      })
+      .catch(() => {
+        /* offline : on affichera 0/N */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Finalise un profil en attribuant un roomId (depuis localStorage si présent)
+  const commitProfile = useCallback(
+    (profile: Omit<JoinInfo, "roomId">, roomId?: RoomId) => {
+      const rid = roomId ?? loadSelectedPublicRoom();
+      if (rid) {
+        localStorage.setItem(ROOM_STORAGE_KEY, rid);
+        setJoinInfo({ ...profile, roomId: rid });
+        setPendingProfile(null);
+      } else {
+        setPendingProfile(profile);
+      }
+    },
+    [],
+  );
 
   // Vérifier le token JWT sauvegardé au chargement
   useEffect(() => {
@@ -2097,26 +2293,23 @@ function App() {
       queueMicrotask(() => setAuthChecked(true));
       return;
     }
-    fetch(
-      `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/auth/token`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      },
-    )
+    fetch(`${API_URL}/auth/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
       .then((r) => r.json())
       .then((data: AuthResult & { error?: string }) => {
         if (!data.error && data.userId) {
           setAuthUser(data);
-          // Si le profil est complet (couleur déjà choisie), sauter le JoinDialog
           if (data.color !== 0 && data.name) {
-            setJoinInfo({
+            commitProfile({
               name: data.name,
               color: data.color,
               colorCss: hexToCSS(data.color),
               userId: data.userId,
               isAdmin: data.isAdmin,
+              isGoogleUser: !!data.isGoogleUser,
             });
           }
         } else {
@@ -2124,21 +2317,21 @@ function App() {
         }
       })
       .catch(() => {
-        /* réseau indisponible : mode invité automatique */
+        /* réseau indisponible */
       })
       .finally(() => setAuthChecked(true));
-  }, []);
+  }, [commitProfile]);
 
   const handleAuth = (result: AuthResult) => {
     setAuthUser(result);
-    // Si première connexion (couleur = 0), afficher JoinDialog pour choisir nom + couleur
     if (result.color === 0 || !result.name) return;
-    setJoinInfo({
+    commitProfile({
       name: result.name,
       color: result.color,
       colorCss: hexToCSS(result.color),
       userId: result.userId,
       isAdmin: result.isAdmin,
+      isGoogleUser: !!result.isGoogleUser,
     });
   };
 
@@ -2147,14 +2340,48 @@ function App() {
     setAuthUser(null);
     setGuestMode(false);
     setJoinInfo(null);
+    setPendingProfile(null);
   };
 
-  const handleJoin = (info: Omit<JoinInfo, "userId" | "isAdmin">) => {
-    setJoinInfo({
+  const handleJoin = (
+    info: Omit<JoinInfo, "userId" | "isAdmin" | "roomId" | "isGoogleUser">,
+  ) => {
+    commitProfile({
       ...info,
       userId: authUser?.userId ?? LOCAL_USER_ID,
       isAdmin: authUser?.isAdmin ?? false,
+      isGoogleUser: !!authUser?.isGoogleUser,
     });
+  };
+
+  const handleRoomSelect = (roomId: RoomId) => {
+    if (!pendingProfile) return;
+    // Ne persiste dans localStorage que si c'est une room publique (les privées sont éphémères)
+    if (isPublicRoomId(roomId))
+      localStorage.setItem(ROOM_STORAGE_KEY, roomId);
+    setJoinInfo({ ...pendingProfile, roomId });
+    setPendingProfile(null);
+  };
+
+  const handleRoomChange = useCallback((roomId: RoomId) => {
+    if (isPublicRoomId(roomId))
+      localStorage.setItem(ROOM_STORAGE_KEY, roomId);
+    setJoinInfo((prev) => (prev ? { ...prev, roomId } : prev));
+  }, []);
+
+  // Callback to receive socket-driven rooms updates from the Room component
+  const handleRoomsListUpdate = useCallback((rooms: RoomSummary[]) => {
+    setRoomsList(rooms);
+  }, []);
+
+  // Création d'une private room : on la délègue au socket (dans Room).
+  // Pour le flow initial (avant Room monté), créer impose de d'abord entrer dans
+  // une room publique par défaut puis créer depuis le switcher in-game.
+  const handleInitialCreatePrivate = () => {
+    if (!pendingProfile) return;
+    // Entrer par défaut dans ocean ; l'utilisateur pourra créer depuis le switcher
+    setJoinInfo({ ...pendingProfile, roomId: DEFAULT_ROOM_ID });
+    setPendingProfile(null);
   };
 
   if (!authChecked) {
@@ -2172,7 +2399,7 @@ function App() {
     );
   }
 
-  if (!joinInfo) {
+  if (!joinInfo && !pendingProfile) {
     const prefill =
       authUser && authUser.name
         ? { name: authUser.name, color: authUser.color }
@@ -2180,7 +2407,28 @@ function App() {
     return <JoinDialog onJoin={handleJoin} prefill={prefill} />;
   }
 
-  return <Room joinInfo={joinInfo} onLogout={handleLogout} />;
+  if (!joinInfo && pendingProfile) {
+    return (
+      <RoomSelectScreen
+        rooms={roomsList}
+        onSelect={handleRoomSelect}
+        initialRoomId={loadSelectedPublicRoom() ?? DEFAULT_ROOM_ID}
+        userId={pendingProfile.userId}
+        canCreatePrivate={pendingProfile.isGoogleUser}
+        onCreatePrivate={handleInitialCreatePrivate}
+      />
+    );
+  }
+
+  return (
+    <Room
+      joinInfo={joinInfo!}
+      onLogout={handleLogout}
+      onRoomChange={handleRoomChange}
+      roomsList={roomsList}
+      onRoomsListUpdate={handleRoomsListUpdate}
+    />
+  );
 }
 
 export default App;
