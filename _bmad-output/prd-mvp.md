@@ -1,9 +1,45 @@
 # GamiTask — Product Requirements Document (MVP)
 
-**Version :** 1.0
-**Date :** 2026-03-27
+**Version :** 1.1
+**Date initiale :** 2026-03-27
+**Dernière mise à jour :** 2026-04-24
 **Auteur :** Maxime
-**Statut :** Brouillon
+**Statut :** MVP livré — itération Phase 2 en cours
+
+---
+
+## 0. État d'Avancement (2026-04-24)
+
+Le MVP initial (F1–F7) est **livré et fonctionnel**. Le projet est en phase 2, avec plusieurs features initialement hors-scope déjà en production.
+
+### ✅ MVP livré
+
+- F1 Room isométrique publique — moteur custom (PixiJS non retenu, rendu sur canvas via `IsoEngine`)
+- F2 Avatar + déplacement au clic — pathfinding A\* sur grille de tiles
+- F3 Timer Pomodoro collectif + `/pomo` — timer autoritaire côté serveur, auto-chaînage des phases
+- F4 Chat en room — temps réel, rate limiting
+- F5 Statuts visuels — bulles focus/pause/libre
+- F6 Accès guest — entrée immédiate sans compte
+- F7 Inscription — email/password + Google OAuth, préservation du pseudo
+
+### 🚀 Livré au-delà du MVP (Phase 2+)
+
+- **Système de tâches** — TaskPanel, dailies avec reset quotidien, dégradation
+- **Économie** — pièces (`coins`), leaderboard temps réel
+- **Shop + cosmétiques** — items, chapeaux équipables
+- **Guildes** — GuildPanel, état partagé
+- **Audio / Ambiance** — SoundEngine, AmbiancePanel, AudioPanel
+- **Vidéo YouTube partagée** — un utilisateur contrôle, les autres suivent en sync (latecomer resync)
+- **Tâches publiques** — les tâches en cours de chaque joueur sont visibles par les autres
+- **Meubles déplaçables** — placement/positions persistés par utilisateur
+- **Minimap, Onboarding, Feedback modal, Profil**
+- **Déploiement prod** — Dockerfile.nginx, docker-compose.prod.yml
+
+### 🔜 Pistes en cours / à arbitrer
+
+- Scaling multi-room (aujourd'hui : une room publique unique)
+- Audio thématique et notifications sonores
+- Mobile (disclaimer "desktop recommandé" toujours valable)
 
 ---
 
@@ -150,15 +186,15 @@ Le travail à distance et solo manque de présence sociale et de motivation extr
 
 ### Stack suggérée
 
-| Couche            | Technologie suggérée   | Justification                              |
-| ----------------- | ---------------------- | ------------------------------------------ |
-| Frontend          | React + TypeScript     | Composants réactifs, typage fort           |
-| Rendu isométrique | PixiJS ou Phaser 3     | Moteur 2D performant, adapté au navigateur |
-| Temps réel        | Socket.IO (WebSocket)  | Synchronisation positions, chat, timer     |
-| Backend           | Node.js + Express      | Léger, JS full-stack cohérent              |
-| Base de données   | PostgreSQL             | Comptes utilisateurs, sessions             |
-| Auth              | JWT + sessions         | Simple, extensible                         |
-| Hébergement       | Render / Railway (MVP) | Déploiement rapide et économique           |
+| Couche            | Technologie retenue        | Note                                              |
+| ----------------- | -------------------------- | ------------------------------------------------- |
+| Frontend          | React + TypeScript + Vite  | Composants réactifs, typage fort                  |
+| Rendu isométrique | Moteur custom sur canvas   | `IsoEngine` maison (PixiJS/Phaser non retenus)    |
+| Temps réel        | Socket.IO (WebSocket)      | Synchronisation positions, chat, timer, vidéo     |
+| Backend           | Node.js + Express          | Léger, JS full-stack cohérent                     |
+| Base de données   | SQLite (better-sqlite3)    | Simplicité de déploiement, suffisant au stade MVP |
+| Auth              | Email/password + Google OAuth | Compte classique ou Google                     |
+| Déploiement       | Docker + nginx             | `Dockerfile.nginx`, `docker-compose.prod.yml`     |
 
 ### Contraintes techniques clés
 
