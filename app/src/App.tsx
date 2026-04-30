@@ -88,14 +88,14 @@ const PHASE_LABEL: Record<PomodoroPhase, string> = {
 };
 
 const PALETTE: { hex: number; css: string; label: string }[] = [
-  { hex: 0x4f8ef7, css: "#4f8ef7", label: "Bleu" },
-  { hex: 0xe05c97, css: "#e05c97", label: "Rose" },
-  { hex: 0x5ecf6a, css: "#5ecf6a", label: "Vert" },
-  { hex: 0xf7a94f, css: "#f7a94f", label: "Orange" },
-  { hex: 0xa855f7, css: "#a855f7", label: "Violet" },
-  { hex: 0x06b6d4, css: "#06b6d4", label: "Cyan" },
-  { hex: 0xf43f5e, css: "#f43f5e", label: "Rouge" },
-  { hex: 0xfbbf24, css: "#fbbf24", label: "Jaune" },
+  { hex: 0xb85530, css: "#b85530", label: "Terracotta" },
+  { hex: 0x7a8e4a, css: "#7a8e4a", label: "Olive" },
+  { hex: 0xc89a3a, css: "#c89a3a", label: "Honey" },
+  { hex: 0x6a4a30, css: "#6a4a30", label: "Bark" },
+  { hex: 0xa04050, css: "#a04050", label: "Berry" },
+  { hex: 0x8aa6b8, css: "#8aa6b8", label: "Bleu poussière" },
+  { hex: 0xd97842, css: "#d97842", label: "Brique" },
+  { hex: 0x4a2e1a, css: "#4a2e1a", label: "Espresso" },
 ];
 
 // ── Dialogue d'entrée ─────────────────────────────────────────────────────────

@@ -141,10 +141,10 @@ export class GameScene {
 
   constructor(
     localName = "Vous",
-    localColor = 0x4f8ef7,
+    localColor = 0xb85530,
     theme: { background: number; floorTint: number } = {
-      background: 0x1a0e07,
-      floorTint: 0xffffff,
+      background: 0xe6d3ad,
+      floorTint: 0xb89466,
     },
   ) {
     this.app = new PIXI.Application();

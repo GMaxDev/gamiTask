@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import type { Task } from "../net/types";
 
 const CATEGORIES = [
-  { id: "work", label: "Boulot", color: "#4f8ef7" },
-  { id: "perso", label: "Perso", color: "#5ecf6a" },
-  { id: "urgent", label: "Urgent", color: "#f97316" },
-  { id: "study", label: "Étude", color: "#a78bfa" },
+  { id: "work", label: "Boulot", color: "#b85530" },
+  { id: "perso", label: "Perso", color: "#7a8e4a" },
+  { id: "urgent", label: "Urgent", color: "#a04050" },
+  { id: "study", label: "Étude", color: "#8aa6b8" },
 ] as const;
 
 interface TaskPanelProps {

@@ -198,39 +198,39 @@ export interface RoomMeta {
 export const PUBLIC_ROOMS_META: Record<PublicRoomId, RoomMeta> = {
   ocean: {
     id: "ocean",
-    name: "Océan",
-    emoji: "🌊",
-    accent: 0x06b6d4,
-    floorTint: 0x9ad1e8,
-    background: 0x0a1a2a,
-    description: "Ambiance marine, fraîche et profonde",
+    name: "Bookshop cozy",
+    emoji: "📖",
+    accent: 0xb85530,
+    floorTint: 0xb89466,
+    background: 0xe6d3ad,
+    description: "Librairie-café, murs de livres, tapis terracotta",
   },
   forest: {
     id: "forest",
-    name: "Forêt",
-    emoji: "🌲",
-    accent: 0x5ecf6a,
-    floorTint: 0xb8e0a8,
-    background: 0x0f1a0e,
-    description: "Ambiance boisée, calme et végétale",
+    name: "Café-jardin",
+    emoji: "🌿",
+    accent: 0x7a8e4a,
+    floorTint: 0xc8b888,
+    background: 0xe8e0c8,
+    description: "Véranda lumineuse, plantes suspendues, banquettes sauge",
   },
   sunset: {
     id: "sunset",
-    name: "Coucher de soleil",
-    emoji: "🌅",
-    accent: 0xf7a94f,
-    floorTint: 0xffd4a0,
-    background: 0x2a1a0a,
-    description: "Ambiance chaleureuse, orangée et douce",
+    name: "Salon honey",
+    emoji: "🍯",
+    accent: 0xc89a3a,
+    floorTint: 0xd8b878,
+    background: 0xf0dba0,
+    description: "Lumière chaude de fin d'après-midi, tasse fumante",
   },
 };
 
 /** Palette utilisée pour les rooms privées (même thème pour toutes pour cette v1) */
 export const PRIVATE_ROOM_THEME = {
   emoji: "🏠",
-  accent: 0xa855f7,
-  floorTint: 0xd0b8e8,
-  background: 0x1a0a2a,
+  accent: 0xa04050,
+  floorTint: 0xc8a888,
+  background: 0xf0e0c0,
 };
 
 export function isPublicRoomId(v: unknown): v is PublicRoomId {

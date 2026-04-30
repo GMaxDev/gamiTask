@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>gamiTask — Café Bookshop</title>
+<meta name="viewport" content="width=1440" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Inter',system-ui,sans-serif;color:#1a1a1a;background:#0e0d11}
+body{min-height:100vh}
+
+/* DA tokens — both variants are cozy-café family, no serif. */
+[data-da="bookshop"]{
+  --font-display:"DM Sans",system-ui,sans-serif;
+  --font-body:"Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --bg-app:#f1e3c8;
+  --bg-canvas:#e6d3ad;
+  --bg-panel:#fbf3df;
+  --bg-panel-2:#f0e0c0;
+  --bg-deep:#3a2418;
+  --ink:#3a2418;
+  --ink-2:#6a4a30;
+  --ink-3:rgba(58,36,24,.55);
+  --ink-4:rgba(58,36,24,.22);
+  --accent:#b85530;
+  --accent-2:#d97842;
+  --accent-soft:#f3d2b8;
+  --moss:#7a8e4a;
+  --moss-soft:#dde0bd;
+  --gold:#c89a3a;
+  --gold-soft:#f0dba0;
+  --berry:#a04050;
+  --focus:#b85530;--break:#7a8e4a;--paused:#c89a3a;
+  --border:rgba(106,74,48,.20);
+  --border-strong:rgba(106,74,48,.34);
+  --shadow-sm:0 1px 2px rgba(74,47,27,.08),0 2px 8px rgba(74,47,27,.06);
+  --shadow-md:0 4px 12px rgba(74,47,27,.14),0 8px 24px rgba(74,47,27,.10);
+  --shadow-lg:0 12px 32px rgba(74,47,27,.20),0 24px 48px rgba(74,47,27,.12);
+  --radius-sm:8px;--radius:14px;--radius-lg:20px;--radius-xl:28px;
+}
+
+[data-da="garden"]{
+  --font-display:"Outfit",system-ui,sans-serif;
+  --font-body:"Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --bg-app:#f6f1e2;
+  --bg-canvas:#e8e0c8;
+  --bg-panel:#fdf9ec;
+  --bg-panel-2:#eee5cc;
+  --bg-deep:#2a3a2a;
+  --ink:#2a3a2a;
+  --ink-2:#4a6048;
+  --ink-3:rgba(42,58,42,.55);
+  --ink-4:rgba(42,58,42,.20);
+  --accent:#5e8a5a;
+  --accent-2:#7aa478;
+  --accent-soft:#d8e8d4;
+  --moss:#5e8a5a;
+  --moss-soft:#d8e8d4;
+  --gold:#d4a04a;
+  --gold-soft:#f3deb3;
+  --berry:#c5612e;
+  --focus:#5e8a5a;--break:#d4a04a;--paused:#c5612e;
+  --border:rgba(42,58,42,.16);
+  --border-strong:rgba(42,58,42,.30);
+  --shadow-sm:0 1px 2px rgba(42,58,42,.06),0 2px 8px rgba(42,58,42,.05);
+  --shadow-md:0 4px 12px rgba(42,58,42,.10),0 8px 24px rgba(42,58,42,.07);
+  --shadow-lg:0 12px 32px rgba(42,58,42,.14),0 24px 48px rgba(42,58,42,.08);
+  --radius-sm:10px;--radius:16px;--radius-lg:22px;--radius-xl:28px;
+}
+
+/* ────── Switcher bar ────── */
+.da-bar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:8px;padding:14px 28px;background:rgba(14,13,17,.85);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.06)}
+.da-bar h1{font-family:"DM Sans",sans-serif;font-weight:600;color:#f4ecd8;font-size:18px;letter-spacing:-.01em;margin-right:auto}
+.da-bar h1 span.s{font-weight:400;color:rgba(244,236,216,.55);margin-left:8px}
+.da-tab{appearance:none;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#f4ecd8;padding:8px 16px;border-radius:99px;font:600 13px 'Inter';cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s}
+.da-tab:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18)}
+.da-tab[aria-pressed="true"]{background:#f4ecd8;color:#1a1a1a;border-color:#f4ecd8}
+.da-tab .dot{width:10px;height:10px;border-radius:50%}
+.da-view{padding:32px;display:flex;flex-direction:column;gap:48px}
+.da-section{border-radius:24px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.4)}
+
+/* ────── Frame ────── */
+.frame{position:relative;width:100%;background:var(--bg-app);color:var(--ink);font-family:var(--font-body);overflow:hidden}
+.frame-label{position:absolute;top:16px;left:20px;z-index:50;background:rgba(0,0,0,.55);color:#fff;font:500 11px 'Inter';letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:6px}
+
+/* ────── Top bar ────── */
+.tb{display:flex;align-items:center;gap:4px;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--bg-panel);position:relative;z-index:10}
+.tb-brand{display:flex;align-items:center;gap:10px;margin-right:24px}
+.tb-logo{width:34px;height:34px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-family:var(--font-display);font-size:18px}
+.tb-name{font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:-.02em}
+.tb-room{font-size:12px;color:var(--ink-3);margin-left:8px;font-weight:500}
+.tb-spacer{flex:1}
+.tb-btn{appearance:none;background:transparent;border:none;color:var(--ink-2);padding:8px 12px;border-radius:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font:600 11px var(--font-body);min-width:60px;transition:background .15s}
+.tb-btn:hover{background:var(--bg-panel-2)}
+.tb-btn .ic{font-size:18px;line-height:1}
+.tb-btn[data-active="true"]{color:var(--accent);background:var(--accent-soft)}
+
+.timer{display:inline-flex;align-items:center;gap:10px;padding:8px 14px;border-radius:99px;background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);font-weight:600;font-size:13px}
+.timer .num{font-family:var(--font-mono);font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-.02em}
+.timer .pulse{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;background:var(--bg-panel-2);font:600 12px var(--font-body);color:var(--ink-2);border:1px solid var(--border)}
+.badge.gold{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 35%,transparent)}
+.badge.streak{color:var(--accent)}
+
+/* ────── Stage layout ────── */
+.stage{display:grid;grid-template-columns:300px 1fr 320px;gap:18px;padding:18px;height:720px}
+.col{display:flex;flex-direction:column;gap:14px;min-height:0}
+.canvas{position:relative;border-radius:var(--radius-lg);overflow:hidden;background:var(--bg-canvas);box-shadow:var(--shadow-md);min-height:0}
+.canvas-inner{position:absolute;inset:0}
+
+/* ────── Panels ────── */
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);display:flex;flex-direction:column;overflow:hidden}
+.panel-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.panel-title{font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.panel-title .ic{font-size:18px}
+.panel-meta{font-size:11px;color:var(--ink-3);font-weight:500}
+.panel-body{padding:12px 14px;overflow:auto;flex:1}
+
+/* Tasks */
+.task{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;cursor:pointer;transition:background .15s}
+.task:hover{background:var(--bg-panel-2)}
+.task.done{opacity:.55}
+.task.done .t{text-decoration:line-through}
+.cb{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--ink-4);flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--bg-panel)}
+.cb.checked{background:var(--accent);border-color:var(--accent);color:#fff;font-size:11px;font-weight:800}
+.task .t{flex:1;font-size:13.5px;color:var(--ink)}
+.task .cat{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.task .pts{font-size:11px;font-weight:700;color:var(--gold);font-family:var(--font-mono)}
+.task-add{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);align-items:center}
+.task-add input{flex:1;border:none;background:var(--bg-panel-2);border-radius:8px;padding:8px 10px;font:500 13px var(--font-body);color:var(--ink);outline:none}
+.task-add button{appearance:none;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;font:600 13px var(--font-body);cursor:pointer}
+.section-h{font:600 11px var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:8px 4px 4px}
+
+/* Player & leaderboard */
+.player-card{padding:16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.av-circle{width:48px;height:48px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-family:var(--font-display);font-size:18px;flex:0 0 auto;position:relative}
+.av-circle::after{content:'';position:absolute;bottom:0;right:0;width:14px;height:14px;border-radius:50%;background:#7ec87e;border:2px solid var(--bg-panel)}
+.player-name{font-weight:700;font-size:14px;font-family:var(--font-display);letter-spacing:-.01em}
+.player-sub{font-size:12px;color:var(--ink-3);margin-top:2px;font-weight:500}
+.lvl-bar{margin:10px 16px;background:var(--bg-panel-2);height:6px;border-radius:99px;overflow:hidden;position:relative}
+.lvl-bar > i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--accent),var(--gold));border-radius:99px}
+.lvl-meta{display:flex;justify-content:space-between;padding:0 16px;font-size:11px;color:var(--ink-3);font-weight:500}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px}
+.stat{background:var(--bg-panel-2);border-radius:12px;padding:10px 12px}
+.stat .lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.stat .v{font-family:var(--font-display);font-size:22px;font-weight:700;margin-top:2px;letter-spacing:-.02em}
+.lb-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px}
+.lb-row:hover{background:var(--bg-panel-2)}
+.lb-row .rk{width:22px;text-align:center;font-family:var(--font-mono);font-size:12px;color:var(--ink-3);font-weight:600}
+.lb-row.you{background:var(--accent-soft)}
+.lb-row .nm{flex:1;font-size:13px;font-weight:500}
+.lb-row .co{font-family:var(--font-mono);font-size:12px;color:var(--gold);font-weight:600}
+.av-mini{width:22px;height:22px;border-radius:50%;font-size:10px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+
+/* Chat — ré-intégré */
+.chat{position:absolute;left:18px;bottom:18px;width:300px;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden;display:flex;flex-direction:column}
+.chat-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--bg-panel-2)}
+.chat-h .dot{width:8px;height:8px;border-radius:50%;background:#7ec87e}
+.chat-h .ti{font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:-.01em;flex:1}
+.chat-h .meta{font-size:10.5px;color:var(--ink-3);font-weight:500}
+.chat-body{padding:8px 10px;display:flex;flex-direction:column;gap:6px;max-height:160px;overflow:auto}
+.chat-msg{font-size:12.5px;line-height:1.45;display:flex;gap:6px;align-items:baseline}
+.chat-msg .who{font-weight:700;font-family:var(--font-display);font-size:12px}
+.chat-msg.system{color:var(--ink-3);font-style:italic;font-size:11.5px}
+.chat-input{display:flex;border-top:1px solid var(--border)}
+.chat-input input{flex:1;border:none;background:transparent;padding:9px 12px;font:500 13px var(--font-body);color:var(--ink);outline:none}
+.chat-input .send{appearance:none;background:transparent;border:none;color:var(--accent);font-size:18px;padding:0 12px;cursor:pointer}
+
+/* Toast & FAB */
+.toast{position:absolute;top:80px;left:50%;transform:translateX(-50%);background:var(--bg-deep);color:#fff;padding:10px 18px;border-radius:99px;font:600 13px var(--font-body);box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px;z-index:30}
+.fab{position:absolute;background:var(--accent);color:#fff;border:none;border-radius:99px;padding:11px 18px;font:600 13px var(--font-body);box-shadow:var(--shadow-md);cursor:pointer;display:flex;align-items:center;gap:8px}
+.coin-pop{position:absolute;font-size:16px;font-weight:700;color:var(--gold);font-family:var(--font-mono);pointer-events:none;animation:coinFly 2.5s ease-out infinite;background:var(--bg-panel);padding:4px 10px;border-radius:99px;box-shadow:var(--shadow-sm)}
+@keyframes coinFly{0%{opacity:0;transform:translateY(0) scale(.6)}15%{opacity:1;transform:translateY(-12px) scale(1.05)}80%{opacity:1;transform:translateY(-30px) scale(1)}100%{opacity:0;transform:translateY(-50px) scale(.8)}}
+
+/* Shop */
+.shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+.shop-item{background:var(--bg-panel-2);border:1px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.shop-item .em{font-size:30px}
+.shop-item .nm{font-size:12px;font-weight:600}
+.shop-item .pr{font-size:11px;color:var(--gold);font-weight:700;font-family:var(--font-mono)}
+.shop-item.owned{border-color:var(--accent);background:var(--accent-soft)}
+.shop-item.owned::after{content:'✓';position:absolute;top:6px;right:8px;color:var(--accent);font-weight:700;font-size:12px}
+
+/* Join */
+.join{display:flex;align-items:center;justify-content:center;height:100%;padding:40px;background:var(--bg-canvas);position:relative}
+.join-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-xl);padding:32px;width:380px;box-shadow:var(--shadow-lg);text-align:center;position:relative;z-index:2}
+.join-art{width:96px;height:96px;border-radius:50%;background:var(--accent);margin:0 auto 18px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:40px;box-shadow:var(--shadow-md)}
+.join-card h2{font-family:var(--font-display);font-size:28px;font-weight:700;letter-spacing:-.025em;margin-bottom:6px;line-height:1.1}
+.join-card .sub{color:var(--ink-3);font-size:14px;margin-bottom:24px}
+.join-input{width:100%;background:var(--bg-panel-2);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;font:500 15px var(--font-body);color:var(--ink);outline:none;text-align:center}
+.join-input:focus{border-color:var(--accent)}
+.join-pal{display:flex;justify-content:center;gap:8px;margin:18px 0 24px}
+.sw{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .15s}
+.sw:hover{transform:scale(1.12)}
+.sw.sel{border-color:var(--ink);transform:scale(1.15)}
+.join-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font:600 15px var(--font-body);cursor:pointer;letter-spacing:.005em}
+
+/* DS */
+.ds{padding:32px;background:var(--bg-app);color:var(--ink);font-family:var(--font-body)}
+.ds-hd{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;padding-bottom:28px;border-bottom:1px solid var(--border);margin-bottom:28px}
+.ds-hd h2{font-family:var(--font-display);font-size:42px;font-weight:700;letter-spacing:-.03em;line-height:1.02}
+.ds-hd h2 .em{color:var(--accent);font-weight:700}
+.ds-hd p{color:var(--ink-2);font-size:14.5px;line-height:1.6;margin-top:14px;max-width:46ch}
+.ds-meta{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:13px;color:var(--ink-2);align-self:start}
+.ds-meta dt{color:var(--ink-3);font-weight:500}
+.ds-meta dd{font-weight:500}
+.ds-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:24px}
+.ds-block{grid-column:span 4;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow-sm)}
+.ds-block.wide{grid-column:span 8}
+.ds-block.full{grid-column:span 12}
+.ds-block h3{font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap}
+.swatch{width:64px;display:flex;flex-direction:column;gap:4px}
+.swatch .chip{height:64px;border-radius:10px;border:1px solid var(--border)}
+.swatch .nm{font-size:11px;font-weight:600;line-height:1.2}
+.swatch .hx{font-family:var(--font-mono);font-size:10px;color:var(--ink-3)}
+.type-row{display:flex;flex-direction:column;gap:14px}
+.type-row .sample{padding:6px 0;border-top:1px solid var(--border)}
+.type-row .sample:first-child{border-top:none}
+.type-row .lbl{font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;font-weight:600;margin-bottom:4px;font-family:var(--font-body)}
+.tokens{display:grid;grid-template-columns:auto 1fr auto;gap:8px 14px;font-size:12.5px}
+.tokens code{font-family:var(--font-mono);font-size:11.5px;color:var(--accent);background:var(--bg-panel-2);padding:2px 6px;border-radius:4px}
+.tokens .pv{justify-self:end;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3)}
+.cmpt-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.mood{padding:0;overflow:hidden}
+.mood-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:140px 140px;gap:4px}
+.mood-cell{position:relative;overflow:hidden}
+.mood-cell svg{width:100%;height:100%;display:block}
+.mood-quote{padding:18px;font-family:var(--font-display);font-weight:500;font-size:18px;color:var(--ink-2);line-height:1.4;border-top:1px solid var(--border);letter-spacing:-.01em}
+.note{background:var(--bg-panel-2);border-radius:var(--radius);padding:18px;font-family:var(--font-mono);font-size:12.5px;line-height:1.6;color:var(--ink-2);overflow-x:auto;white-space:pre}
+
+/* DA-specific tweaks */
+[data-da="bookshop"] .canvas{background:linear-gradient(180deg,#e6d3ad,#d8c198)}
+[data-da="bookshop"] .frame{background-image:radial-gradient(circle at 20% 0%, rgba(255,200,120,.18), transparent 50%)}
+[data-da="garden"] .canvas{background:linear-gradient(180deg,#e8e0c8 0%,#dde0bd 100%)}
+[data-da="garden"] .frame{background-image:radial-gradient(circle at 80% 0%, rgba(180,220,150,.20), transparent 55%)}
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState } = React;
+
+/* ─────────── Iso Room ─────────── */
+function IsoRoom({ palette, daKey }) {
+  const TW=64,TH=32,COLS=9,ROWS=9;
+  const cx=COLS*TW/2;
+  const iso=(c,r)=>({x:(c-r)*TW/2+cx,y:(c+r)*TH/2});
+  const wallH=104;
+  const tiles=[];
+  for(let r=0;r<ROWS;r++){for(let c=0;c<COLS;c++){
+    const p=iso(c,r); const alt=(c+r)%2===0;
+    tiles.push(<polygon key={`t${c}-${r}`} points={`${p.x},${p.y} ${p.x+TW/2},${p.y+TH/2} ${p.x},${p.y+TH} ${p.x-TW/2},${p.y+TH/2}`} fill={alt?palette.floor:palette.floorAlt} stroke={palette.floorLine} strokeWidth=".5"/>);
+  }}
+  const wTL=iso(0,0),wTR=iso(COLS,0),wBL=iso(0,ROWS);
+  const desks=[{c:1.5,r:1.5},{c:6.5,r:1.5},{c:1.5,r:6.5},{c:6.5,r:6.5}];
+  const plants=[{c:0.4,r:8.4},{c:8.4,r:0.4},{c:0.4,r:0.4},{c:8.4,r:8.4}];
+  const avatars=[
+    {c:2,r:2,color:palette.av1,name:"Léa",state:"focus"},
+    {c:7,r:2,color:palette.av2,name:"Tom",state:"focus"},
+    {c:2,r:7,color:palette.av3,name:"Mia",state:"pause"},
+    {c:7,r:7,color:palette.av4,name:"You",state:"focus",you:true},
+    {c:4.5,r:4.5,color:palette.av5,name:"Sam",state:"chat"},
+  ];
+  const items=[
+    ...desks.map(d=>({kind:"desk",...d,depth:d.c+d.r})),
+    ...plants.map(p=>({kind:"plant",...p,depth:p.c+p.r})),
+    ...avatars.map(a=>({kind:"avatar",...a,depth:a.c+a.r+0.1})),
+  ].sort((a,b)=>a.depth-b.depth);
+  const W=(COLS+ROWS)*TW/2;
+  const H=(COLS+ROWS)*TH/2+wallH+50;
+
+  // Bookshop has bookshelves on back wall; Garden has big window with plants
+  return (
+    <svg viewBox={`-30 -${wallH+30} ${W+60} ${H}`} preserveAspectRatio="xMidYMid meet" width="100%" height="100%" style={{display:"block",imageRendering:"pixelated"}}>
+      <defs>
+        <linearGradient id={`wg-${daKey}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={palette.wall}/><stop offset="1" stopColor={palette.wallShadow}/>
+        </linearGradient>
+        <radialGradient id={`amb-${daKey}`} cx={daKey==="garden"?"50%":"30%"} cy="20%" r="75%">
+          <stop offset="0" stopColor={daKey==="garden"?"rgba(255,240,180,.30)":"rgba(255,200,120,.32)"}/>
+          <stop offset="1" stopColor="rgba(255,200,120,0)"/>
+        </radialGradient>
+      </defs>
+      <polygon points={`${wTL.x},${wTL.y} ${wTR.x},${wTR.y} ${wTR.x},${wTR.y-wallH} ${wTL.x},${wTL.y-wallH}`} fill={`url(#wg-${daKey})`}/>
+      <polygon points={`${wTL.x},${wTL.y} ${wBL.x},${wBL.y} ${wBL.x},${wBL.y-wallH} ${wTL.x},${wTL.y-wallH}`} fill={palette.wallShadow} opacity=".88"/>
+      
+      {daKey==="bookshop" ? (
+        // Bookshelves on left wall
+        <g>
+          {[0,1,2].map(row=>(
+            <g key={row} transform={`translate(${wTL.x+12},${wTL.y-wallH+18+row*28})`}>
+              <rect x="0" y="0" width="120" height="24" fill={palette.deskLeg} stroke="rgba(0,0,0,.2)"/>
+              {Array.from({length:14}).map((_,i)=>(
+                <rect key={i} x={4+i*8} y="3" width="6" height="18" fill={["#a04050","#7a8e4a","#c89a3a","#b85530","#6a4a30","#a04050","#7a8e4a","#3a2418","#c89a3a","#b85530","#7a8e4a","#a04050","#6a4a30","#c89a3a"][i]}/>
+              ))}
+            </g>
+          ))}
+          {/* small window on back-right */}
+          <rect x={cx+30} y={wTL.y-wallH+22} width="56" height="42" fill={palette.window} stroke={palette.deskLeg} strokeWidth="2" rx="2"/>
+          <line x1={cx+58} y1={wTL.y-wallH+22} x2={cx+58} y2={wTL.y-wallH+64} stroke={palette.deskLeg} strokeWidth="2"/>
+          <line x1={cx+30} y1={wTL.y-wallH+43} x2={cx+86} y2={wTL.y-wallH+43} stroke={palette.deskLeg} strokeWidth="2"/>
+        </g>
+      ) : (
+        // Garden — big bay window with hanging plants
+        <g>
+          <rect x={cx-70} y={wTL.y-wallH+12} width="150" height="76" fill={palette.window} stroke={palette.deskLeg} strokeWidth="2" rx="2"/>
+          {[0,1,2].map(i=>(
+            <line key={i} x1={cx-70+(i+1)*37.5} y1={wTL.y-wallH+12} x2={cx-70+(i+1)*37.5} y2={wTL.y-wallH+88} stroke={palette.deskLeg} strokeWidth="2"/>
+          ))}
+          <line x1={cx-70} y1={wTL.y-wallH+50} x2={cx+80} y2={wTL.y-wallH+50} stroke={palette.deskLeg} strokeWidth="2"/>
+          {/* sun */}
+          <circle cx={cx+40} cy={wTL.y-wallH+30} r="10" fill="#f5d878" opacity=".9"/>
+          {/* hanging plants */}
+          {[0,1,2].map(i=>(
+            <g key={i} transform={`translate(${cx-50+i*55},${wTL.y-wallH+5})`}>
+              <line x1="0" y1="0" x2="0" y2="14" stroke={palette.deskLeg} strokeWidth="1.5"/>
+              <ellipse cx="0" cy="18" rx="9" ry="5" fill={palette.plantPot}/>
+              <ellipse cx="-4" cy="14" rx="6" ry="8" fill={palette.plant}/>
+              <ellipse cx="4" cy="14" rx="6" ry="8" fill={palette.plant} opacity=".88"/>
+              <path d={`M -8 16 Q -10 24 -7 30`} stroke={palette.plant} strokeWidth="2" fill="none"/>
+              <path d={`M 8 16 Q 11 22 9 28`} stroke={palette.plant} strokeWidth="2" fill="none"/>
+            </g>
+          ))}
+        </g>
+      )}
+
+      {/* poster on right wall */}
+      <rect x={wTR.x-50} y={wTR.y-wallH+34} width="34" height="48" fill={palette.accent} opacity=".88" rx="1"/>
+      <text x={wTR.x-33} y={wTR.y-wallH+62} textAnchor="middle" fill={palette.bubble} fontFamily="DM Sans,Outfit,sans-serif" fontWeight="700" fontSize="9">{daKey==="bookshop"?"READ":"GROW"}</text>
+
+      {tiles}
+
+      {/* rug — round-ish for bookshop, square mat for garden */}
+      <g opacity=".92">
+        {[3,4,5].map(r=>[3,4,5].map(c=>{
+          const p=iso(c,r);
+          return <polygon key={`rg${c}-${r}`} points={`${p.x},${p.y} ${p.x+TW/2},${p.y+TH/2} ${p.x},${p.y+TH} ${p.x-TW/2},${p.y+TH/2}`} fill={(c+r)%2===0?palette.rug:palette.rugAlt}/>;
+        }))}
+      </g>
+
+      {items.map((it,i)=>{
+        const p=iso(it.c,it.r);
+        if(it.kind==="desk")return <Desk key={i} x={p.x} y={p.y} top={palette.deskTop} leg={palette.deskLeg} accent={palette.accent}/>;
+        if(it.kind==="plant")return <Plant key={i} x={p.x} y={p.y} leaf={palette.plant} pot={palette.plantPot}/>;
+        return <Avatar key={i} x={p.x} y={p.y} a={it} ink={palette.ink} bub={palette.bubble}/>;
+      })}
+
+      {/* coffee steam */}
+      {(()=>{const p=iso(7,2);return(
+        <g transform={`translate(${p.x+6},${p.y-26})`}>
+          <ellipse cx="0" cy="6" rx="5" ry="2" fill="#5a3e2a"/>
+          <path d="M 0 6 Q -3 -4 1 -10 Q 5 -16 -1 -22" stroke="#fff" strokeWidth="1.6" fill="none" opacity=".55" strokeLinecap="round"/>
+          <path d="M 3 6 Q 6 -2 2 -8 Q -2 -14 4 -20" stroke="#fff" strokeWidth="1.4" fill="none" opacity=".4" strokeLinecap="round"/>
+        </g>
+      )})()}
+
+      <rect x="-30" y={`-${wallH+30}`} width={W+60} height={H} fill={`url(#amb-${daKey})`} pointerEvents="none"/>
+    </svg>
+  );
+}
+function Desk({x,y,top,leg,accent}){
+  return (<g transform={`translate(${x},${y})`}>
+    <polygon points="0,-22 32,-6 0,10 -32,-6" fill={top} stroke="rgba(0,0,0,.18)" strokeWidth="1"/>
+    <polygon points="-32,-6 -32,2 0,18 0,10" fill={leg}/>
+    <polygon points="32,-6 32,2 0,18 0,10" fill={leg} opacity=".88"/>
+    <rect x="-11" y="-34" width="22" height="15" rx="1.5" fill="#22202c"/>
+    <rect x="-9" y="-32" width="18" height="11" fill={accent} opacity=".75"/>
+    <rect x="-2" y="-19" width="4" height="3" fill="#22202c"/>
+  </g>);
+}
+function Plant({x,y,leaf,pot}){
+  return (<g transform={`translate(${x},${y})`}>
+    <polygon points="-9,4 9,4 7,16 -7,16" fill={pot}/>
+    <ellipse cx="0" cy="-3" rx="11" ry="7" fill={leaf}/>
+    <ellipse cx="-5" cy="-10" rx="6" ry="8" fill={leaf} opacity=".92"/>
+    <ellipse cx="6" cy="-9" rx="6" ry="8" fill={leaf} opacity=".88"/>
+    <ellipse cx="0" cy="-15" rx="5" ry="7" fill={leaf} opacity=".85"/>
+  </g>);
+}
+function Avatar({x,y,a,ink,bub}){
+  const sc=a.state==="focus"?"#e07070":a.state==="pause"?"#d4a04a":"#7ec87e";
+  const si=a.state==="focus"?"🍅":a.state==="pause"?"☕":"💬";
+  return (<g transform={`translate(${x},${y})`}>
+    <ellipse cx="0" cy="6" rx="11" ry="3.5" fill="rgba(0,0,0,.22)"/>
+    <rect x="-9" y="-19" width="18" height="22" fill={a.color}/>
+    <circle cx="0" cy="-26" r="9" fill="#f3d4b3" stroke="rgba(0,0,0,.12)" strokeWidth=".5"/>
+    <path d={`M -9 -30 Q 0 -37 9 -30 L 9 -25 Q 0 -23 -9 -25 Z`} fill={a.color} opacity=".92"/>
+    <circle cx="-3.2" cy="-26" r="1" fill="#2a1a10"/>
+    <circle cx="3.2" cy="-26" r="1" fill="#2a1a10"/>
+    <g transform="translate(11,-40)">
+      <rect x="-2" y="-9" width="22" height="15" rx="7.5" fill={bub} stroke={sc} strokeWidth="1.2"/>
+      <text x="9" y="2" fontSize="9.5" textAnchor="middle">{si}</text>
+    </g>
+    <g transform="translate(0,-46)">
+      <rect x="-22" y="-8" width="44" height="13" rx="6.5" fill={a.you?a.color:bub} opacity={a.you?1:.95}/>
+      <text x="0" y="1.2" fontSize="7.5" fontWeight="700" textAnchor="middle" fill={a.you?"#fff":(ink)} fontFamily="Inter,sans-serif">{a.name}</text>
+    </g>
+  </g>);
+}
+
+/* ─────────── Palettes & DA defs ─────────── */
+const PALETTES = {
+  bookshop: {
+    floor:"#b89466", floorAlt:"#a07d50", floorLine:"rgba(74,47,27,.18)",
+    wall:"#e8d4b0", wallShadow:"#cdb389",
+    rug:"#b85530", rugAlt:"#a04050",
+    plant:"#7a8e4a", plantPot:"#6a4a30",
+    deskTop:"#9a6e44", deskLeg:"#4a2e1a", accent:"#b85530",
+    window:"#a8c8d8", bubble:"#fbf3df", ink:"#3a2418",
+    av1:"#b85530", av2:"#7a8e4a", av3:"#c89a3a", av4:"#6a4a30", av5:"#a04050",
+  },
+  garden: {
+    floor:"#d8cba0", floorAlt:"#c8b888", floorLine:"rgba(42,58,42,.10)",
+    wall:"#fdf9ec", wallShadow:"#e8dec5",
+    rug:"#5e8a5a", rugAlt:"#7aa478",
+    plant:"#5e8a5a", plantPot:"#a87a52",
+    deskTop:"#c9a274", deskLeg:"#6e5840", accent:"#5e8a5a",
+    window:"#bde2c8", bubble:"#fdf9ec", ink:"#2a3a2a",
+    av1:"#5e8a5a", av2:"#c5612e", av3:"#d4a04a", av4:"#7aa478", av5:"#c08560",
+  },
+};
+
+const DA = {
+  bookshop:{
+    key:"bookshop", name:"Café Bookshop", chipColor:"#b85530",
+    tag:"Librairie-café d'après-midi · murs de livres, tapis terracotta",
+    fontDisplay:"DM Sans",
+    description:"Une librairie-café de quartier : murs tapissés de livres, tapis terracotta, lumière chaude qui filtre par la petite fenêtre. La DA pousse le côté chaleureux et accueillant — terracotta plus saturée, bois plus foncé, plus d'objets dans la pièce. Type DM Sans, robuste et chaleureuse, sans-serif moderne avec un peu d'âme. Inspirations : Shakespeare and Company, librairies indé scandinaves, illustrations de The Letterheads.",
+    positioning:"« Tire un livre, prends une tasse, le timer attend. »",
+    type:{ display:"DM Sans · 700/600", body:"Inter · 400-600", mono:"JetBrains Mono" },
+    swatches:[
+      {n:"Wheat",h:"#f1e3c8"},{n:"Paper",h:"#fbf3df"},{n:"Bark",h:"#3a2418"},
+      {n:"Terracotta",h:"#b85530"},{n:"Olive",h:"#7a8e4a"},{n:"Honey",h:"#c89a3a"},{n:"Berry",h:"#a04050"},
+    ],
+  },
+  garden:{
+    key:"garden", name:"Café Garden", chipColor:"#5e8a5a",
+    tag:"Café-jardin / véranda · grandes fenêtres, plantes suspendues",
+    fontDisplay:"Outfit",
+    description:"Un café-véranda baigné de lumière naturelle : grandes baies, plantes suspendues, banquettes sauge. La DA glisse vers le vert, plus aérée, plus matinale. Le terracotta passe en accent secondaire (badges, alertes), la sauge prend le rôle principal. Type Outfit, sans-serif géométrique nette et lumineuse. Inspirations : cafés botaniques, intérieurs de Cereal Magazine côté plantes, jeux Animal Crossing version été.",
+    positioning:"« 9 h du matin, soleil dans les feuilles, latte vapeur. On commence ? »",
+    type:{ display:"Outfit · 700/600", body:"Inter · 400-600", mono:"JetBrains Mono" },
+    swatches:[
+      {n:"Cream",h:"#f6f1e2"},{n:"Paper",h:"#fdf9ec"},{n:"Forest",h:"#2a3a2a"},
+      {n:"Sage",h:"#5e8a5a"},{n:"Leaf",h:"#7aa478"},{n:"Honey",h:"#d4a04a"},{n:"Clay",h:"#c5612e"},
+    ],
+  },
+};
+
+/* ─────────── UI bricks ─────────── */
+function TopBar({da}){
+  return (
+    <div className="tb">
+      <div className="tb-brand">
+        <div className="tb-logo">g</div>
+        <div>
+          <div className="tb-name">gamiTask</div>
+          <div className="tb-room">📍 {da.key==="bookshop"?"Bookshop cozy":"Café-jardin"} · 5/12</div>
+        </div>
+      </div>
+      <div className="timer">
+        <span className="pulse"></span>
+        <span>Focus</span>
+        <span className="num">17:42</span>
+        <span style={{opacity:.7,fontSize:11}}>· session 2/4</span>
+      </div>
+      <div className="tb-spacer"></div>
+      <button className="tb-btn" data-active="true"><span className="ic">✓</span><span>Tâches</span></button>
+      <button className="tb-btn"><span className="ic">💬</span><span>Chat</span></button>
+      <button className="tb-btn"><span className="ic">🛍</span><span>Boutique</span></button>
+      <button className="tb-btn"><span className="ic">🏆</span><span>Classement</span></button>
+      <button className="tb-btn"><span className="ic">🎵</span><span>Ambiance</span></button>
+      <div style={{width:14}}></div>
+      <span className="badge gold">🪙 1 248</span>
+      <span className="badge streak">🔥 12j</span>
+      <span className="badge">⬆ Nv 14</span>
+    </div>
+  );
+}
+
+function TaskPanel(){
+  return (
+    <div className="panel" style={{flex:"1 1 0"}}>
+      <div className="panel-h">
+        <div className="panel-title"><span className="ic">✓</span><span>Tâches du jour</span></div>
+        <div className="panel-meta">3 / 7</div>
+      </div>
+      <div className="panel-body" style={{padding:"6px 10px"}}>
+        <div className="section-h">Quotidiennes</div>
+        <div className="task done"><span className="cb checked">✓</span><span className="cat" style={{background:"var(--moss)"}}/><span className="t">Méditer 10 min</span><span className="pts">+5</span></div>
+        <div className="task"><span className="cb"/><span className="cat" style={{background:"var(--accent)"}}/><span className="t">3 pomodoros de deep work</span><span className="pts">+15</span></div>
+        <div className="section-h">Projet — Refonte landing</div>
+        <div className="task done"><span className="cb checked">✓</span><span className="cat" style={{background:"#8aa6b8"}}/><span className="t">Audit composants existants</span><span className="pts">+10</span></div>
+        <div className="task done"><span className="cb checked">✓</span><span className="cat" style={{background:"#8aa6b8"}}/><span className="t">Moodboard 3 directions</span><span className="pts">+10</span></div>
+        <div className="task"><span className="cb"/><span className="cat" style={{background:"#8aa6b8"}}/><span className="t">Maquette hero hi-fi</span><span className="pts">+15</span></div>
+        <div className="task"><span className="cb"/><span className="cat" style={{background:"var(--gold)"}}/><span className="t">Présenter à Marc demain</span><span className="pts">+10</span></div>
+        <div className="task"><span className="cb"/><span className="cat" style={{background:"var(--berry)"}}/><span className="t">Répondre mails clients (15 min)</span><span className="pts">+5</span></div>
+      </div>
+      <div className="task-add">
+        <input placeholder="Nouvelle tâche…"/>
+        <button>+</button>
+      </div>
+    </div>
+  );
+}
+
+function ProfilePanel(){
+  return (
+    <div className="panel">
+      <div className="player-card">
+        <div className="av-circle">L</div>
+        <div>
+          <div className="player-name">Léa M.</div>
+          <div className="player-sub">Niveau 14 · Compagnonne du Café</div>
+        </div>
+      </div>
+      <div className="lvl-meta"><span>XP</span><span>2 340 / 3 000</span></div>
+      <div className="lvl-bar"><i style={{width:"78%"}}/></div>
+      <div className="stats">
+        <div className="stat"><div className="lbl">Pomodoros</div><div className="v">214</div></div>
+        <div className="stat"><div className="lbl">Heures focus</div><div className="v">89h</div></div>
+        <div className="stat"><div className="lbl">Streak max</div><div className="v">21j</div></div>
+        <div className="stat"><div className="lbl">Tâches</div><div className="v">412</div></div>
+      </div>
+    </div>
+  );
+}
+function LeaderboardPanel(){
+  const rows=[
+    {n:"Tom",c:"var(--moss)",co:"3 412",rk:1,em:"🥇"},
+    {n:"Mia",c:"var(--gold)",co:"2 980",rk:2,em:"🥈"},
+    {n:"Iris",c:"#8aa6b8",co:"2 110",rk:3,em:"🥉"},
+    {n:"Léa (toi)",c:"var(--accent)",co:"1 248",rk:7,you:true},
+    {n:"Sam",c:"var(--berry)",co:"1 105",rk:8},
+  ];
+  return (
+    <div className="panel">
+      <div className="panel-h">
+        <div className="panel-title"><span className="ic">🏆</span><span>Cette semaine</span></div>
+        <div className="panel-meta">12 actifs</div>
+      </div>
+      <div className="panel-body" style={{padding:"4px 10px 10px"}}>
+        {rows.map((r,i)=>(
+          <div className={"lb-row "+(r.you?"you":"")} key={i}>
+            <div className="rk">{r.em||`#${r.rk}`}</div>
+            <div className="av-mini" style={{background:r.c}}>{r.n[0]}</div>
+            <div className="nm">{r.n}</div>
+            <div className="co">🪙 {r.co}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChatBox({da}){
+  return (
+    <div className="chat">
+      <div className="chat-h">
+        <div className="dot"/>
+        <div className="ti">Salon · {da.key==="bookshop"?"Bookshop":"Garden"}</div>
+        <div className="meta">5 ici</div>
+      </div>
+      <div className="chat-body">
+        <div className="chat-msg system">— Tom a démarré un Pomodoro 🍅</div>
+        <div className="chat-msg"><span className="who" style={{color:"var(--moss)"}}>Tom</span><span>on se synchro pour la session de 14 h ?</span></div>
+        <div className="chat-msg"><span className="who" style={{color:"var(--gold)"}}>Mia</span><span>oui, je termine ma pause ☕</span></div>
+        <div className="chat-msg"><span className="who" style={{color:"var(--accent)"}}>Léa</span><span>partante 🙌</span></div>
+        <div className="chat-msg system">— Sam est en pause</div>
+      </div>
+      <div className="chat-input">
+        <input placeholder="Écrire au salon…"/>
+        <button className="send">↑</button>
+      </div>
+    </div>
+  );
+}
+
+function Stage({da}){
+  return (
+    <div className="frame" data-da={da.key}>
+      <span className="frame-label">Salle principale · {da.name}</span>
+      <TopBar da={da}/>
+      <div className="stage">
+        <div className="col"><TaskPanel/></div>
+        <div className="canvas">
+          <div className="canvas-inner">
+            <IsoRoom palette={PALETTES[da.key]} daKey={da.key}/>
+          </div>
+          <div className="toast">🪙 +10 · « Audit composants » terminée</div>
+          <button className="fab" style={{right:18,top:60}}>✨ Pomodoro collectif</button>
+          <div className="coin-pop" style={{right:90,top:130}}>+10 🪙</div>
+          <ChatBox da={da}/>
+        </div>
+        <div className="col">
+          <ProfilePanel/>
+          <LeaderboardPanel/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JoinShopRow({da}){
+  const colors = da.key==="bookshop"
+    ? ["#b85530","#7a8e4a","#c89a3a","#a04050","#6a4a30","#8aa6b8"]
+    : ["#5e8a5a","#7aa478","#d4a04a","#c5612e","#c08560","#8aa6b8"];
+  return (
+    <div className="frame" data-da={da.key} style={{display:"grid",gridTemplateColumns:"1.1fr 1fr",minHeight:540}}>
+      <span className="frame-label">Écran d'accueil & Boutique · {da.name}</span>
+      <div className="join">
+        <div className="join-card">
+          <div className="join-art">{da.key==="bookshop"?"📖":"🌿"}</div>
+          <h2>{da.key==="bookshop"?"Bienvenue au Bookshop":"Bienvenue au Jardin"}</h2>
+          <div className="sub">{da.key==="bookshop"?"Trouve ton fauteuil entre les rayons. Le timer t'attend.":"Choisis ta place près des fenêtres. Le café est prêt."}</div>
+          <input className="join-input" defaultValue="Léa" placeholder="Ton pseudo"/>
+          <div className="join-pal">
+            {colors.map((c,i)=>(<button key={i} className={"sw"+(i===0?" sel":"")} style={{background:c}}/>))}
+          </div>
+          <button className="join-btn">{da.key==="bookshop"?"Pousser la porte →":"Entrer au jardin →"}</button>
+          <div style={{marginTop:14,fontSize:12,color:"var(--ink-3)"}}>Pas de compte ? Tu peux entrer en invité.</div>
+        </div>
+      </div>
+      <div className="panel" style={{margin:24,marginLeft:0}}>
+        <div className="panel-h">
+          <div className="panel-title"><span className="ic">🛍</span><span>Boutique cosmétique</span></div>
+          <div className="panel-meta">🪙 1 248</div>
+        </div>
+        <div className="shop-grid">
+          {(da.key==="bookshop"?[
+            {em:"📚",n:"Pile de livres",p:"120",owned:true},
+            {em:"🎩",n:"Chapeau melon",p:"150"},
+            {em:"☕",n:"Tasse vintage",p:"80",owned:true},
+            {em:"🕯️",n:"Bougie ambre",p:"60"},
+            {em:"🪑",n:"Fauteuil cuir",p:"240"},
+            {em:"🦉",n:"Chouette gardienne",p:"320"},
+          ]:[
+            {em:"🌿",n:"Monstera",p:"180",owned:true},
+            {em:"🌻",n:"Tournesol",p:"50"},
+            {em:"🪴",n:"Bonsaï",p:"260",owned:true},
+            {em:"🧺",n:"Panier osier",p:"90"},
+            {em:"🐦",n:"Mésange",p:"140"},
+            {em:"🍵",n:"Théière matcha",p:"120"},
+          ]).map((it,i)=>(
+            <div key={i} className={"shop-item "+(it.owned?"owned":"")}>
+              <div className="em">{it.em}</div>
+              <div className="nm">{it.n}</div>
+              <div className="pr">🪙 {it.p}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MoodCell({daKey,variant}){
+  const P=PALETTES[daKey];
+  if(variant===0)return(<div className="mood-cell" style={{background:P.wall}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.wall}/><circle cx="155" cy="38" r="32" fill={P.accent} opacity=".88"/><rect x="20" y="80" width="160" height="6" fill={P.deskTop}/><rect x="40" y="40" width="20" height="50" fill={P.plant} opacity=".75"/></svg></div>);
+  if(variant===1){
+    if(daKey==="bookshop")return(<div className="mood-cell" style={{background:P.wall}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.wall}/>{Array.from({length:18}).map((_,i)=><rect key={i} x={4+i*11} y={30+(i%3)*4} width="9" height={56-(i%3)*4} fill={["#a04050","#7a8e4a","#c89a3a","#b85530","#6a4a30"][i%5]}/>)}<rect x="0" y="86" width="200" height="6" fill={P.deskLeg}/></svg></div>);
+    return(<div className="mood-cell" style={{background:P.wall}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.wall}/><rect x="0" y="0" width="200" height="100" fill={P.window} opacity=".6"/>{[0,1,2,3].map(i=>(<g key={i} transform={`translate(${30+i*45}, 14)`}><line x1="0" y1="0" x2="0" y2="20" stroke={P.deskLeg} strokeWidth="1.5"/><ellipse cx="0" cy="26" rx="12" ry="6" fill={P.plantPot}/><ellipse cx="0" cy="20" rx="14" ry="10" fill={P.plant}/></g>))}</svg></div>);
+  }
+  if(variant===2)return(<div className="mood-cell" style={{background:P.accent}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.accent}/><circle cx="100" cy="70" r="42" fill={P.bubble} opacity=".22"/><circle cx="100" cy="70" r="22" fill={P.bubble} opacity=".4"/><text x="100" y="76" textAnchor="middle" fill={P.bubble} fontFamily="DM Sans, Outfit, sans-serif" fontWeight="800" fontSize="22" letterSpacing="-1">cozy.</text></svg></div>);
+  if(variant===3)return(<div className="mood-cell" style={{background:P.wallShadow}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.wallShadow}/>{Array.from({length:6}).map((_,i)=>(<rect key={i} x={20+i*28} y="40" width="20" height="60" fill={i%2?P.plant:P.deskTop} rx="2"/>))}</svg></div>);
+  if(variant===4)return(<div className="mood-cell" style={{background:P.bubble}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.bubble}/><circle cx="60" cy="74" r="30" fill={P.av1}/><circle cx="120" cy="68" r="25" fill={P.av2}/><circle cx="160" cy="80" r="20" fill={P.av3}/></svg></div>);
+  if(variant===5)return(<div className="mood-cell" style={{background:P.floorAlt}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.floorAlt}/><path d={`M0 100 Q 50 70, 100 90 T 200 80 L 200 140 L 0 140 Z`} fill={P.plant} opacity=".75"/><path d={`M0 120 Q 60 100, 120 110 T 200 105 L 200 140 L 0 140 Z`} fill={P.plant}/></svg></div>);
+  if(variant===6)return(<div className="mood-cell" style={{background:P.deskTop}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.deskTop}/><rect x="20" y="20" width="160" height="100" fill={P.bubble} opacity=".18" rx="6"/><text x="100" y="84" textAnchor="middle" fill={P.bubble} fontFamily="DM Sans, Outfit, sans-serif" fontWeight="700" fontSize="34" letterSpacing="-1.5">slow.</text></svg></div>);
+  return(<div className="mood-cell" style={{background:P.plant}}><svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid slice"><rect width="200" height="140" fill={P.plant}/><circle cx="40" cy="40" r="14" fill={P.bubble} opacity=".4"/><circle cx="80" cy="80" r="10" fill={P.bubble} opacity=".5"/><circle cx="140" cy="50" r="18" fill={P.bubble} opacity=".35"/><circle cx="170" cy="100" r="8" fill={P.bubble} opacity=".55"/></svg></div>);
+}
+
+function DSPage({da}){
+  const tokens = da.key==="bookshop"?[
+    ["--bg-app","#f1e3c8","Wheat background"],
+    ["--bg-panel","#fbf3df","Paper panel"],
+    ["--accent","#b85530","Terracotta primary"],
+    ["--moss","#7a8e4a","Olive success"],
+    ["--gold","#c89a3a","Honey rewards"],
+    ["--font-display","DM Sans","Sans-serif chaleureuse"],
+    ["--radius-lg","20px","Soft cards"],
+  ]:[
+    ["--bg-app","#f6f1e2","Cream background"],
+    ["--bg-panel","#fdf9ec","Paper panel"],
+    ["--accent","#5e8a5a","Sage primary"],
+    ["--gold","#d4a04a","Honey rewards"],
+    ["--berry","#c5612e","Clay accent"],
+    ["--font-display","Outfit","Sans-serif géométrique"],
+    ["--radius-lg","22px","Crisp rounded"],
+  ];
+  const migration = da.key==="bookshop"
+    ? `--font-display → "DM Sans", system-ui, sans-serif
+--bg-deep      → #f1e3c8       ${"// inverse: wheat"}
+--bg-panel     → #fbf3df
+--bg-hover     → rgba(184,85,48,.08)
+--accent       → #b85530       ${"// terracotta saturée"}
+--gold         → #c89a3a
+--green        → #7a8e4a
+--red          → #a04050       ${"// berry"}
+--text         → #3a2418
+--blur         → none
+--radius-lg    → 20px`
+    : `--font-display → "Outfit", system-ui, sans-serif
+--bg-deep      → #f6f1e2       ${"// inverse: cream"}
+--bg-panel     → #fdf9ec
+--bg-hover     → rgba(94,138,90,.08)
+--accent       → #5e8a5a       ${"// sage dominante"}
+--gold         → #d4a04a
+--green        → #5e8a5a
+--red          → #c5612e       ${"// clay"}
+--text         → #2a3a2a
+--blur         → none
+--radius-lg    → 22px`;
+
+  const titleA=da.name.split(" ")[0];
+  const titleB=da.name.split(" ").slice(1).join(" ");
+  return (
+    <div className="ds frame" data-da={da.key}>
+      <span className="frame-label">Design System · {da.name}</span>
+      <div className="ds-hd">
+        <div>
+          <div style={{fontSize:12,letterSpacing:".12em",textTransform:"uppercase",color:"var(--ink-3)",fontWeight:600}}>Direction artistique · {da.key.toUpperCase()}</div>
+          <h2 style={{marginTop:10}}>{titleA} <span className="em">{titleB}</span></h2>
+          <p>{da.description}</p>
+          <p style={{marginTop:18,fontFamily:"var(--font-display)",fontWeight:600,fontSize:18,color:"var(--accent)",letterSpacing:"-.01em"}}>{da.positioning}</p>
+        </div>
+        <dl className="ds-meta">
+          <dt>Audience</dt><dd>Freelances, étudiants, deep workers</dd>
+          <dt>Vibe</dt><dd>{da.tag}</dd>
+          <dt>Pixel-art</dt><dd>Conservé (room iso)</dd>
+          <dt>Famille</dt><dd>Cozy Café · sans-serif</dd>
+          <dt>Display</dt><dd>{da.type.display}</dd>
+          <dt>Body</dt><dd>{da.type.body}</dd>
+          <dt>Mono</dt><dd>{da.type.mono}</dd>
+        </dl>
+      </div>
+
+      <div className="ds-grid">
+        <div className="ds-block wide mood">
+          <h3 style={{padding:"18px 18px 0"}}>Moodboard</h3>
+          <div className="mood-grid" style={{marginTop:14}}>
+            {[0,1,2,3,4,5,6,7].map(v=><MoodCell key={v} daKey={da.key} variant={v}/>)}
+          </div>
+          <div className="mood-quote">
+            {da.key==="bookshop"
+              ? "« Une librairie-café un samedi après-midi. Le bois grince, le café embaume, les pages tournent doucement. »"
+              : "« 9 h du matin dans une véranda. Les feuilles bougent au soleil, la vapeur monte de la tasse. On respire. »"}
+          </div>
+        </div>
+
+        <div className="ds-block">
+          <h3>Palette</h3>
+          <div className="swatch-row">
+            {da.swatches.map((s,i)=>(
+              <div key={i} className="swatch">
+                <div className="chip" style={{background:s.h}}/>
+                <div className="nm">{s.n}</div>
+                <div className="hx">{s.h}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="ds-block">
+          <h3>Typographie</h3>
+          <div className="type-row">
+            <div className="sample">
+              <div className="lbl">Display · {da.fontDisplay}</div>
+              <div style={{fontFamily:"var(--font-display)",fontSize:32,fontWeight:700,letterSpacing:"-.025em",lineHeight:1}}>Tâches du jour</div>
+            </div>
+            <div className="sample">
+              <div className="lbl">Body · Inter</div>
+              <div style={{fontSize:14,lineHeight:1.5,color:"var(--ink-2)"}}>Trouve ton fauteuil, lance ton timer, retrouve ta concentration en bonne compagnie.</div>
+            </div>
+            <div className="sample">
+              <div className="lbl">Mono · JetBrains</div>
+              <div style={{fontFamily:"var(--font-mono)",fontSize:22,fontWeight:600,letterSpacing:"-.02em"}}>17:42 · +10🪙</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="ds-block wide">
+          <h3>Composants clés</h3>
+          <div className="cmpt-row">
+            <div className="timer"><span className="pulse"></span><span>Focus</span><span className="num">17:42</span></div>
+            <span className="badge gold">🪙 1 248</span>
+            <span className="badge streak">🔥 12j</span>
+            <span className="badge">⬆ Nv 14</span>
+            <button className="fab" style={{position:"static"}}>✨ Lancer un Pomodoro</button>
+            <div className="cb checked">✓</div>
+            <div className="av-circle" style={{width:42,height:42,fontSize:16}}>L</div>
+          </div>
+          <div className="cmpt-row" style={{marginTop:14}}>
+            <div className="task" style={{background:"var(--bg-panel-2)",minWidth:240}}><span className="cb"/><span className="cat" style={{background:"var(--accent)"}}/><span className="t">Maquette hero hi-fi</span><span className="pts">+15</span></div>
+            <div className="task done" style={{background:"var(--bg-panel-2)",minWidth:200}}><span className="cb checked">✓</span><span className="cat" style={{background:"var(--moss)"}}/><span className="t">Méditer 10 min</span><span className="pts">+5</span></div>
+            <div className="shop-item" style={{minWidth:96}}><div className="em">{da.key==="bookshop"?"📚":"🌿"}</div><div className="nm">{da.key==="bookshop"?"Livres":"Monstera"}</div><div className="pr">🪙 120</div></div>
+          </div>
+          <div className="cmpt-row" style={{marginTop:14,alignItems:"flex-start"}}>
+            <div className="chat" style={{position:"static",width:300}}>
+              <div className="chat-h">
+                <div className="dot"/>
+                <div className="ti">Salon · {da.key==="bookshop"?"Bookshop":"Garden"}</div>
+                <div className="meta">5 ici</div>
+              </div>
+              <div className="chat-body">
+                <div className="chat-msg system">— Tom a démarré un Pomodoro 🍅</div>
+                <div className="chat-msg"><span className="who" style={{color:"var(--moss)"}}>Tom</span><span>on se synchro pour 14 h ?</span></div>
+                <div className="chat-msg"><span className="who" style={{color:"var(--accent)"}}>Léa</span><span>partante 🙌</span></div>
+              </div>
+              <div className="chat-input"><input placeholder="Écrire au salon…"/><button className="send">↑</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="ds-block">
+          <h3>Tokens (extraits)</h3>
+          <div className="tokens">
+            {tokens.map((t,i)=>(<React.Fragment key={i}>
+              <code>{t[0]}</code>
+              <span style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{width:18,height:18,borderRadius:4,background:t[1].startsWith("#")?t[1]:"var(--bg-panel-2)",border:"1px solid var(--border)"}}/>
+                <span style={{fontSize:12,color:"var(--ink-3)"}}>{t[2]}</span>
+              </span>
+              <span className="pv">{t[1]}</span>
+            </React.Fragment>))}
+          </div>
+        </div>
+
+        <div className="ds-block full">
+          <h3>Note technique — migration depuis App.css</h3>
+          <p style={{fontSize:13,color:"var(--ink-2)",marginBottom:12,maxWidth:"70ch",lineHeight:1.6}}>
+            Variante de la famille « Cozy Café » : tout en sans-serif. Remplacer le bloc <code style={{fontFamily:"var(--font-mono)",fontSize:12,background:"var(--bg-panel-2)",padding:"1px 6px",borderRadius:4}}>:root</code> de <code style={{fontFamily:"var(--font-mono)",fontSize:12,background:"var(--bg-panel-2)",padding:"1px 6px",borderRadius:4}}>App.css</code> par les valeurs ci-dessous, et ajouter l'import Google Fonts correspondant. Le <code style={{fontFamily:"var(--font-mono)",fontSize:12,background:"var(--bg-panel-2)",padding:"1px 6px",borderRadius:4}}>PALETTE</code> côté avatars dans <code style={{fontFamily:"var(--font-mono)",fontSize:12,background:"var(--bg-panel-2)",padding:"1px 6px",borderRadius:4}}>App.tsx</code> peut rester ; ajuster <code style={{fontFamily:"var(--font-mono)",fontSize:12,background:"var(--bg-panel-2)",padding:"1px 6px",borderRadius:4}}>ROOM_META</code> dans <code style={{fontFamily:"var(--font-mono)",fontSize:12,background:"var(--bg-panel-2)",padding:"1px 6px",borderRadius:4}}>net/types.ts</code> pour les teintes de sol/mur.
+          </p>
+          <div className="note">{migration}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const da=DA["bookshop"];
+  return (
+    <>
+      <div className="da-bar">
+        <h1>gamiTask <span className="s">· Café Bookshop</span></h1>
+        <span className="da-tab" aria-pressed="true"><span className="dot" style={{background:da.chipColor}}/><span>{da.name}</span></span>
+      </div>
+      <div className="da-view">
+        <div className="da-section"><Stage da={da}/></div>
+        <div className="da-section"><JoinShopRow da={da}/></div>
+        <div className="da-section"><DSPage da={da}/></div>
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

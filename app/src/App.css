@@ -1,27 +1,110 @@
 /* ─────────────────────────────────────────────────────────────────
-   Design System
+   Design System — Café Bookshop
+   Cozy librairie-café, sans-serif (DM Sans + Inter), terracotta dominante
+   « Tire un livre, prends une tasse, le timer attend. »
    ───────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
 :root {
-  --bg-deep: rgba(22, 11, 4, 0.97);
-  --bg-panel: rgba(32, 18, 8, 0.93);
-  --bg-hover: rgba(255, 200, 120, 0.07);
-  --border: rgba(200, 140, 70, 0.12);
-  --border-md: rgba(200, 140, 70, 0.22);
-  --accent: #d4892a;
-  --accent-dim: rgba(212, 137, 42, 0.35);
-  --text: #f2dfc0;
-  --text-dim: rgba(242, 223, 192, 0.45);
-  --text-mid: rgba(242, 223, 192, 0.72);
-  --gold: #e8a040;
-  --green: #7ec87e;
-  --red: #e07070;
-  --blue: #d4892a;
-  --radius-sm: 7px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --blur: blur(18px);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.7);
+  /* ── Typographie ── */
+  --font-display: "DM Sans", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Surfaces ── */
+  --bg-app: #f1e3c8;        /* wheat — fond appli */
+  --bg-canvas: #e6d3ad;     /* fond room iso */
+  --bg-panel: #fbf3df;      /* paper — panneaux principaux */
+  --bg-panel-2: #f0e0c0;    /* aged paper — surfaces secondaires */
+  --bg-deep-dark: #3a2418;  /* bark — toasts, fonds inversés */
+  --bg-hover: rgba(184, 85, 48, 0.08);
+
+  /* ── Encres / texte ── */
+  --ink: #3a2418;
+  --ink-2: #6a4a30;
+  --ink-3: rgba(58, 36, 24, 0.55);
+  --ink-4: rgba(58, 36, 24, 0.22);
+
+  /* ── Couleurs marque ── */
+  --accent: #b85530;        /* terracotta — primaire */
+  --accent-2: #d97842;
+  --accent-soft: #f3d2b8;
+  --accent-dim: rgba(184, 85, 48, 0.35);
+  --moss: #7a8e4a;          /* olive — succès / pause / break */
+  --moss-soft: #dde0bd;
+  --gold: #c89a3a;          /* honey — récompenses, XP */
+  --gold-soft: #f0dba0;
+  --berry: #a04050;         /* berry — danger / mails / urgences */
+
+  /* ── États système ── */
+  --focus: #b85530;
+  --break: #7a8e4a;
+  --paused: #c89a3a;
+
+  /* ── Bordures & ombres ── */
+  --border: rgba(106, 74, 48, 0.20);
+  --border-md: rgba(106, 74, 48, 0.34);
+  --border-strong: rgba(106, 74, 48, 0.34);
+  --shadow-sm: 0 1px 2px rgba(74, 47, 27, 0.08), 0 2px 8px rgba(74, 47, 27, 0.06);
+  --shadow-md: 0 4px 12px rgba(74, 47, 27, 0.14), 0 8px 24px rgba(74, 47, 27, 0.10);
+  --shadow: 0 4px 12px rgba(74, 47, 27, 0.14), 0 8px 24px rgba(74, 47, 27, 0.10);
+  --shadow-lg: 0 12px 32px rgba(74, 47, 27, 0.20), 0 24px 48px rgba(74, 47, 27, 0.12);
+
+  /* ── Rayons ── */
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* ── Pas de glassmorphism dans cette DA ── */
+  --blur: none;
+
+  /* ── Aliases compat (anciens tokens du dark theme → bookshop) ── */
+  --bg-deep: #fbf3df;       /* anciennement sombre — devient panneau clair */
+  --text: #3a2418;
+  --text-mid: #6a4a30;
+  --text-dim: rgba(58, 36, 24, 0.55);
+  --green: #7a8e4a;
+  --red: #a04050;
+  --blue: #b85530;          /* le bleu des onglets devient terracotta */
+}
+
+/* Avatars / catégories tâches — palette Bookshop */
+:root {
+  --av-1: #b85530;  /* terracotta */
+  --av-2: #7a8e4a;  /* olive */
+  --av-3: #c89a3a;  /* honey */
+  --av-4: #6a4a30;  /* bark */
+  --av-5: #a04050;  /* berry */
+  --av-6: #8aa6b8;  /* dusty blue (neutre) */
+}
+
+/* Room iso — teintes pour le rendu canvas/Pixi */
+:root {
+  --room-floor:       #b89466;
+  --room-floor-alt:   #a07d50;
+  --room-floor-line:  rgba(74, 47, 27, 0.18);
+  --room-wall:        #e8d4b0;
+  --room-wall-shadow: #cdb389;
+  --room-rug:         #b85530;
+  --room-rug-alt:     #a04050;
+  --room-plant:       #7a8e4a;
+  --room-plant-pot:   #6a4a30;
+  --room-desk-top:    #9a6e44;
+  --room-desk-leg:    #4a2e1a;
+  --room-window:      #a8c8d8;
+  --room-bubble:      #fbf3df;
+}
+
+/* Famille typo générale — sans-serif, lisible */
+html, body, button, input, textarea, select {
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+h1, h2, h3, h4, h5, h6, .title {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 /* ─── Canvas ─────────────────────────────────────────────────────── */
@@ -3304,7 +3387,7 @@
   color: #fff;
 }
 .onboarding-btn.primary:hover {
-  background: #7c3aed;
+  background: var(--accent-2);
 }
 .onboarding-btn.secondary {
   background: rgba(255, 255, 255, 0.06);
@@ -4206,4 +4289,705 @@
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.5; transform: scale(0.7); }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Café Bookshop — Overrides
+   Remappe les zones dark hardcodées vers la nouvelle DA claire
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Top bar : fond papier, plus de glassmorphism ── */
+#top-bar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: none;
+  box-shadow: 0 1px 2px rgba(74, 47, 27, 0.06);
+}
+#top-bar button {
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+#top-bar button:hover { color: var(--ink); background: var(--bg-hover); border-radius: 10px; }
+#top-bar button.active { color: var(--accent); }
+
+/* Onglets — accents sobres terracotta/olive/honey */
+#task-toggle-btn:hover { background: var(--bg-hover); color: var(--accent); }
+#task-toggle-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+#shop-toggle-btn:hover { background: rgba(200, 154, 58, 0.12); color: var(--gold); }
+#shop-toggle-btn.active {
+  background: var(--gold-soft);
+  color: var(--gold);
+  box-shadow: inset 0 -2px 0 var(--gold);
+}
+#leaderboard-toggle-btn:hover { background: rgba(200, 154, 58, 0.12); color: var(--gold); }
+#leaderboard-toggle-btn.active {
+  background: var(--gold-soft);
+  color: var(--gold);
+  box-shadow: inset 0 -2px 0 var(--gold);
+}
+#guild-toggle-btn:hover { background: rgba(160, 64, 80, 0.10); color: var(--berry); }
+#guild-toggle-btn.active {
+  background: rgba(160, 64, 80, 0.14);
+  color: var(--berry);
+  box-shadow: inset 0 -2px 0 var(--berry);
+}
+#profile-self-btn:hover { background: rgba(122, 142, 74, 0.12); color: var(--moss); }
+#profile-self-btn.active {
+  background: var(--moss-soft);
+  color: var(--moss);
+  box-shadow: inset 0 -2px 0 var(--moss);
+}
+#audio-btn:hover { background: rgba(138, 166, 184, 0.16); color: #5e7c8e; }
+#audio-btn.active {
+  background: rgba(138, 166, 184, 0.22);
+  color: #5e7c8e;
+  box-shadow: inset 0 -2px 0 #8aa6b8;
+}
+#feedback-btn:hover { background: var(--bg-hover); color: var(--accent); }
+#feedback-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+#logout-btn:hover { background: rgba(160, 64, 80, 0.10); color: var(--berry); }
+
+#top-bar button .topbar-button-label { color: inherit; opacity: .85; }
+
+/* ── Timer panel ── */
+#timer-panel {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+#timer-panel[data-phase="short-break"],
+#timer-panel[data-phase="long-break"] {
+  background: var(--moss-soft);
+  border-color: var(--moss);
+}
+#timer-panel[data-phase="focus"][data-status="running"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+#timer-panel[data-status="paused"] {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+}
+#timer-panel.collective {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+}
+#timer-label { color: var(--accent); font-family: var(--font-display); }
+#timer-panel[data-phase="short-break"] #timer-label,
+#timer-panel[data-phase="long-break"] #timer-label { color: var(--moss); }
+#timer-panel[data-status="paused"] #timer-label { color: var(--gold); }
+#timer-display {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+#timer-toggle, #timer-reset, #pomo-settings-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+}
+#timer-toggle:hover, #timer-reset:hover, #pomo-settings-btn:hover {
+  background: var(--bg-panel-2);
+  border-color: var(--border-md);
+  color: var(--ink);
+}
+
+/* ── Coins / Streak / XP badges ── */
+#coins-badge {
+  background: var(--gold-soft);
+  border: 1px solid var(--gold);
+  color: #8c6a20;
+  backdrop-filter: none;
+  font-family: var(--font-mono);
+}
+#streak-badge {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+#xp-badge {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-md);
+  color: var(--ink);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+#xp-bar {
+  background: var(--bg-panel-2);
+}
+#xp-bar-fill {
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+}
+
+/* ── Panels (task / shop / leaderboard / guild / profile / audio / ambiance) ── */
+#task-panel, #leaderboard-panel, #shop-panel, #guild-panel, #profile-panel,
+#audio-panel, #ambiance-panel, .modal-card {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border) !important;
+  backdrop-filter: none !important;
+  box-shadow: var(--shadow-md) !important;
+  color: var(--ink);
+}
+
+#task-panel-title, #leaderboard-title, .panel-title, .panel-header h3 {
+  color: var(--ink) !important;
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Task list */
+.task-item:hover { background: var(--bg-hover); border-color: var(--border); }
+.task-item.done .task-text { color: var(--ink-3); }
+.task-text { color: var(--ink); }
+.task-checkbox { accent-color: var(--accent); }
+#task-input { color: var(--ink); }
+#task-input::placeholder { color: var(--ink-3); }
+#task-progress { background: var(--bg-panel-2); }
+#task-progress-bar { background: var(--moss); }
+.task-filter-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+}
+.task-filter-btn:hover { background: var(--bg-hover); color: var(--ink); }
+.task-filter-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Leaderboard */
+.leaderboard-entry:hover { background: var(--bg-hover); }
+.leaderboard-entry.local { background: var(--accent-soft); }
+.leaderboard-rank { color: var(--ink-3); font-family: var(--font-mono); }
+.leaderboard-name { color: var(--ink); }
+
+/* ── Join Dialog (welcome screen) ── */
+#join-overlay {
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    rgba(255, 200, 120, 0.4) 0%,
+    var(--bg-app) 70%
+  );
+  backdrop-filter: none;
+}
+#join-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 36px 38px 32px;
+}
+#join-avatar-preview {
+  border: 3px solid var(--bg-panel-2);
+  box-shadow: var(--shadow-md);
+}
+#join-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+#join-subtitle { color: var(--ink-2); }
+.join-label { color: var(--ink-3); }
+#join-name {
+  background: var(--bg-panel-2);
+  border: 1.5px solid var(--border);
+  color: var(--ink);
+}
+#join-name:focus {
+  border-color: var(--accent);
+  background: var(--bg-panel);
+}
+#join-name::placeholder { color: var(--ink-3); }
+.join-swatch.selected {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+#join-submit {
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-body);
+  letter-spacing: 0.005em;
+  box-shadow: var(--shadow-sm);
+}
+#join-submit:hover:not(:disabled) {
+  background: var(--accent-2);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Room select ── */
+#room-select-overlay {
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    rgba(255, 200, 120, 0.4) 0%,
+    var(--bg-app) 70%
+  );
+  backdrop-filter: none;
+}
+#room-select-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+#room-select-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+#room-select-subtitle { color: var(--ink-2); }
+.room-card {
+  color: #fff;
+  border: 2px solid transparent;
+  box-shadow: var(--shadow-sm);
+}
+.room-card:hover { box-shadow: var(--shadow-md); }
+.room-card.selected {
+  box-shadow: 0 0 0 3px var(--accent), var(--shadow-md);
+  border-color: var(--accent);
+}
+.room-card-desc { color: rgba(255, 255, 255, 0.92); }
+#room-select-back {
+  background: transparent;
+  border: 1px solid var(--border-md);
+  color: var(--ink-2);
+}
+#room-select-back:hover { color: var(--ink); border-color: var(--ink-2); }
+.room-select-locked {
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  color: var(--ink-2);
+}
+.room-select-section-title { color: var(--ink-3); }
+.room-card-count {
+  background: rgba(58, 36, 24, 0.55);
+  color: #fff;
+}
+.room-card-badge {
+  background: rgba(58, 36, 24, 0.65);
+  color: #fff;
+}
+.room-card-create {
+  background: var(--bg-panel-2) !important;
+  border: 2px dashed var(--accent) !important;
+  color: var(--ink) !important;
+  box-shadow: none;
+}
+.room-card-create:hover {
+  background: var(--accent-soft) !important;
+}
+.room-card-create-form {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent);
+  color: var(--ink);
+}
+.room-create-label { color: var(--ink-3); }
+.room-create-input {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-md);
+  color: var(--ink);
+}
+.room-create-input:focus { border-color: var(--accent); }
+.room-create-cancel {
+  background: var(--bg-panel-2);
+  color: var(--ink);
+}
+.room-create-submit {
+  background: var(--accent);
+  color: #fff;
+}
+#room-delete-btn {
+  background: rgba(160, 64, 80, 0.12);
+  border: 1px solid rgba(160, 64, 80, 0.4);
+  color: var(--berry);
+}
+#room-delete-btn:hover {
+  background: rgba(160, 64, 80, 0.24);
+  color: #7a2838;
+}
+#room-full-toast {
+  background: var(--berry);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── Achievement toast (cartouche cosy bark) ── */
+.ach-toast,
+[class*="achievement-toast"],
+[id*="achievement-toast"] {
+  background: var(--bg-deep-dark);
+  border: 1px solid var(--gold);
+  color: var(--bg-panel);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── Form inputs / textareas (généralisé) ── */
+input[type="text"], input[type="number"], input[type="email"], input[type="password"],
+textarea, select {
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+input::placeholder, textarea::placeholder { color: var(--ink-3); }
+
+/* ── Scrollbars (light, cohérent) ── */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--ink-4);
+  border-radius: 99px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+
+/* ── Modales / overlays sombres (fallback) ── */
+.modal-overlay, .overlay {
+  background: rgba(58, 36, 24, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+/* ── Boutons primaires génériques ── */
+.btn-primary, button.primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 18px;
+  font: 600 14px var(--font-body);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.btn-primary:hover, button.primary:hover {
+  background: var(--accent-2);
+  box-shadow: var(--shadow-md);
+}
+.btn-primary:active, button.primary:active { transform: scale(0.97); }
+
+/* ── Chat / messages ── */
+.chat-message-user { color: var(--ink); }
+.chat-message-system { color: var(--ink-3); font-style: italic; }
+
+/* ── Pixel-art exception : la room iso reste pixelisée ── */
+canvas#game-canvas { image-rendering: pixelated; }
+
+/* ── Catégories (chips/pastilles) — palette bookshop ── */
+.task-cat-dot[data-cat="work"], .cat-work { background: var(--accent); }
+.task-cat-dot[data-cat="break"], .cat-break { background: var(--moss); }
+.task-cat-dot[data-cat="reward"], .cat-reward { background: var(--gold); }
+.task-cat-dot[data-cat="urgent"], .cat-urgent { background: var(--berry); }
+.task-cat-dot[data-cat="study"], .cat-study { background: #8aa6b8; }
+
+/* ── Polices spécifiques pour les chiffres tabulaires ── */
+#timer-display, .leaderboard-rank, #coins-display, #coins-badge,
+.task-points, .pts, .xp-amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Profile Panel (overlay + carte) ── */
+#profile-overlay, #guild-overlay, #onboarding-overlay {
+  background: rgba(58, 36, 24, 0.45);
+  backdrop-filter: blur(2px);
+}
+#profile-panel, #guild-panel, #onboarding-card, #admin-panel {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border) !important;
+  backdrop-filter: none !important;
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+}
+#profile-close-btn, #guild-close-btn, #onboarding-skip {
+  color: var(--ink-3);
+}
+#profile-close-btn:hover, #guild-close-btn:hover, #onboarding-skip:hover {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+#profile-name, #guild-name, #onboarding-title, #admin-panel-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+#profile-level, #profile-degradation-label,
+.profile-section-title, .profile-xp-label, .profile-stat-label,
+#guild-level, #guild-id-hint, #guild-no-guild-hint,
+#onboarding-body { color: var(--ink-2); }
+
+#profile-admin-badge {
+  background: var(--gold-soft);
+  border: 1px solid var(--gold);
+  color: #8c6a20;
+}
+#profile-self-badge {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.profile-xp-bar { background: var(--bg-panel-2); }
+.profile-xp-fill { background: linear-gradient(90deg, var(--accent), var(--gold)); }
+.profile-stat {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+.profile-stat-value { color: var(--ink); font-family: var(--font-display); }
+#profile-degradation-label {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+.profile-achievement.unlocked {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+.profile-achievement.locked {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+.profile-ach-label { color: var(--ink); }
+
+/* ── Guild Panel ── */
+#guild-boss-bar-wrap { background: var(--bg-panel-2); }
+#guild-boss-bar { background: linear-gradient(90deg, var(--berry), var(--accent)); }
+#guild-boss-name { color: var(--ink); font-family: var(--font-display); }
+#guild-id-wrap {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+#guild-id { color: var(--ink); font-family: var(--font-mono); }
+#guild-copy-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+}
+#guild-copy-btn:hover { background: var(--accent-soft); color: var(--accent); }
+#guild-leave-btn {
+  background: rgba(160, 64, 80, 0.12);
+  border: 1px solid rgba(160, 64, 80, 0.4);
+  color: var(--berry);
+}
+.guild-section-title {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.guild-member { color: var(--ink); }
+
+/* ── Onboarding ── */
+#onboarding-card {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border) !important;
+}
+#onboarding-icon { font-size: 2.4rem; }
+.onboarding-dot {
+  background: var(--ink-4);
+}
+.onboarding-dot.active {
+  background: var(--accent);
+}
+
+/* ── Shop ── */
+#shop-panel { color: var(--ink); }
+#shop-title { color: var(--ink); font-family: var(--font-display); }
+#shop-coins { color: var(--gold); font-family: var(--font-mono); font-weight: 700; }
+#shop-section-label { color: var(--ink-3); }
+.shop-item, .hat-card, .furniture-card, .pack-card {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  color: var(--ink);
+}
+.shop-item:hover, .hat-card:hover, .furniture-card:hover, .pack-card:hover {
+  border-color: var(--accent);
+}
+.shop-item.owned, .hat-card.owned, .furniture-card.owned, .pack-card.owned {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* ── Audio / Ambiance Panels ── */
+#audio-panel, #ambiance-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-md);
+}
+#audio-panel h3, #ambiance-panel h3,
+.audio-panel-title, .ambiance-panel-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+
+/* ── Feedback / Auth ── */
+#auth-loading {
+  background: var(--bg-app);
+  color: var(--ink);
+}
+
+/* ── Achievements / Toasts (cartouche bark sombre, gardé pour contraste) ── */
+.ach-toast,
+[id*="achievement-toast"],
+#guild-boss-toast {
+  background: var(--bg-deep-dark);
+  border: 1px solid var(--gold);
+  color: var(--bg-panel);
+  box-shadow: var(--shadow-lg);
+}
+#guild-boss-toast-reward {
+  color: var(--gold);
+  font-family: var(--font-mono);
+}
+
+/* ── Admin panel ── */
+#admin-toggle-btn, #admin-panel {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--berry) !important;
+  color: var(--berry);
+}
+
+/* ── Zoom controls ── */
+#zoom-controls {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+}
+#zoom-controls button { color: var(--ink-2); }
+#zoom-controls button:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* ── Minimap ── */
+#minimap {
+  border: 1px solid var(--border-md);
+  background: var(--bg-panel);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── App version label ── */
+#app-version { color: var(--ink-3); font-family: var(--font-mono); }
+
+/* ── Chat panel ── */
+#chat-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-md);
+}
+#chat-header {
+  color: var(--ink-3);
+  background: var(--bg-panel-2);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-display);
+}
+.chat-control-btn { color: var(--ink-3); }
+.chat-control-btn:hover { background: var(--bg-hover); color: var(--ink); }
+.chat-control-btn.active { background: var(--accent-soft); color: var(--accent); }
+.chat-notif-pill {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.chat-show-badge,
+#chat-unread-badge {
+  background: var(--berry);
+  color: #fff;
+  font-family: var(--font-mono);
+}
+.chat-line-unread { background: var(--accent-soft); }
+.chat-empty { color: var(--ink-3); }
+#chat-show-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-md);
+  color: var(--ink);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-md);
+}
+#chat-show-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+#chat-input {
+  background: var(--bg-panel-2);
+  border-top: 1px solid var(--border);
+  color: var(--ink);
+}
+#chat-input::placeholder { color: var(--ink-3); }
+#chat-input:focus {
+  background: var(--bg-panel);
+  border-top-color: var(--accent);
+}
+#chat-messages::-webkit-scrollbar-thumb {
+  background: var(--ink-4);
+}
+.chat-msg, .chat-line { color: var(--ink); }
+.chat-msg .who, .chat-line .author { font-family: var(--font-display); font-weight: 700; }
+.chat-msg.system, .chat-line.system { color: var(--ink-3); font-style: italic; }
+
+/* ── Auth Screen (page d'accueil Google sign-in) ── */
+#auth-overlay {
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    rgba(255, 200, 120, 0.45) 0%,
+    var(--bg-app) 70%
+  );
+  backdrop-filter: none;
+}
+#auth-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-lg);
+  padding: 36px 32px 28px;
+}
+#auth-logo {
+  font-size: 2.8rem;
+  /* fauteuil/livre cohérent avec « pousser la porte du bookshop » */
+}
+#auth-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+#auth-subtitle { color: var(--ink-2); }
+.auth-separator { color: var(--ink-3); }
+.auth-separator::before,
+.auth-separator::after { background: var(--border); }
+#auth-guest-btn {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-md);
+  color: var(--ink-2);
+  font-family: var(--font-body);
+}
+#auth-guest-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+#auth-note { color: var(--ink-3); }
+.auth-status { color: var(--ink-2); }
+.auth-error {
+  color: var(--berry);
+  background: rgba(160, 64, 80, 0.10);
+  border: 1px solid rgba(160, 64, 80, 0.35);
+}
+#auth-loading {
+  background: var(--bg-app);
+  color: var(--ink-2);
+}
+.auth-spinner {
+  border: 3px solid var(--accent-soft);
+  border-top-color: var(--accent);
 }

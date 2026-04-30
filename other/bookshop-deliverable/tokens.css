@@ -1,0 +1,86 @@
+/* ─────────────────────────────────────────────────────────────
+   gamiTask · Café Bookshop — Design Tokens
+   Drop-in remplacement du :root de App.css
+   Famille : Cozy Café · sans-serif (DM Sans + Inter)
+   ───────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* ── Typographie ── */
+  --font-display: "DM Sans", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Surfaces ── */
+  --bg-app: #f1e3c8;        /* wheat — fond appli */
+  --bg-canvas: #e6d3ad;     /* fond room iso */
+  --bg-panel: #fbf3df;      /* paper — panneaux principaux */
+  --bg-panel-2: #f0e0c0;    /* aged paper — surfaces secondaires */
+  --bg-deep: #3a2418;       /* bark — toasts, fonds inversés */
+  --bg-hover: rgba(184, 85, 48, 0.08);
+
+  /* ── Encres / texte ── */
+  --ink: #3a2418;
+  --ink-2: #6a4a30;
+  --ink-3: rgba(58, 36, 24, 0.55);
+  --ink-4: rgba(58, 36, 24, 0.22);
+
+  /* ── Couleurs marque ── */
+  --accent: #b85530;        /* terracotta — primaire */
+  --accent-2: #d97842;
+  --accent-soft: #f3d2b8;
+  --moss: #7a8e4a;          /* olive — succès / pause / break */
+  --moss-soft: #dde0bd;
+  --gold: #c89a3a;          /* honey — récompenses, XP */
+  --gold-soft: #f0dba0;
+  --berry: #a04050;         /* berry — danger / mails / urgences */
+
+  /* ── États système ── */
+  --focus: #b85530;
+  --break: #7a8e4a;
+  --paused: #c89a3a;
+
+  /* ── Bordures & ombres ── */
+  --border: rgba(106, 74, 48, 0.20);
+  --border-strong: rgba(106, 74, 48, 0.34);
+  --shadow-sm: 0 1px 2px rgba(74, 47, 27, 0.08), 0 2px 8px rgba(74, 47, 27, 0.06);
+  --shadow-md: 0 4px 12px rgba(74, 47, 27, 0.14), 0 8px 24px rgba(74, 47, 27, 0.10);
+  --shadow-lg: 0 12px 32px rgba(74, 47, 27, 0.20), 0 24px 48px rgba(74, 47, 27, 0.12);
+
+  /* ── Rayons ── */
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* ── Pas de glassmorphism dans cette DA ── */
+  --blur: none;
+}
+
+/* Avatars / catégories tâches — palette Bookshop */
+:root {
+  --av-1: #b85530;  /* terracotta */
+  --av-2: #7a8e4a;  /* olive */
+  --av-3: #c89a3a;  /* honey */
+  --av-4: #6a4a30;  /* bark */
+  --av-5: #a04050;  /* berry */
+  --av-6: #8aa6b8;  /* dusty blue (neutre) */
+}
+
+/* Room iso — teintes pour le rendu canvas/Pixi */
+:root {
+  --room-floor:       #b89466;
+  --room-floor-alt:   #a07d50;
+  --room-floor-line:  rgba(74, 47, 27, 0.18);
+  --room-wall:        #e8d4b0;
+  --room-wall-shadow: #cdb389;
+  --room-rug:         #b85530;
+  --room-rug-alt:     #a04050;
+  --room-plant:       #7a8e4a;
+  --room-plant-pot:   #6a4a30;
+  --room-desk-top:    #9a6e44;
+  --room-desk-leg:    #4a2e1a;
+  --room-window:      #a8c8d8;
+  --room-bubble:      #fbf3df;
+}

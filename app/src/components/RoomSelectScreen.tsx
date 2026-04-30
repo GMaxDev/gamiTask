@@ -62,7 +62,7 @@ function RoomCard({
       </div>
       <div
         className="room-card-cta"
-        style={{ background: disabled ? "#555" : accentCss }}
+        style={{ background: disabled ? "#a89880" : accentCss }}
       >
         {disabled ? "Pleine" : "Entrer →"}
       </div>

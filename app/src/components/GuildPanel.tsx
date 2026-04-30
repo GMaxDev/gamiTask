@@ -83,7 +83,7 @@ export function GuildPanel({
                   <div key={m.userId} className="guild-member">
                     <span
                       className="guild-member-dot"
-                      style={{ background: m.isOnline ? "#5ecf6a" : "#555" }}
+                      style={{ background: m.isOnline ? "#7a8e4a" : "#a89880" }}
                       title={m.isOnline ? "En ligne" : "Hors ligne"}
                     />
                     <span
