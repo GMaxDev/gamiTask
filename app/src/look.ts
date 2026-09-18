@@ -26,7 +26,7 @@ export function loadLook(saved:unknown,shirt:number,ownedHats:string[]):Look{
     hairColor:pick(HAIR_COLORS,s.hairColor,{id:d.hairColor,label:'',hex:''}).id,
     shirt:PALETTE.some(p=>p.hex===s.shirt)?s.shirt as number:shirt,
     trousers:pick(TROUSERS,s.trousers,{id:d.trousers,label:'',hex:''}).id,
-    headphones:'headphones' in s?(typeof s.headphones==='boolean'?s.headphones:!!s.headphones):d.headphones,
+    headphones:typeof s.headphones==='boolean'?s.headphones:d.headphones,
     hat:typeof s.hat==='string'&&ownedHats.includes(s.hat)?s.hat:null,
   };
 }

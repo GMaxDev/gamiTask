@@ -14,8 +14,8 @@ test('the default look wears the identity colour and no hat',()=>{
 test('saved looks are validated field by field',()=>{
  const l=loadLook({skin:'zzz',head:'oval',bangs:'curtain',back:'nope',hairColor:HAIR_COLORS[3].id,shirt:'red',trousers:TROUSERS[2].id,headphones:0,hat:'hat-crown'},0x819478,['hat-crown']);
  assert.equal(l.skin,defaultLook(0).skin);assert.equal(l.head,'oval');assert.equal(l.bangs,'curtain');assert.equal(l.back,defaultLook(0).back);
- assert.equal(l.hairColor,HAIR_COLORS[3].id);assert.equal(l.shirt,0x819478);assert.equal(l.trousers,TROUSERS[2].id);assert.equal(l.headphones,false);assert.equal(l.hat,'hat-crown');
- assert.equal(loadLook({hat:'hat-crown'},0,[]).hat,null);assert.equal(loadLook(null,0x111111,[]).shirt,0x111111);
+ assert.equal(l.hairColor,HAIR_COLORS[3].id);assert.equal(l.shirt,0x819478);assert.equal(l.trousers,TROUSERS[2].id);assert.equal(l.headphones,true);assert.equal(l.hat,'hat-crown');
+ assert.equal(loadLook({hat:'hat-crown'},0,[]).hat,null);assert.equal(loadLook(null,0x111111,[]).shirt,0x111111);assert.equal(loadLook({headphones:false},0,[]).headphones,false);
 });
 test('withChange is immutable and equalLook compares by value',()=>{
  const a=defaultLook(1),b=withChange(a,{skin:SKINS[4].id});
