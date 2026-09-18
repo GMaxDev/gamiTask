@@ -31,6 +31,12 @@ import {
   type GuildData,
 } from "./types.js";
 
+// Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
+const MAX_GRID = 32;
+// Until accounts ship, guests may own a private room. Set to "false" once auth lands.
+const ALLOW_GUEST_PRIVATE_ROOMS = process.env.ALLOW_GUEST_PRIVATE_ROOMS !== "false";
+const CORS_ORIGINS = (process.env.CORS_ORIGIN ?? "http://localhost:5173,http://127.0.0.1:5173").split(",");
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -971,7 +977,7 @@ function startPomoIfNeeded(
 // ── HTTP + Socket.IO ─────────────────────────────────────────────────────────
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-  cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] },
+  cors: { origin: CORS_ORIGINS, methods: ["GET", "POST"] },
 });
 
 // Leaderboard par room : chaque room voit son propre classement
@@ -1301,7 +1307,7 @@ io.on("connection", (socket) => {
     const row = db
       .prepare("SELECT googleId FROM users WHERE id = ?")
       .get(userId) as { googleId: string | null } | undefined;
-    if (!row?.googleId) return;
+    if (!row?.googleId && !ALLOW_GUEST_PRIVATE_ROOMS) return;
     // Un utilisateur ne peut avoir qu'une seule room privée
     const existing = sql.getPrivateRoomByOwner.get(userId) as
       | PrivateRoomRow
@@ -1373,9 +1379,9 @@ io.on("connection", (socket) => {
       !Number.isInteger(col) ||
       !Number.isInteger(row) ||
       col < 0 ||
-      col >= 12 ||
+      col >= MAX_GRID ||
       row < 0 ||
-      row >= 12
+      row >= MAX_GRID
     )
       return;
     const p = getPlayer(socket.id);
@@ -1708,7 +1714,7 @@ io.on("connection", (socket) => {
     if (!r?.isPrivate || r.ownerId !== userId) return; // Placement uniquement dans sa propre room privée
     const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
     if (!item) return;
-    if (col < 0 || col >= 12 || row < 0 || row >= 12) return;
+    if (col < 0 || col >= MAX_GRID || row < 0 || row >= MAX_GRID) return;
     sql.upsertUser.run(userId);
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
@@ -1784,7 +1790,7 @@ io.on("connection", (socket) => {
     if (!r?.isPrivate || r.ownerId !== userId) return;
     const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
     if (!item) return;
-    if (col < 0 || col >= 12 || row < 0 || row >= 12) return;
+    if (col < 0 || col >= MAX_GRID || row < 0 || row >= MAX_GRID) return;
     sql.upsertUser.run(userId);
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
