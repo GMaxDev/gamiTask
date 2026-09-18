@@ -1,11 +1,11 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,Rotate3d,Undo2,Smile,Scissors,Shirt} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,type Look} from './look.ts';
-import {createEditor} from './editor.ts';
+import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import {homeDecision,myPrivateRoom} from './rooms.ts';
@@ -15,7 +15,7 @@ import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import './style.css';
 
-const icons={Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,Rotate3d,Undo2,Smile,Scissors,Shirt};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -153,19 +153,22 @@ const editor=createEditor($('#app') as HTMLElement,{
   onPreview(l){previewLook=l;cafe?.setLook(l);},
   onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();
     // the server owns the worn hat: it answers `player-hat` to the others only, and `cosmetics:state` would undo a local-only change
-    if(l.hat!==shop.hat){shop.hat=l.hat;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:l.hat});renderShop();}
+    if(l.hat!==shop.hat){shop.hat=l.hat;net?.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:l.hat});renderShop();}
     closeEditor();toast('C’est tout toi. Les autres te verront ainsi à ta prochaine visite.');},
   onExit(){cafe?.setLook(look);closeEditor();},
   resetView:()=>cafe?.resetView(),
 });
 drawIcons();
+// The HUD is only faded out behind the sheet, so it stays tabbable and clickable without this. The world/canvas stays live: drag-rotate is part of editing.
+const HUD_BEHIND_SHEET='.hud-top,.view-controls,.world-bottom,.timer-hud,#open-tasks,#tasks-drawer';
+function hudInert(on: boolean){document.querySelectorAll(HUD_BEHIND_SHEET).forEach((e: any)=>{e.inert=on;});}
 function openEditor(){
   if(editing||!cafe||switching||placingId)return;editing=true;
-  openDrawer(false);($('.world') as HTMLElement).classList.add('editing');
+  openDrawer(false);($('.world') as HTMLElement).classList.add('editing');hudInert(true);
   editor.open(look,identity.name,shop.hats);cafe.enterEditor();
 }
 function closeEditor(){
-  if(!editing)return;editing=false;($('.world') as HTMLElement).classList.remove('editing');
+  if(!editing)return;editing=false;($('.world') as HTMLElement).classList.remove('editing');hudInert(false);
   previewLook=null;editor.close();cafe?.exitEditor();($('#identity-chip') as HTMLElement).focus();// never leave focus inside the hidden sheet
 }
 $('#identity-chip').onclick=openEditor;($('#identity-chip') as HTMLElement).setAttribute('aria-label','Mon personnage');

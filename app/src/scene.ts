@@ -341,7 +341,6 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const player: Rig=buildAvatar(P,0,room==='private'?2:2.5,look),avatar=player.g;
   // applyLook rebuilds the skull, hair and hat, and the new meshes start on layer 0 only
   function reskin(l: Look){applyLook(P,player,l);if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
-  function setHat(id: string|null){reskin({...player.look,hat:id});}
   function setLook(l: Look){reskin(l);}
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
   function nameTag(text: string,color: number){
@@ -700,7 +699,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setHat,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
+  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

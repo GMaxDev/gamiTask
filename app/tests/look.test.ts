@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultLook,loadLook,withChange,equalLook,createHistory,SKINS,HEADS,BANGS,BACKS,HAIR_COLORS,TROUSERS,skinHex} from '../src/look.ts';
+import {PALETTE} from '../src/identity.ts';
 
 test('the catalogue has the sizes the spec asks for',()=>{
  assert.equal(SKINS.length,6);assert.equal(HEADS.length,3);assert.equal(BANGS.length,5);assert.equal(BACKS.length,5);assert.equal(HAIR_COLORS.length,8);assert.equal(TROUSERS.length,4);
@@ -32,3 +33,4 @@ test('history undoes step by step, resets to the initial look and is bounded',()
  let n=0;while(h.undo())n++;assert.equal(n,50);
 });
 test('hex helpers resolve ids',()=>{assert.equal(skinHex(SKINS[0].id),SKINS[0].hex);assert.equal(skinHex('zzz'),SKINS[1].hex);});
+test('a palette shirt colour survives the load',()=>{assert.equal(loadLook({shirt:PALETTE[3].hex},0,[]).shirt,PALETTE[3].hex);});

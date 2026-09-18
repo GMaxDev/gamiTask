@@ -5,10 +5,11 @@ import {PALETTE,cleanName} from './identity.ts';
 import {HATS} from './shop.ts';
 import {createPrimitives} from './primitives.ts';
 import {buildAvatar,hexOf} from './avatar.ts';
+import {Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt} from 'lucide';
 
 export interface EditorDeps{onPreview(look:Look):void;onDone(look:Look,name:string):void;onExit():void;resetView():void}
 export interface Editor{open(initial:Look,name:string,ownedHats:string[]):void;close():void;isOpen():boolean;dispose():void}
-export const EDITOR_ICONS=['rotate-3d','locate-fixed','undo-2','x','check','smile','scissors','shirt'];
+export const EDITOR_ICONS={Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt};// the sheet's markup, registered by whoever calls lucide's createIcons
 
 type Cat='face'|'hair'|'outfit';
 type Sub='skin'|'head'|'bangs'|'back'|'top'|'bottom'|'acc';
@@ -156,7 +157,7 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
       requestAnimationFrame(()=>{el.classList.add('open');(el.querySelector('.editor-rail button') as HTMLElement|null)?.focus();});
     },
     close(){
-      if(!opened)return;opened=false;el.classList.remove('open');
+      if(!opened)return;opened=false;pass++;el.classList.remove('open');// pending thumbnail batches stop here
       // Tiles and rail buttons bubble their own transitionend: only the sheet's own slide ends the close.
       const done=(e?:Event)=>{if(e&&e.target!==sheet)return;clearTimeout(closeTimer);sheet.removeEventListener('transitionend',done);if(!opened)el.setAttribute('aria-hidden','true');};
       sheet.addEventListener('transitionend',done);closeTimer=setTimeout(done,600) as unknown as number;

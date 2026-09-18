@@ -87,7 +87,7 @@ API ajoutée à l'objet retourné par `createCafe` :
 
 ## 6. Écran d'édition (`src/editor.ts` + `style.css`)
 
-Structure DOM (créée une fois par `createEditor(container, deps)`, `deps = {getLook, ownedHats, onPreview(look), onDone(look, name), onExit(), rotate(dx), resetView(), renderThumb(kind, look) }`) :
+Structure DOM (créée une fois par `createEditor(container, deps)`, `deps = { onPreview(look), onDone(look, name), onExit(), resetView() }`) :
 
 ```
 #editor (fixe, plein écran, pointer-events none sauf sur le panneau)
@@ -107,7 +107,7 @@ Comportement :
 - Undo → `history.undo()` → `onPreview`. Vue par défaut → `resetView()`.
 - Quitter → `onExit()` : `onPreview(initial)` puis fermeture. Échap = Quitter.
 - Valider → `onDone(look, name)` : sauvegarde `gamitask.look`, `identity.name/color` mis à jour (couleur = t-shirt, envoyée au prochain `join`), toast, fermeture.
-- Vignettes : `renderThumb('head' | 'body', look)` rend le vrai modèle dans un mini-renderer offscreen (160 px, fond transparent, éclairage fixe), en **cache par clé (kind + champs pertinents)** ; la grille d'une catégorie affiche la variante appliquée au look courant (une coiffure se voit avec ta couleur de cheveux). Chapeaux : vignette tête + chapeau.
+- Vignettes : `renderThumb('head' | 'body', look)` rend le vrai modèle dans un mini-renderer offscreen (160 px, fond transparent, éclairage fixe), en **cache par clé (kind + champs pertinents)** ; la grille d'une catégorie affiche la variante appliquée au look courant (une coiffure se voit avec ta couleur de cheveux). Chapeaux : vignette tête + chapeau. Les vignettes sont rendues par `editor.ts` lui-même (mini-renderer Three.js offscreen, cache par variante).
 - Fond du panneau : crème `#f6efe0` avec motif répété très discret (tasse, feuille, grain de café) en SVG inline, opacité 6 %.
 - Clavier : flèches dans la grille, Entrée sélectionne, Tab logique, focus visible.
 
