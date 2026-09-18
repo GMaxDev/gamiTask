@@ -7,6 +7,8 @@ COPY app/package*.json ./
 RUN npm ci
 
 COPY app/ .
+# app/tsconfig.json mappe @shared/* vers ../server/src/* : le typecheck a besoin des types du serveur
+COPY server/src /server/src
 
 # VITE_API_URL et VITE_GOOGLE_CLIENT_ID sont injectés au build (baked dans le JS)
 ARG VITE_API_URL=http://localhost:3001
@@ -14,7 +16,7 @@ ARG VITE_GOOGLE_CLIENT_ID
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
-RUN npx tsc -b && npx vite build
+RUN npm run build
 
 # ── Étape 2 : Nginx sert les fichiers statiques + proxy vers le serveur ───────
 FROM nginx:alpine
