@@ -548,10 +548,46 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const r=remotes.get(id);if(!r)return;
     r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
     r.p.g.traverse((o: any)=>{o.geometry?.dispose?.();});
-    dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);
+    dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);dropBubbles(id);
     remotes.delete(id);restage();
   }
   function clearRemotes(){for(const id of [...remotes.keys()])removeRemote(id);}
+  // Chat bubbles and emotes: camera-facing sprites in their own slots, so a message never replaces the focus/pause bubble.
+  interface Bubble{s: THREE.Sprite;until: number;float: boolean;y: number}
+  const bubbles=new Map<string, Bubble>();// key `${id}:chat` / `${id}:emote`, id '' being the player
+  function sprite(c: HTMLCanvasElement,sx: number,sy: number,x: number,y: number){
+    const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+    s.scale.set(sx,sy,1);s.position.set(x,y,0);s.raycast=()=>{};return s;// never in the way of a click on the room
+  }
+  function chatBubble(text: string,y: number){
+    const t=text.length>60?text.slice(0,59)+'…':text;
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=512;c.height=128;
+    ctx.font='500 34px "DM Sans", Manrope, sans-serif';
+    const lines: string[]=[];let line='';
+    for(const word of t.split(/\s+/)){const next=line?line+' '+word:word;
+      if(line&&ctx.measureText(next).width>440){lines.push(line);line=word;if(lines.length===2)break;}else line=next;}
+    if(lines.length<2&&line)lines.push(line);
+    const w=Math.min(500,Math.max(...lines.map(l=>ctx.measureText(l).width))+40),h=lines.length>1?100:62;
+    ctx.fillStyle='#fffdf6f2';ctx.beginPath();ctx.roundRect((512-w)/2,(128-h)/2,w,h,20);ctx.fill();
+    ctx.fillStyle='#4d5b43';ctx.textAlign='center';ctx.textBaseline='middle';
+    lines.forEach((l,i)=>ctx.fillText(l,256,64+(i-(lines.length-1)/2)*40,460));
+    return sprite(c,3.2,.8,0,y);
+  }
+  function emoteBubble(emoji: string,y: number){
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=64;c.height=64;
+    ctx.font='44px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(emoji,32,36);
+    return sprite(c,.7,.7,-.45,y);
+  }
+  function showBubble(key: string,group: THREE.Object3D,s: THREE.Sprite,life: number,float: boolean){
+    const old=bubbles.get(key);if(old)dropSprite(old.s);
+    group.add(s);bubbles.set(key,{s,until:time+life,float,y:s.position.y});
+  }
+  function dropBubbles(id: string){for(const key of [`${id}:chat`,`${id}:emote`]){const b=bubbles.get(key);if(b){dropSprite(b.s);bubbles.delete(key);}}}
+  function say(id: string,text: string){const r=remotes.get(id);if(r)showBubble(`${id}:chat`,r.p.g,chatBubble(text,2.6),5,false);}
+  function sayMe(text: string){showBubble(':chat',avatar,chatBubble(text,2.5),5,false);}
+  function emote(id: string,emoji: string){const r=remotes.get(id);if(r)showBubble(`${id}:emote`,r.p.g,emoteBubble(emoji,2.2),3,true);}
+  function emoteMe(emoji: string){showBubble(':emote',avatar,emoteBubble(emoji,2.2),3,true);}
   let lastCell='',lastArrived=false,cellListener: ((col: number,row: number,arrived: boolean)=>void)|null=null;
   // Slow pulse on the selected seat. Materials are shared per colour, so each mesh gets a private clone while it glows.
   function glow(object: any){
@@ -705,6 +741,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       if(k!==lastCell||(arrived&&lastArrived!==arrived)){lastCell=k;cellListener?.(col,row,arrived);}lastArrived=arrived;}
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
     marker.material.opacity=Math.max(0,marker.material.opacity-dt*.22);
+    for(const [k,b] of bubbles){if(time>b.until){dropSprite(b.s);bubbles.delete(k);continue;}if(b.float)b.s.position.y=b.y+(reducedMotion?0:Math.sin(time*3)*.15);}
     for(const g of tickets.values()){const b=g.userData.base;g.position.set(b.x,b.y+(reducedMotion?.06:.06+Math.sin(time*1.4+g.userData.phase)*.03),b.z);g.rotation.y=cameraYaw+(reducedMotion?0:Math.sin(time*.8+g.userData.phase)*.08);g.scale.setScalar((g===hovered?1.35:1.2)/Math.sqrt(zoom));
       const {sparks,seeds}=g.userData,pos=sparks.geometry.attributes.position;sparks.material.size=4.5*Math.sqrt(zoom)*Math.min(devicePixelRatio,1.5);
       for(let k=0;k<pos.count;k++){const life=reducedMotion?seeds[k*3+2]:(time*.35+seeds[k*3+2])%1,a=seeds[k*3]*6.28+life*2;pos.setXYZ(k,Math.cos(a)*(.34+seeds[k*3+1]*.2),.05+life*.75,Math.sin(a)*(.28+seeds[k*3+1]*.2));}
@@ -732,7 +769,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
+  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

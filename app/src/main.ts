@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -13,9 +13,10 @@ import type {Player,RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
+import {createChat,decodeEntities} from './chat.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -43,7 +44,7 @@ $('#app').innerHTML=`
         <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
-      <div class="world-bottom"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
+      <div class="world-bottom"><div class="world-left"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
       <section class="timer-hud timer-card" aria-label="Pomodoro">
         <div class="timer-tabs" role="group" aria-label="Type de session"><button data-mode="focus" aria-pressed="true">Focus</button><button data-mode="short" aria-pressed="false">Pause</button><button data-mode="long" aria-pressed="false">Longue</button></div>
         <div class="timer-main">
@@ -139,7 +140,7 @@ async function start(){
     if(s==='offline')showVeil('Le café est injoignable, on réessaie…');
     if(s==='replaced')showVeil('Le café est ouvert dans un autre onglet.');
   });
-  bindServerEvents();
+  bindServerEvents()
 }
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
@@ -158,6 +159,32 @@ const editor=createEditor($('#app') as HTMLElement,{
     closeEditor();toast('C’est tout toi. Les autres te voient déjà ainsi.');},
   onExit(){cafe?.setLook(look);closeEditor();},
   resetView:()=>cafe?.resetView(),
+});
+// Room chat: the panel sits bottom-left above the ambience controls, so it fades and goes inert with the rest of the HUD.
+const members=new Map<string,{name: string; color: number}>();
+let sendTimes: number[]=[];
+function allowLocal(){const now=Date.now();sendTimes=sendTimes.filter(t=>now-t<5000);if(sendTimes.length>=5)return false;sendTimes.push(now);return true;}
+// Two short notes when someone calls your name, only if the ambience sound is on (the audio context is already unlocked then).
+function mentionChime(){if(!soundOn||!audio||audio.state!=='running')return;
+  for(const [i,freq] of [659.25,987.77].entries()){const osc=audio.createOscillator(),gain=audio.createGain(),t0=audio.currentTime+i*.13;
+    osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,t0);gain.gain.linearRampToValueAtTime(.04,t0+.015);gain.gain.exponentialRampToValueAtTime(.001,t0+.34);
+    osc.connect(gain);gain.connect(audio.destination);osc.start(t0);osc.stop(t0+.4);}}
+const chat=createChat($('.world-left') as HTMLElement,{
+  send(text){if(!allowLocal())return false;net?.socket.emit('chat',{text});return true;},
+  typing(){net?.socket.emit('chat:typing');},
+  emote(emoji){net?.socket.emit('chat:emote',{emoji});},
+  members:()=>[...members].filter(([id])=>id!==net?.socket.id).map(([id,m])=>({id,...m})),
+  myName:()=>identity.name,
+  onMention:mentionChime,
+});
+let chatRoomKnown=false;
+const roomLabel=()=>room==='private'?'CHEZ TOI':'AU CAFÉ';
+// `T` opens the chat from anywhere in the room, never while typing, editing the character or placing a piece.
+document.addEventListener('keydown',e=>{
+  if((e.key!=='t'&&e.key!=='T')||e.ctrlKey||e.metaKey||e.altKey||editing||placingId)return;
+  const t=e.target as HTMLElement|null;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  e.preventDefault();chat.open();chat.focus();
 });
 drawIcons();
 // The HUD is only faded out behind the sheet, so it stays tabbable and clickable without this. The world/canvas stays live: drag-rotate is part of editing.
@@ -306,19 +333,24 @@ function bindServerEvents(){
   const s=net.socket;
   // a remote's own hat counts as owned, so validation never strips what the server already accepted
   const remote=(p: Player)=>({name:p.name,color:p.color,hat:p.hat??null,look:p.look?loadLook(p.look,p.color,p.hat?[p.hat]:[]):undefined,col:p.col,row:p.row,state:p.state});
-  s.on('room-state',players=>{cafe?.clearRemotes();for(const p of players)cafe?.addRemote(p.id,remote(p));ready.room=true;maybeReady();
+  s.on('room-state',players=>{cafe?.clearRemotes();members.clear();for(const p of players){members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));}
+    if(!chatRoomKnown){chatRoomKnown=true;chat.setRoom(roomLabel());}ready.room=true;maybeReady();
     // the server spawns us at a fixed tile and resets our state: tell everyone where we really stand, and what we're doing
     const at=cafe?.playerPosition()??{x:0,z:0};s.emit('move',toCell(at.x,at.z,room));s.emit('avatar-state',{state:avatarState()});});
-  s.on('player-joined',p=>cafe?.addRemote(p.id,remote(p)));
+  s.on('player-joined',p=>{members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));});
   s.on('player-moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
   s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
-  s.on('player-left',({id})=>cafe?.removeRemote(id));
+  s.on('player-left',({id})=>{members.delete(id);cafe?.removeRemote(id);});
+  s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(text);else cafe?.say(msg.id,text);});
+  s.on('chat:typing',({name})=>chat.typing(name));
+  s.on('chat:emote',({id,emoji})=>{if(id===s.id)cafe?.emoteMe(emoji);else cafe?.emote(id,emoji);});
   s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
   s.on('room:info',({roomId})=>{if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const isHome=rooms.find(r=>r.id===roomId)?.isPrivate??false;
-    if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}});
+    if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+    chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:toggled',({taskId,done,coins})=>{const t=taskToggled(tasks,taskId,done);const before=progress.coins;setCoins(progress,coins);renderTasks();renderProgress();syncScene();
