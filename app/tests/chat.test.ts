@@ -31,6 +31,7 @@ test('being mentioned ignores the case but respects word boundaries',()=>{
  assert.ok(mentionsMe('@MAXIME','maxime'));
  assert.ok(mentionsMe('coucou @maxime, ça va ?','maxime'));
  assert.equal(mentionsMe('salut @maximilien','maxime'),false);
+ assert.equal(mentionsMe('bonjour,@maxime','maxime'),false);// same left boundary as segments(): only what is highlighted pings
  assert.equal(mentionsMe('maxime sans arobase','maxime'),false);
  assert.equal(mentionsMe('salut @maxime',''),false);
 });

@@ -3,7 +3,7 @@
 export interface ChatMsg{id: string; name: string; color: number; text: string; ts: number; mine: boolean}
 export interface Member{id: string; name: string; color: number}
 export interface ChatDeps{send(text: string): boolean; typing(): void; emote(emoji: string): void; members(): Member[]; myName(): string; onMention?(): void}
-export interface Chat{open(): void; close(): void; toggle(): void; focus(): void; isOpen(): boolean; add(msg: ChatMsg): void; typing(name: string): void; setRoom(label: string): void; clear(): void; emotes: string[]; dispose(): void}
+export interface Chat{open(): void; close(): void; toggle(): void; focus(): void; isOpen(): boolean; add(msg: ChatMsg): void; typing(id: string,name: string): void; setRoom(label: string): void; clear(): void; emotes: string[]; dispose(): void}
 
 const ENTITIES: Record<string,string>={'&lt;':'<','&gt;':'>','&amp;':'&','&quot;':'"','&#39;':'\'','&#x27;':'\''};
 export const decodeEntities=(s: string): string=>s.replace(/&(?:lt|gt|amp|quot|#39|#x27);/g,m=>ENTITIES[m]??m);
@@ -20,7 +20,8 @@ export function applyMention(value: string,start: number,caret: number,name: str
 }
 const escapeRe=(s: string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 export function mentionsMe(text: string,myName: string): boolean{
-  return myName.trim()?new RegExp(`(^|\\W)@${escapeRe(myName.trim())}(?![\\p{L}\\p{N}_-])`,'iu').test(text):false;
+  // same boundaries as segments(): a mention only counts at the start or after a space, so what is highlighted is what pings
+  return myName.trim()?new RegExp(`(^|\\s)@${escapeRe(myName.trim())}(?![\\p{L}\\p{N}_-])`,'iu').test(text):false;
 }
 export function segments(text: string): {kind: 'text'|'mention'; value: string}[]{
   const out: {kind: 'text'|'mention'; value: string}[]=[];let last=0;
@@ -52,10 +53,10 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
       <button type="button" class="icon-button chat-emote-btn" aria-label="Emotes"><i data-lucide="smile" aria-hidden="true"></i></button>
       <input id="chat-input" maxlength="200" placeholder="Dire quelque chose…" aria-label="Message" />
       <button type="submit" class="icon-button chat-send" aria-label="Envoyer"><i data-lucide="send" aria-hidden="true"></i></button>
+      <div class="chat-emotes" id="chat-emotes" hidden role="listbox" aria-label="Emotes"></div>
+      <ul class="chat-mentions" id="chat-mentions" hidden role="listbox" aria-label="Mentionner"></ul>
     </form>
     <p class="chat-warn" id="chat-warn" hidden>Doucement, une chose à la fois.</p>
-    <div class="chat-emotes" id="chat-emotes" hidden role="listbox" aria-label="Emotes"></div>
-    <ul class="chat-mentions" id="chat-mentions" hidden role="listbox" aria-label="Mentionner"></ul>
   </div>`;
   host.prepend(root);
   const q=<T extends HTMLElement>(s: string)=>root.querySelector(s) as T;
@@ -64,16 +65,16 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
   const form=q<HTMLFormElement>('#chat-form'),input=q<HTMLInputElement>('#chat-input'),sendBtn=q<HTMLButtonElement>('.chat-send');
   const emotesEl=q<HTMLElement>('#chat-emotes'),mentionsEl=q<HTMLElement>('#chat-mentions');
   const thread=createThread();
-  let open=false,unreadCount=0,lastTyping=0,warnTimer=0 as any,mentionStart=-1,picked=0,matches: Member[]=[];
-  const typers=new Map<string,number>();
+  let open=false,unreadCount=0,lastTyping=0,warnTimer: ReturnType<typeof setTimeout>|undefined,mentionStart=-1,picked=0,lastQuery: string|null=null,matches: Member[]=[];
+  const typers=new Map<string,{name: string; at: number}>();// keyed by socket id: two people may share a pseudo
 
   for(const e of EMOTES){const b=document.createElement('button');b.type='button';b.className='chat-emote';b.setAttribute('role','option');b.setAttribute('aria-selected','false');b.textContent=e;b.title=`Envoyer ${e}`;b.onclick=()=>{deps.emote(e);showEmotes(false);input.focus();};emotesEl.append(b);}
 
   function atBottom(){return list.scrollHeight-list.scrollTop-list.clientHeight<24;}
-  function renderMsg(msg: ChatMsg){
-    const text=decodeEntities(msg.text),li=document.createElement('li');
+  function renderMsg(msg: ChatMsg,text: string,mentioned: boolean){
+    const li=document.createElement('li');
     if(msg.mine)li.classList.add('mine');
-    if(!msg.mine&&mentionsMe(text,deps.myName()))li.classList.add('mention-me');
+    if(mentioned)li.classList.add('mention-me');
     const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hex(msg.color));
     const who=document.createElement('strong');who.textContent=msg.name;
     const body=document.createElement('span');body.className='chat-text';
@@ -82,15 +83,18 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
     li.append(dot,who,body,time);return li;
   }
   function add(msg: ChatMsg){
-    const stick=atBottom();thread.push(msg);
-    if(thread.list.length===thread.MAX&&list.children.length>=thread.MAX)list.firstElementChild?.remove();
-    list.append(renderMsg(msg));if(stick)list.scrollTop=list.scrollHeight;
-    if(typers.delete(msg.name))renderTyping();
-    if(!msg.mine&&mentionsMe(decodeEntities(msg.text),deps.myName()))deps.onMention?.();
+    const stick=atBottom(),text=decodeEntities(msg.text),mentioned=!msg.mine&&mentionsMe(text,deps.myName());
+    thread.push(msg);
+    const rows=list.querySelectorAll('li:not(.chat-sep)');if(rows.length>=thread.MAX)rows[0].remove();// the separator stays, only messages scroll out
+    list.append(renderMsg(msg,text,mentioned));if(stick)list.scrollTop=list.scrollHeight;
+    if(typers.delete(msg.id))renderTyping();
+    if(mentioned)deps.onMention?.();
     if(!open&&!msg.mine){unreadCount++;unread.textContent=String(Math.min(99,unreadCount));unread.hidden=false;}
   }
   function renderTyping(){
-    const now=Date.now(),names=[...typers].filter(([,t])=>now-t<3000).map(([n])=>n);
+    const now=Date.now();
+    for(const [id,t] of typers)if(now-t.at>=3000)typers.delete(id);// dropped here, so the 1 Hz tick falls silent on its own
+    const names=[...typers.values()].map(t=>t.name);
     typingEl.hidden=names.length===0;if(!names.length)return;
     typingEl.textContent=names.length===1?`${names[0]} écrit…`:names.length===2?`${names[0]} et ${names[1]} écrivent…`:'plusieurs personnes écrivent…';
   }
@@ -106,7 +110,8 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
   }
   function refreshMentions(){
     const found=mentionQuery(input.value,input.selectionStart??input.value.length);
-    if(!found){showMentions([]);return;}
+    if(!found){lastQuery=null;showMentions([]);return;}
+    if(found.query!==lastQuery){lastQuery=found.query;picked=0;}
     mentionStart=found.start;const qy=found.query.toLowerCase();
     showMentions(deps.members().filter(m=>m.name.toLowerCase().includes(qy)).slice(0,6));
   }
@@ -147,7 +152,7 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
 
   return {
     open:()=>setOpen(true),close:()=>setOpen(false),toggle:()=>setOpen(!open),focus:()=>input.focus(),isOpen:()=>open,
-    add,typing(name: string){if(name===deps.myName())return;typers.set(name,Date.now());renderTyping();},
+    add,typing(id: string,name: string){typers.set(id,{name,at:Date.now()});renderTyping();},
     setRoom(label: string){
       thread.clear();list.replaceChildren();typers.clear();renderTyping();
       eyebrow.textContent=label;

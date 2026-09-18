@@ -140,7 +140,7 @@ async function start(){
     if(s==='offline')showVeil('Le café est injoignable, on réessaie…');
     if(s==='replaced')showVeil('Le café est ouvert dans un autre onglet.');
   });
-  bindServerEvents()
+  bindServerEvents();
 }
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
@@ -170,7 +170,7 @@ function mentionChime(){if(!soundOn||!audio||audio.state!=='running')return;
     osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,t0);gain.gain.linearRampToValueAtTime(.04,t0+.015);gain.gain.exponentialRampToValueAtTime(.001,t0+.34);
     osc.connect(gain);gain.connect(audio.destination);osc.start(t0);osc.stop(t0+.4);}}
 const chat=createChat($('.world-left') as HTMLElement,{
-  send(text){if(!allowLocal())return false;net?.socket.emit('chat',{text});return true;},
+  send(text){if(!net)return false;if(!allowLocal())return false;net?.socket.emit('chat',{text});return true;},
   typing(){net?.socket.emit('chat:typing');},
   emote(emoji){net?.socket.emit('chat:emote',{emoji});},
   members:()=>[...members].filter(([id])=>id!==net?.socket.id).map(([id,m])=>({id,...m})),
@@ -344,7 +344,7 @@ function bindServerEvents(){
   s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
   s.on('player-left',({id})=>{members.delete(id);cafe?.removeRemote(id);});
   s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(text);else cafe?.say(msg.id,text);});
-  s.on('chat:typing',({name})=>chat.typing(name));
+  s.on('chat:typing',({id,name})=>chat.typing(id,name));
   s.on('chat:emote',({id,emoji})=>{if(id===s.id)cafe?.emoteMe(emoji);else cafe?.emote(id,emoji);});
   s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
   s.on('room:info',({roomId})=>{if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice

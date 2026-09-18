@@ -612,6 +612,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     savedView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};me.cancel();me.standUp();hoverTicket(null);dragging=false;
     editYaw=cameraYaw;
     editAnim={t:0,z0:camera.zoom,z1:editZoom(),p0:camTarget.clone(),p1:editTarget()};
+    dropBubbles('');// a live chat or emote sprite would inherit the avatar layer and float in the sharp pass
     avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=false;
     studio=new THREE.SpotLight('#fff3d8',26,9,.5,.6,1.4);studio.position.copy(avatar.position).add(new THREE.Vector3(2.2,4.2,2.6));studio.target=avatar;studio.layers.enable(AVATAR_LAYER);scene.add(studio);restage();
     onState?.({editing:true});
