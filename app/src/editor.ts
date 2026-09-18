@@ -54,7 +54,7 @@ function createThumbs(){
   const P=createPrimitives(()=>root,materials);
   const cache=new Map<string,string>();
   function draw(kind:'head'|'body',look:Look):string{
-    const k=kind+JSON.stringify(kind==='head'?[look.skin,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat]:[look.skin,look.shirt,look.trousers,look.headphones,look.hat]);
+    const k=kind+JSON.stringify(kind==='head'?[look.skin,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat]:[look.skin,look.shirt,look.trousers,look.headphones,look.hat,look.head,look.bangs,look.back,look.hairColor]);
     const hit=cache.get(k);if(hit)return hit;
     root.clear();const rig=buildAvatar(P,0,0,look);
     if(kind==='head'){cam.zoom=2.1;cam.position.set(2.2,3.6,3.2);cam.lookAt(0,1.28,0);}
@@ -97,6 +97,7 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
     }));
     const list=items(sub,hats);
     if(focused>=list.length)focused=0;
+    const keepFocus=grid.contains(document.activeElement);
     const imgs:HTMLImageElement[]=[];
     grid.replaceChildren(...list.map((it,i)=>{
       const b=document.createElement('button');b.className='editor-tile';b.role='option';b.setAttribute('aria-label',it.label);b.title=it.label;
@@ -106,6 +107,8 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
       b.onfocus=()=>{focused=i;};
       return b;
     }));
+    // replaceChildren dropped the focused tile: keyboard selection has to land back on its replacement.
+    if(keepFocus)(grid.children[focused] as HTMLElement|undefined)?.focus();
     // A cold tab costs ~40 ms per thumbnail, so the grid paints first and fills in two frames.
     const token=++pass,half=Math.ceil(list.length/2);
     const fill=(from:number,to:number)=>{for(let i=from;i<to;i++)imgs[i].src=thumbs!.draw(list[i].kind,withChange(look,list[i].patch));};
@@ -154,10 +157,11 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
     },
     close(){
       if(!opened)return;opened=false;el.classList.remove('open');
-      const done=()=>{clearTimeout(closeTimer);sheet.removeEventListener('transitionend',done);if(!opened)el.setAttribute('aria-hidden','true');};
+      // Tiles and rail buttons bubble their own transitionend: only the sheet's own slide ends the close.
+      const done=(e?:Event)=>{if(e&&e.target!==sheet)return;clearTimeout(closeTimer);sheet.removeEventListener('transitionend',done);if(!opened)el.setAttribute('aria-hidden','true');};
       sheet.addEventListener('transitionend',done);closeTimer=setTimeout(done,600) as unknown as number;
     },
     isOpen:()=>opened,
-    dispose(){clearTimeout(closeTimer);document.removeEventListener('keydown',onKey);thumbs?.dispose();thumbs=null;el.remove();},
+    dispose(){pass++;clearTimeout(closeTimer);document.removeEventListener('keydown',onKey);thumbs?.dispose();thumbs=null;el.remove();},
   };
 }
