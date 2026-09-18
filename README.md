@@ -23,3 +23,7 @@ Variables utiles :
 ```bash
 cd app && npm test && npm run typecheck
 ```
+
+## Personnage
+
+L'éditeur s'ouvre depuis le chip « Mon personnage » de la barre du haut ou en cliquant sur le miroir dans « Chez moi ». Le look choisi (couleurs, chapeau) est sauvegardé en local dans `localStorage` (clé `gamitask.look`). Les autres joueurs voient la couleur du t-shirt (envoyée à la prochaine connexion) et le chapeau équipé (appliqué côté serveur via `cosmetic:equip`).
