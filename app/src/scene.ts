@@ -5,7 +5,7 @@ import { createNavigator } from './navigation.ts';
 import { GRID, footprint, cellsOf } from './shop.ts';
 import type { Cell } from './shop.ts';
 import { C, createPrimitives } from './primitives.ts';
-import { buildAvatar, applyLook, lookFor, type Rig } from './avatar.ts';
+import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
@@ -562,13 +562,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
     s.scale.set(sx,sy,1);s.position.set(x,y,0);s.raycast=()=>{};s.userData.px={w:pxW,h:pxH};return s;// never in the way of a click on the room
   }
-  function chatBubble(name: string,text: string,y: number){
+  function chatBubble(name: string,color: number,text: string,y: number){
     const t=text.length>60?text.slice(0,59)+'…':text;
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=512;c.height=128;
-    const REG='500 34px "DM Sans", Manrope, sans-serif',BOLD='700 34px "DM Sans", Manrope, sans-serif';
-    // tokens: the speaker's name in bold, then the words; wrapped over two lines at most
+    const REG='500 34px "DM Sans", Manrope, sans-serif',BOLD='700 34px "DM Sans", Manrope, sans-serif',PAD=12;
+    // tokens: the speaker's name on a pill in their colour, then the words; wrapped over two lines at most
     const tokens=[{s:name,b:true},...t.split(/\s+/).map(s=>({s,b:false}))];
-    const width=(tok: {s: string;b: boolean})=>{ctx.font=tok.b?BOLD:REG;return ctx.measureText(tok.s).width;};
+    const width=(tok: {s: string;b: boolean})=>{ctx.font=tok.b?BOLD:REG;return ctx.measureText(tok.s).width+(tok.b?PAD*2:0);};
     const space=(()=>{ctx.font=REG;return ctx.measureText(' ').width;})();
     const lines: {s: string;b: boolean}[][]=[[]];let lw=0;
     for(const tok of tokens){const w=width(tok),add=lines.at(-1)!.length?space+w:w;
@@ -576,8 +576,11 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const lineW=(l: {s: string;b: boolean}[])=>l.reduce((a,tok,i)=>a+width(tok)+(i?space:0),0);
     const w=Math.min(500,Math.max(...lines.map(lineW))+40),h=lines.length>1?100:62;
     ctx.fillStyle='#fffdf6f2';ctx.beginPath();ctx.roundRect((512-w)/2,(128-h)/2,w,h,20);ctx.fill();
-    ctx.fillStyle='#000';ctx.textAlign='left';ctx.textBaseline='middle';
-    lines.forEach((l,i)=>{let x=256-lineW(l)/2;const yy=64+(i-(lines.length-1)/2)*40;for(const tok of l){ctx.font=tok.b?BOLD:REG;ctx.fillText(tok.s,x,yy);x+=width(tok)+space;}});
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    lines.forEach((l,i)=>{let x=256-lineW(l)/2;const yy=64+(i-(lines.length-1)/2)*40;for(const tok of l){const tw=width(tok);ctx.font=tok.b?BOLD:REG;
+      if(tok.b){ctx.fillStyle=hexOf(color);ctx.beginPath();ctx.roundRect(x,yy-21,tw,42,12);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(tok.s,x+PAD,yy+1);}
+      else{ctx.fillStyle='#000';ctx.fillText(tok.s,x,yy);}
+      x+=tw+space;}});
     const k=BUBBLE_TEXT_PX/34;return sprite(c,3.2,.8,0,y,512*k,128*k);// 34px font on the canvas → BUBBLE_TEXT_PX on screen
   }
   function emoteBubble(emoji: string,y: number){
@@ -593,8 +596,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // `lift` stacks an emote above a chat bubble of the same avatar instead of overlapping it.
   function fitBubble(b: Bubble,lift=0){const ppu=pixelsPerUnit(),w=b.px.w/ppu,h=b.px.h/ppu;b.s.scale.set(w,h,1);b.s.position.y=Math.max(b.bottom,lift)+h/2+(b.float&&!reducedMotion?Math.sin(time*3)*.15:0);return b.s.position.y+h/2;}
   function dropBubbles(id: string){for(const key of [`${id}:chat`,`${id}:emote`]){const b=bubbles.get(key);if(b){dropSprite(b.s);bubbles.delete(key);}}}
-  function say(id: string,name: string,text: string){const r=remotes.get(id);if(r)showBubble(`${id}:chat`,r.p.g,chatBubble(name,text,2.6),5,false);}
-  function sayMe(name: string,text: string){showBubble(':chat',avatar,chatBubble(name,text,2.5),5,false);}
+  function say(id: string,name: string,color: number,text: string){const r=remotes.get(id);if(r)showBubble(`${id}:chat`,r.p.g,chatBubble(name,color,text,2.6),5,false);}
+  function sayMe(name: string,color: number,text: string){showBubble(':chat',avatar,chatBubble(name,color,text,2.5),5,false);}
   function emote(id: string,emoji: string){const r=remotes.get(id);if(r)showBubble(`${id}:emote`,r.p.g,emoteBubble(emoji,2.5),3,true);}
   function emoteMe(emoji: string){showBubble(':emote',avatar,emoteBubble(emoji,2.5),3,true);}
   let lastCell='',lastArrived=false,cellListener: ((col: number,row: number,arrived: boolean)=>void)|null=null;
