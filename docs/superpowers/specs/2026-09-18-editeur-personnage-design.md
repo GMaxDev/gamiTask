@@ -6,7 +6,7 @@
 
 Donner au joueur un écran de personnalisation de son avatar, dans l'esprit des créateurs de personnages Nintendo (Tomodachi Life en premier, Miitopia, Monster Hunter Stories) : catégories en rail vertical, grille de vignettes, palette de couleurs, aperçu en direct, Undo / Exit / Done.
 
-Cette itération livre **l'interface complète et un premier catalogue réel mais court**. L'apparence est locale (localStorage) ; les autres joueurs continuent de voir couleur de t-shirt + chapeau. La synchronisation serveur, les curseurs de position (yeux, nez…), les « Sets » de coiffure et les grades d'accès viendront ensuite.
+Cette itération livre **l'interface complète et un premier catalogue réel mais court**. L'apparence est persistée par le serveur et vue par les autres joueurs en direct (`localStorage` reste un cache). Les curseurs de position (yeux, nez…), les « Sets » de coiffure et les grades d'accès viendront ensuite.
 
 Hors périmètre : protocole serveur, tenues détaillées (motifs, manches), curseurs de morphologie, vignettes animées, mobile.
 
@@ -19,6 +19,7 @@ Hors périmètre : protocole serveur, tenues détaillées (motifs, manches), cur
 - **Catégories v1** : Visage & peau · Cheveux (Frange / Arrière + couleur) · Tenue & accessoires.
 - **Style** : Nintendo assumé (gros onglets ronds, vignettes en grille, motif de fond, animations « pop ») dans la palette et la typo du café.
 - **Validation** : aperçu live, Undo pas à pas, Exit annule tout, Done applique et sauvegarde.
+- **Persistance** : le `Look` appartient au serveur (`look:update` à la validation, renvoyé par `cosmetics:state` et diffusé par `player-look`) ; `localStorage` n'en est plus qu'un cache d'affichage immédiat.
 
 ## 3. Modèle `Look` (`src/look.ts`, pur, testé)
 
@@ -127,4 +128,4 @@ Comportement :
 
 ## 9. Suite (hors itération)
 
-Synchronisation du `Look` via le serveur (champ `look` sur `Player`, événement `look:update`, SQLite) · Sets de coiffure · curseurs yeux / nez / bouche (Miitopia) · tenues avec motifs · éditeur à la première visite · accès (grades) si certaines options deviennent payantes.
+Sets de coiffure · curseurs yeux / nez / bouche (Miitopia) · tenues avec motifs · éditeur à la première visite · accès (grades) si certaines options deviennent payantes.

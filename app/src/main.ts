@@ -9,7 +9,7 @@ import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import {homeDecision,myPrivateRoom} from './rooms.ts';
-import type {RoomSummary} from '@shared/types';
+import type {Player,RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
@@ -152,9 +152,10 @@ let editing=false,previewLook: Look|null=null;// what the sheet is showing, so a
 const editor=createEditor($('#app') as HTMLElement,{
   onPreview(l){previewLook=l;cafe?.setLook(l);},
   onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();
+    net?.socket.emit('look:update',{userId:identity.userId,look:l});// the server stores it and tells the room right away
     // the server owns the worn hat: it answers `player-hat` to the others only, and `cosmetics:state` would undo a local-only change
     if(l.hat!==shop.hat){shop.hat=l.hat;net?.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:l.hat});renderShop();}
-    closeEditor();toast('C’est tout toi. Les autres te verront ainsi à ta prochaine visite.');},
+    closeEditor();toast('C’est tout toi. Les autres te voient déjà ainsi.');},
   onExit(){cafe?.setLook(look);closeEditor();},
   resetView:()=>cafe?.resetView(),
 });
@@ -303,13 +304,16 @@ renderProgress();
 // Everything the server says, applied as-is.
 function bindServerEvents(){
   const s=net.socket;
-  s.on('room-state',players=>{cafe?.clearRemotes();for(const p of players)cafe?.addRemote(p.id,{name:p.name,color:p.color,hat:p.hat??null,col:p.col,row:p.row,state:p.state});ready.room=true;maybeReady();
+  // a remote's own hat counts as owned, so validation never strips what the server already accepted
+  const remote=(p: Player)=>({name:p.name,color:p.color,hat:p.hat??null,look:p.look?loadLook(p.look,p.color,p.hat?[p.hat]:[]):undefined,col:p.col,row:p.row,state:p.state});
+  s.on('room-state',players=>{cafe?.clearRemotes();for(const p of players)cafe?.addRemote(p.id,remote(p));ready.room=true;maybeReady();
     // the server spawns us at a fixed tile and resets our state: tell everyone where we really stand, and what we're doing
     const at=cafe?.playerPosition()??{x:0,z:0};s.emit('move',toCell(at.x,at.z,room));s.emit('avatar-state',{state:avatarState()});});
-  s.on('player-joined',p=>cafe?.addRemote(p.id,{name:p.name,color:p.color,hat:p.hat??null,col:p.col,row:p.row,state:p.state}));
+  s.on('player-joined',p=>cafe?.addRemote(p.id,remote(p)));
   s.on('player-moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
   s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
+  s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
   s.on('player-left',({id})=>cafe?.removeRemote(id));
   s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
   s.on('room:info',({roomId})=>{if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
@@ -331,7 +335,7 @@ function bindServerEvents(){
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
     if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}
-    look=loadLook(look,identity.color,shop.hats);look={...look,hat:shop.hat};saveLook();if(!editing)cafe?.setLook(look);renderShop();});// mid-edit the sheet owns the avatar: never overwrite the preview
+    look=loadLook(u.look??look,identity.color,shop.hats);look={...look,hat:shop.hat};saveLook();if(!editing)cafe?.setLook(look);renderShop();});// the server owns the look, localStorage is only a cache; mid-edit the sheet owns the avatar
   s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===itemId))wearNext=itemId;});
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
   s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();const now=JSON.stringify(shop.placed);

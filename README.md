@@ -26,4 +26,4 @@ cd app && npm test && npm run typecheck
 
 ## Personnage
 
-L'éditeur s'ouvre depuis le chip « Mon personnage » de la barre du haut ou en cliquant sur le miroir dans « Chez moi ». Le look choisi (couleurs, chapeau) est sauvegardé en local dans `localStorage` (clé `gamitask.look`). Les autres joueurs voient la couleur du t-shirt (envoyée à la prochaine connexion) et le chapeau équipé (appliqué côté serveur via `cosmetic:equip`).
+L'éditeur s'ouvre depuis le chip « Mon personnage » de la barre du haut ou en cliquant sur le miroir dans « Chez moi ». Le look choisi est envoyé au serveur à la validation (`look:update`), qui le range en base et le diffuse aux autres joueurs (`player-look`) : ils voient le nouveau visage, la coiffure et la tenue immédiatement, et le retrouvent à leur prochaine arrivée dans la salle. Le serveur le renvoie à la connexion (`cosmetics:state`), donc `localStorage` (clé `gamitask.look`) n'est qu'un cache pour afficher le bon personnage avant la réponse. Le chapeau porté reste piloté par la boutique (`cosmetic:equip`).

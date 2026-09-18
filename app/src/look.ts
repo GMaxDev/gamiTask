@@ -1,6 +1,7 @@
 // What a character looks like. Pure: catalogue, validation, undo history. Rendering lives in avatar.ts.
 import {PALETTE} from './identity.ts';
-export interface Look{skin:string;head:'round'|'oval'|'square';bangs:string;back:string;hairColor:string;shirt:number;trousers:string;headphones:boolean;hat:string|null}
+import type {Look} from '@shared/types';
+export type {Look};// the server owns the shape now: it stores the look and broadcasts it
 export const SKINS=[
   {id:'porcelain',label:'Porcelaine',hex:'#f7dcc4'},{id:'peach',label:'Pêche',hex:'#edc39d'},{id:'honey',label:'Miel',hex:'#d9a982'},
   {id:'caramel',label:'Caramel',hex:'#b8845c'},{id:'cocoa',label:'Cacao',hex:'#8a5a3c'},{id:'ebony',label:'Ébène',hex:'#5a3a28'},

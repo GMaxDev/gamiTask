@@ -9,7 +9,7 @@ import { buildAvatar, applyLook, lookFor, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
-export interface RemoteInfo { name: string; color: number; hat: string | null; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
+export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
 export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={},look}: {room?: 'public'|'private'; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
@@ -530,7 +530,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const remotes=new Map<string, Remote>();
   function addRemote(id: string,info: RemoteInfo){
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
-    const p=buildAvatar(P,at.x,at.z,lookFor(info.color,info.hat)),w=walker(p,2.4);
+    const p=buildAvatar(P,at.x,at.z,info.look??lookFor(info.color,info.hat)),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
     const r: Remote={p,w,tag,bubble:null};remotes.set(id,r);restage();
     setRemoteState(id,info.state);
@@ -543,6 +543,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(state==='focus'||state==='pause'||state==='collective'){r.bubble=stateBubble(state==='pause'?'pause':'focus');r.p.g.add(r.bubble);}
   }
   function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,{...r.p.look,hat});restage();}
+  function setRemoteLook(id: string,look: Look){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,look);restage();}
   function removeRemote(id: string){
     const r=remotes.get(id);if(!r)return;
     r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
@@ -731,7 +732,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
+  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
