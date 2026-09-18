@@ -8,7 +8,7 @@ import { C, createPrimitives } from './primitives.ts';
 import { buildAvatar, applyLook, lookFor, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
 
-export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean }
+export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
 export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={},look}: {room?: 'public'|'private'; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
@@ -19,6 +19,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   renderer.domElement.setAttribute('aria-label','Café en 3D : cliquer au sol pour marcher, glisser pour déplacer la vue, molette pour zoomer');
   renderer.domElement.tabIndex=0;container.append(renderer.domElement);
   const camera=new THREE.OrthographicCamera(-10,10,10,-10,.1,100);
+  const AVATAR_LAYER=1;// the editor renders the avatar alone on this layer, sharp, over the blurred backdrop
   const W=room==='private'?12:24,D=room==='private'?10:20,HW=W/2,HD=D/2;// the public café is 24x20; your own room is a cosy 12x10
   let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
   const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
@@ -304,6 +305,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const laptop=group(2.9,1.08,-HD+.7,Math.PI);box(.65,.035,.46,'#c2baa8',0,0,0,.025,laptop);const screen=box(.65,.43,.035,C.dark,0,.215,-.21,.025,laptop);screen.rotation.x=-.18;const display=box(.57,.34,.01,'#c0d1b5',0,.215,-.184,.012,laptop);display.rotation.x=-.18;
   mug(2.05,1.08,-HD+.95,C.terra);book(3.5,1.1,-HD+1.0,.4,C.sage);lamp(4.1,-HD+.55);
   chair(2.6,-HD+1.65,Math.PI,C.terra);
+  // full-length mirror on the back wall, left of the desk: where you go to change how you look
+  box(1.0,1.35,.04,OAK,1.25,1.75,-HD+.04,.03);
+  hotspot(box(.9,1.25,.06,'#cfd8d2',1.25,1.75,-HD+.06,.03),'mirror','Mon personnage','changer de tête, de coiffure ou de tenue');
   // reading corner
   sofa(-3.6,-2.9,-Math.PI/2);shadow(-3.6,-2.8,1.85,.9);rug(-3.6,-1.6,Math.PI/2);coffeeTable(-3.6,-1.4,Math.PI/2);
   plant(-5.3,-4.3,1.2);obstacle(-5.3,-4.3,.7,.7);plant(5.3,4.2,1.35);obstacle(5.3,4.2,.75,.75);bookcase(5.4,-3.6);
@@ -332,6 +336,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   for(const {object} of seats)if(object.isGroup)bake(object);
   bake(scene);
+  scene.traverse((o: any)=>{if(o.isLight)o.layers.enable(AVATAR_LAYER);});// else the sharp avatar pass draws it unlit
 
   const player: Rig=buildAvatar(P,0,room==='private'?2:2.5,look),avatar=player.g;
   function setHat(id: string|null){applyLook(P,player,{...player.look,hat:id});}
@@ -354,6 +359,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function dropSprite(s: THREE.Sprite){const m=s.material as THREE.SpriteMaterial;s.removeFromParent();m.map?.dispose();m.dispose();}
   // Placement mode: the floor shows its free tiles, a ghost of the piece follows the pointer, a click picks a tile.
+  let mode: 'walk'|'place'|'edit'='walk';// exclusive: walking the room, placing a piece, or posing in the editor
   let placing: any=null;const gridGroup=new THREE.Group();scene.add(gridGroup);
   const key=(c: number,r: number)=>`${c},${r}`;
   function blockedCells(ignore: Set<number>){
@@ -374,14 +380,14 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     gridGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(lines,3)),new THREE.LineBasicMaterial({color:'#4d5b43',transparent:true,opacity:.6,depthWrite:false})));
     previewing=true;const prev=root;root=placing.ghost=new THREE.Group();scene.add(root);buildPiece(id,0,0,0);root=prev;previewing=false;
     placing.ghost.traverse((o: any)=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.55;o.castShadow=false;}});
-    placing.ghost.visible=false;renderer.domElement.style.cursor='crosshair';
+    placing.ghost.visible=false;renderer.domElement.style.cursor='crosshair';mode='place';
     if(cell&&cellFits(cell))pickCell(cell);else paintGrid();
   }
   function moveGhost(cell: Cell,at: [number,number]|null=null){placing.hover=cell;const ok=placing.hoverOk=cellFits(cell);if(placing.cell&&at){paintGrid();return ok;}const [x,z]=at??cellCentre(placing.id,cell);placing.ghost.visible=true;placing.ghost.position.set(x,0,z);placing.ghost.rotation.y=placing.id==='couch'?Math.atan2(-x,-z):0;tintGhost(ok);paintGrid();return ok;}
   function pickCell(cell: Cell){if(!cellFits(cell))return false;placing.cell={c:cell.c,r:cell.r};moveGhost(cell);onState?.({placing:{id:placing.id,cell:placing.cell}});return true;}
   function stopPlacing(){
     if(!placing)return;gridGroup.traverse((o: any)=>{if(o!==gridGroup){o.geometry?.dispose();o.material?.dispose?.();}});gridGroup.clear();scene.remove(placing.ghost);placing.ghost.traverse((o: any)=>{o.geometry?.dispose();o.material?.dispose?.();});
-    placing=null;renderer.domElement.style.cursor='';
+    placing=null;renderer.domElement.style.cursor='';if(mode==='place')mode='walk';
   }
   const cellAt=(e: any)=>{const p=point(e);if(!p)return null;const f=footprint(placing.id);return {c:Math.floor(p.x+HW-(f.w-1)/2),r:Math.floor(p.z+HD-(f.d-1)/2),at:[p.x,p.z] as [number,number]};};
   const barista=room==='public'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'}):null;
@@ -540,8 +546,77 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const camTarget=new THREE.Vector3(0,.85,0),pan=new THREE.Vector3(),cameraOffset=new THREE.Vector3(13,12.5,16);
   const ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),floor=new THREE.Plane(new THREE.Vector3(0,1,0),-.08);
   let width=1,height=1;
-  function resize(){width=container.clientWidth;height=container.clientHeight;renderer.setSize(width,height);const aspect=width/height,span=Math.max(HW*1.067,HW*1.417/aspect);camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();}
+  // --- Editor mode: the camera dives onto the avatar, the room behind it goes soft. ---
+  const camRight=new THREE.Vector3(cameraOffset.z,0,-cameraOffset.x).normalize(),EDIT_H=3.0;
+  let editAnim: null|{t:number;z0:number;z1:number;p0:THREE.Vector3;p1:THREE.Vector3}=null;
+  let savedView: null|{zoom:number;follow:boolean;pan:THREE.Vector3;target:THREE.Vector3}=null;
+  let editYaw=0,studio: THREE.SpotLight|null=null;
+  const editZoom=()=>2*camera.top/EDIT_H;// the framing is a fixed world height, so it survives a resize
+  const editTarget=()=>avatar.position.clone().setY(.95).add(camRight.clone().multiplyScalar(.28*EDIT_H*width/height));
+  const hideWhileEditing=()=>[cursor,ring,marker];
+  const spring=(t: number)=>{const u=t-1,s=1.1;return 1+u*u*((s+1)*u+s);};
+  function enterEditor(){
+    if(mode==='edit')return;if(mode==='place')stopPlacing();mode='edit';
+    savedView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};me.cancel();me.standUp();hoverTicket(null);dragging=false;
+    editYaw=cameraYaw;
+    editAnim={t:0,z0:camera.zoom,z1:editZoom(),p0:camTarget.clone(),p1:editTarget()};
+    avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=false;
+    studio=new THREE.SpotLight('#fff3d8',26,9,.5,.6,1.4);studio.position.copy(avatar.position).add(new THREE.Vector3(2.2,4.2,2.6));studio.target=avatar;studio.layers.enable(AVATAR_LAYER);scene.add(studio);
+    onState?.({editing:true});
+  }
+  function exitEditor(){
+    if(mode!=='edit'||!savedView)return;
+    avatar.traverse((o: any)=>o.layers.disable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=true;
+    if(studio){scene.remove(studio);studio.dispose();studio=null;}
+    editAnim={t:0,z0:camera.zoom,z1:savedView.zoom,p0:camTarget.clone(),p1:savedView.target.clone()};
+    zoom=savedView.zoom;follow=savedView.follow;pan.copy(savedView.pan);savedView=null;mode='walk';dragging=false;
+    onState?.({editing:false,zoom,follow});
+  }
+  function resetView(){editYaw=cameraYaw;}
+  // Backdrop blur: two separable 5-tap gaussians at half resolution. No colour grading — the room only goes soft, never darker.
+  // Off-screen passes render linear and untone-mapped (three forces that for a render target), so the last one tone maps and encodes exactly as the direct pass would.
+  const rt=()=>new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:true});
+  const blur={rtA:rt(),rtB:rt(),cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),scene:new THREE.Scene(),quad:null as any,mat:null as any};
+  blur.mat=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,transparent:true,premultipliedAlpha:true,uniforms:{tex:{value:null},dir:{value:new THREE.Vector2()},finish:{value:0},exposure:{value:renderer.toneMappingExposure}},
+    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+    fragmentShader:`uniform sampler2D tex;uniform vec2 dir;uniform float finish,exposure;varying vec2 vUv;
+      const mat3 ACES_IN=mat3(vec3(.59719,.07600,.02840),vec3(.35458,.90834,.13383),vec3(.04823,.01566,.83777));
+      const mat3 ACES_OUT=mat3(vec3(1.60475,-.10208,-.00327),vec3(-.53108,1.10813,-.07276),vec3(-.07367,-.00605,1.07602));
+      vec3 fit(vec3 v){vec3 a=v*(v+.0245786)-.000090537,b=v*(.983729*v+.432951)+.238081;return a/b;}
+      void main(){vec4 c=texture2D(tex,vUv)*.227;
+        c+=(texture2D(tex,vUv+dir*1.385)+texture2D(tex,vUv-dir*1.385))*.316;
+        c+=(texture2D(tex,vUv+dir*3.231)+texture2D(tex,vUv-dir*3.231))*.070;
+        if(finish<.5){gl_FragColor=c;return;}
+        vec3 t=c.a>.001?c.rgb/c.a:c.rgb;
+        t=clamp(ACES_OUT*fit(ACES_IN*(t*exposure/.6)),0.,1.);
+        t=mix(pow(t,vec3(.41666))*1.055-vec3(.055),t*12.92,vec3(lessThanEqual(t,vec3(.0031308))));
+        gl_FragColor=vec4(t*c.a,c.a);}`});
+  blur.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),blur.mat);blur.quad.frustumCulled=false;blur.scene.add(blur.quad);
+  function blurSize(){
+    const r=renderer.getPixelRatio(),s=r>1.5?.4:.5,w=Math.max(1,Math.round(width*r*s)),h=Math.max(1,Math.round(height*r*s));
+    if(blur.rtA.width!==w||blur.rtA.height!==h){blur.rtA.setSize(w,h);blur.rtB.setSize(w,h);}
+    return {w,h};
+  }
+  function drawEditing(){
+    const {w,h}=blurSize();
+    camera.layers.enableAll();renderer.setRenderTarget(blur.rtA);renderer.clear();renderer.render(scene,camera);
+    for(let i=0;i<2;i++){
+      blur.mat.uniforms.tex.value=blur.rtA.texture;blur.mat.uniforms.dir.value.set(2.2/w,0);renderer.setRenderTarget(blur.rtB);renderer.render(blur.scene,blur.cam);
+      blur.mat.uniforms.tex.value=blur.rtB.texture;blur.mat.uniforms.dir.value.set(0,2.2/h);renderer.setRenderTarget(blur.rtA);renderer.render(blur.scene,blur.cam);
+    }
+    renderer.setRenderTarget(null);renderer.clear();blur.mat.uniforms.tex.value=blur.rtA.texture;blur.mat.uniforms.dir.value.set(0,0);blur.mat.uniforms.finish.value=1;renderer.render(blur.scene,blur.cam);blur.mat.uniforms.finish.value=0;
+    renderer.clearDepth();camera.layers.set(AVATAR_LAYER);renderer.autoClear=false;renderer.shadowMap.autoUpdate=false;renderer.render(scene,camera);
+    renderer.autoClear=true;renderer.shadowMap.autoUpdate=true;camera.layers.enableAll();
+  }
+  function resize(){width=container.clientWidth;height=container.clientHeight;renderer.setSize(width,height);const aspect=width/height,span=Math.max(HW*1.067,HW*1.417/aspect);camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();
+    if(mode==='edit'){// the editor frames a fixed world height, so a resize re-derives the zoom rather than keeping it
+      if(editAnim){editAnim.z1=editZoom();editAnim.p1=editTarget();}
+      else{camera.zoom=editZoom();camera.updateProjectionMatrix();camTarget.copy(editTarget());}
+    }
+    blurSize();
+  }
   const observer=new ResizeObserver(resize);observer.observe(container);resize();
+  renderer.compile(blur.scene,blur.cam);// compile the blur shader while the room mounts, so opening the editor does not hitch
   function setZoom(value: number){zoom=THREE.MathUtils.clamp(value,.72,4);camera.zoom=zoom;camera.updateProjectionMatrix();onState?.({zoom,follow});}
   function recenter(){follow=true;pan.set(0,0,0);setZoom(1);onState?.({zoom,follow});}
   function setFollow(){follow=!follow;if(follow)pan.set(0,0,0);onState?.({zoom,follow});}
@@ -553,8 +628,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   renderer.domElement.addEventListener('pointerdown',(e: PointerEvent)=>{if(e.button>1)return;dragStart={x:e.clientX,y:e.clientY,pan:pan.clone()};dragging=true;moved=false;try{renderer.domElement.setPointerCapture(e.pointerId);}catch{}});
   renderer.domElement.addEventListener('pointermove',(e: PointerEvent)=>{
-    lastPointer={clientX:e.clientX,clientY:e.clientY};if(placing&&!dragging){const cell=cellAt(e);if(cell)moveGhost(cell,cell.at);return;}if(!dragging)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
+    lastPointer={clientX:e.clientX,clientY:e.clientY};if(mode==='place'&&!dragging){const cell=cellAt(e);if(cell)moveGhost(cell,cell.at);return;}if(!dragging)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
     if(Math.hypot(dx,dy)>5)moved=true;
+    if(mode==='edit'){editYaw-=dx*.012;dragStart.x=e.clientX;dragStart.y=e.clientY;return;}// dragging turns the avatar instead of the view
     if(moved){if(follow){pan.copy(camTarget).sub(new THREE.Vector3(0,.85,0));dragStart.pan.copy(pan);follow=false;onState?.({zoom,follow});}
       const factor=(camera.top-camera.bottom)/height/zoom;
       pan.copy(dragStart.pan).add(new THREE.Vector3(-.776*dx-.84*dy,0,.631*dx-1.03*dy).multiplyScalar(factor));
@@ -563,16 +639,17 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   });
   function seatAt(): any{const hit=ray.intersectObjects(seats.map(s=>s.object),true)[0];if(!hit)return null;const near=seats.filter(s=>s.object===hit.object.parent||s.object===hit.object);return near.sort((a,b)=>Math.hypot(a.x-hit.point.x,a.z-hit.point.z)-Math.hypot(b.x-hit.point.x,b.z-hit.point.z))[0]||null;}
   renderer.domElement.addEventListener('pointerup',(e: PointerEvent)=>{
-    if(placing){if(!moved&&e.button===0){const cell=cellAt(e);if(cell&&!pickCell(cell))onState?.({placing:{id:placing.id,cell:null,refused:true}});}dragging=false;return;}
+    if(mode==='edit'){dragging=false;return;}
+    if(mode==='place'){if(!moved&&e.button===0){const cell=cellAt(e);if(cell&&!pickCell(cell))onState?.({placing:{id:placing.id,cell:null,refused:true}});}dragging=false;return;}
     if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked){onState?.(picked.userData.hotspot?{hotspot:picked.userData.hotspot.id}:{focusTask:picked.userData.task.id});dragging=false;return;}const p=point(e),target=seatAt();if(target&&target!==me.seated){if(target.taken&&target.taken!==me){target.taken.standUp();target.taken.cancel();target.taken.wait=0;}moveTo(target,target);}else if(!target)moveTo(p);}
     dragging=false;
   });
   renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
   renderer.domElement.addEventListener('pointerleave',()=>{lastPointer=null;hoverTicket(null);});
-  renderer.domElement.addEventListener('wheel',(e: WheelEvent)=>{e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
+  renderer.domElement.addEventListener('wheel',(e: WheelEvent)=>{e.preventDefault();if(mode==='edit')return;setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
   renderer.domElement.addEventListener('keydown',(e: KeyboardEvent)=>{
     const moves: Record<string, [number,number]>={ArrowUp:[0,-.75],ArrowDown:[0,.75],ArrowLeft:[-.75,0],ArrowRight:[.75,0]};
-    if(moves[e.key]){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
+    if(moves[e.key]&&mode==='walk'){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
   });
   let evening=false;
   const day=[...pendants,...windows,sun,fill,hemi].map(l=>l.intensity);// the daylight values, captured once so toggling back is exact
@@ -598,17 +675,29 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       const {sparks,seeds}=g.userData,pos=sparks.geometry.attributes.position;sparks.material.size=4.5*Math.sqrt(zoom)*Math.min(devicePixelRatio,1.5);
       for(let k=0;k<pos.count;k++){const life=reducedMotion?seeds[k*3+2]:(time*.35+seeds[k*3+2])%1,a=seeds[k*3]*6.28+life*2;pos.setXYZ(k,Math.cos(a)*(.34+seeds[k*3+1]*.2),.05+life*.75,Math.sin(a)*(.28+seeds[k*3+1]*.2));}
       pos.needsUpdate=true;sparks.material.opacity=.65+.35*Math.sin(time*2+g.userData.phase);}
-    if(!dragging&&!placing)hoverTicket(lastPointer?ticketAt(lastPointer):null);
+    if(!dragging&&mode==='walk')hoverTicket(lastPointer?ticketAt(lastPointer):null);
     if(hovered)onState?.({hover:anchor(hovered)});
     hand.rotation.z+=(-clockTarget*Math.PI*2-hand.rotation.z)*Math.min(1,dt*4);clockRing.scale.setScalar(clockRunning&&!reducedMotion?1+Math.sin(time*2)*.015:1);
     if(player.parts.hat?.userData.float)player.parts.hat.position.y=(reducedMotion?0:Math.sin(time*2.2)*.03);
     cursor.position.y=1.95+(reducedMotion?0:Math.sin(time*3)*.06)-(me.seated?.47*me.sitBlend:0);cursor.rotation.y=time*1.2;
     if(glowing){glowTime+=dt;const k=reducedMotion?.3:.3+.3*Math.sin(glowTime*2.5);glowing.traverse((o: any)=>{if(o.userData.mat)o.material.emissiveIntensity=k;});}
-    // At 100% the whole room fits, so the camera only leans toward the player; the more you zoom in, the more it locks onto them.
-    const k=Math.min(1,.7+(zoom-1)*.3),desired=follow?new THREE.Vector3(avatar.position.x*k,.85,avatar.position.z*k-.5*(1-k)):new THREE.Vector3(0,.85,0).add(pan);
-    camTarget.lerp(desired,1-Math.exp(-dt*(reducedMotion?20:3.5)));camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);
-    renderer.render(scene,camera);raf=requestAnimationFrame(animate);
+    if(mode==='edit'){const d=Math.atan2(Math.sin(editYaw-avatar.rotation.y),Math.cos(editYaw-avatar.rotation.y));avatar.rotation.y+=d*Math.min(1,dt*(reducedMotion?60:14));}
+    if(editAnim){
+      editAnim.t=Math.min(1,editAnim.t+dt/(reducedMotion?.001:.6));const k=spring(editAnim.t);
+      camera.zoom=editAnim.z0+(editAnim.z1-editAnim.z0)*k;camera.updateProjectionMatrix();
+      camTarget.lerpVectors(editAnim.p0,editAnim.p1,k);
+      if(editAnim.t>=1)editAnim=null;
+    } else if(mode!=='edit'){
+      // At 100% the whole room fits, so the camera only leans toward the player; the more you zoom in, the more it locks onto them.
+      const k=Math.min(1,.7+(zoom-1)*.3),desired=follow?new THREE.Vector3(avatar.position.x*k,.85,avatar.position.z*k-.5*(1-k)):new THREE.Vector3(0,.85,0).add(pan);
+      camTarget.lerp(desired,1-Math.exp(-dt*(reducedMotion?20:3.5)));
+    }
+    camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);
+    if(mode==='edit')drawEditing();else renderer.render(scene,camera);
+    raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setHat,setLook,startPlacing,stopPlacing,playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
+  return {setTasks,setClock,setHat,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
+    blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
+    renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
