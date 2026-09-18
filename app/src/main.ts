@@ -5,6 +5,8 @@ import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {connect,type Net} from './net.ts';
+import {toCell} from './coords.ts';
+import type {RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
@@ -118,7 +120,7 @@ renderIdentity();
 // Connection: the café is unreachable until the server answers, so a veil covers the room in the meantime.
 const API_URL=(import.meta.env.VITE_API_URL as string|undefined)??'http://localhost:3001';
 let net:Net;
-let pendingHome=false;// a saved 'private' room is resolved into a real private room id in Task 12
+let pendingHome=false,homeAsked=false;// a saved 'private' room is resolved into a real private room id once `rooms:list` arrives
 const veil=$('#net-veil') as HTMLElement,veilText=$('#net-text') as HTMLElement;
 function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.textContent=text;}
 let ready={room:false,tasks:false};
@@ -128,7 +130,7 @@ async function start(){
   if(room==='private')pendingHome=true;
   net=connect(API_URL,identity,'ocean');
   net.onStatus(s=>{
-    if(s==='online'){ready={room:false,tasks:false};showVeil('Connexion au café…');}
+    if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
     if(s==='offline')showVeil('Le café est injoignable, on réessaie…');
     if(s==='replaced')showVeil('Le café est ouvert dans un autre onglet.');
   });
@@ -139,10 +141,13 @@ let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
 let cafe: any,room=load('gamitask.room','public');if(room!=='private')room='public';
+let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
-  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,hat:shop.hat});drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
+  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,hat:shop.hat});builtFurniture=JSON.stringify(shop.placed);
+  cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
+  drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
 }
 // Iris wipe: a neutral veil grows from the button, the new room is built behind it, then the veil shrinks away.
 let switching=false;
@@ -157,11 +162,20 @@ async function irisSwap(x: number,y: number,label: string,iconName: string,fn: (
   fn();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r as any)));// let the new room draw its first frame
   rim(false);await veil.animate([{clipPath:open},{clipPath:shut}],timing).finished;veil.classList.remove('cover');edge.style.width=edge.style.height='0px';
 }
+// Rooms: the server owns them. The click plays the iris and remounts, then `room:info` confirms (or corrects) where we really are.
+let rooms: RoomSummary[]=[];
+const myPrivateRoom=()=>rooms.find(r=>r.isPrivate&&r.ownerId===identity.userId)??null;
+function switchServerRoom(next:'public'|'private'){
+  if(next==='public'){pendingHome=false;net.socket.emit('room:switch',{roomId:'ocean'});return;}
+  const mine=myPrivateRoom();
+  if(mine){pendingHome=false;net.socket.emit('room:switch',{roomId:mine.id});}
+  else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});}
+}
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching)return;switching=true;
-  const r=b.getBoundingClientRect(),next=b.dataset.room,home=next==='private';
-  await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}});
-  toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');switching=false;
+  const r=b.getBoundingClientRect(),next=b.dataset.room as 'public'|'private',home=next==='private';
+  await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}});
+  switchServerRoom(next);toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');switching=false;
 });
 function onSceneState(state: SceneState){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
@@ -245,7 +259,18 @@ renderProgress();
 // Everything the server says, applied as-is.
 function bindServerEvents(){
   const s=net.socket;
-  s.on('room-state',()=>{ready.room=true;maybeReady();});// Task 12 extends this handler with the other players
+  s.on('room-state',players=>{cafe?.clearRemotes();for(const p of players)cafe?.addRemote(p.id,{name:p.name,color:p.color,hat:p.hat??null,col:p.col,row:p.row,state:p.state});ready.room=true;maybeReady();
+    // the server spawns us at a fixed tile and resets our state: tell everyone where we really stand, and what we're doing
+    const at=cafe?.playerPosition()??{x:0,z:0};s.emit('move',toCell(at.x,at.z,room));s.emit('avatar-state',{state:avatarState()});});
+  s.on('player-joined',p=>cafe?.addRemote(p.id,{name:p.name,color:p.color,hat:p.hat??null,col:p.col,row:p.row,state:p.state}));
+  s.on('player-moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
+  s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
+  s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
+  s.on('player-left',({id})=>cafe?.removeRemote(id));
+  s.on('rooms:list',({rooms:list})=>{rooms=list;if(pendingHome)switchServerRoom('private');});
+  s.on('room:info',({roomId})=>{if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
+    const isHome=rooms.find(r=>r.id===roomId)?.isPrivate??false;
+    if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}}});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:toggled',({taskId,done,coins})=>{const t=taskToggled(tasks,taskId,done);const before=progress.coins;setCoins(progress,coins);renderTasks();renderProgress();syncScene();
@@ -257,19 +282,23 @@ function bindServerEvents(){
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
-  s.on('room:full',()=>{showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
+  s.on('room:full',()=>{if(ready.room){toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil
+    showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
     if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}
     cafe?.setHat(shop.hat);renderShop();});
   s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===itemId))wearNext=itemId;});
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
-  s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();if(room==='private'&&JSON.stringify(shop.placed)!==before)rearrange('C’est posé.');});
-  // presence handlers are added in Task 12
+  s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();const now=JSON.stringify(shop.placed);
+    // the first snapshot after a (re)connect is not a move: rebuild silently if the room was baked without it, never toast
+    if(!furnitureSeen){furnitureSeen=true;if(room==='private'&&now!==builtFurniture){try{mountRoom();syncScene();}catch(error){console.error(error);}}return;}
+    if(room==='private'&&now!==before)rearrange('C’est posé.');});
 }
 
 function persistTimer(){save('gamitask.timer',timer);}
 let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
+const avatarState=():'idle'|'focus'|'pause'=>timer.endAt!==null?(timer.mode==='focus'?'focus':'pause'):'idle';
 function renderTimer(){
   const remaining=remainingSeconds(timer),running=timer.endAt!==null;
   if(running&&remaining===0){
@@ -289,6 +318,7 @@ function renderTimer(){
     $('#session-label').textContent=timer.mode==='focus'?'Session de concentration':timer.mode==='short'?'Une petite respiration':'Une pause bien méritée';
     document.querySelectorAll('[data-mode]').forEach((b: any)=>{b.classList.toggle('selected',b.dataset.mode===timer.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===timer.mode));});
     $('.timer-card').classList.toggle('running',running);drawIcons();lastRunning=running;lastMode=timer.mode;
+    net?.socket.emit('avatar-state',{state:avatarState()});
   }
   $('#sessions').textContent=stats.sessions;$('#minutes').textContent=stats.minutes;
   const cycle=stats.sessions%4||(stats.sessions?3:0);// a completed cycle of four keeps every dot lit instead of dropping back to one
