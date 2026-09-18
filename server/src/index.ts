@@ -966,6 +966,7 @@ function pomoTick(
       });
     }
     startPomoIfNeeded(io, room);
+    broadcastPomoState(io, room);
   } else {
     sp.remaining -= 1;
     for (const sid of room.pomoParticipants) {
@@ -975,7 +976,32 @@ function pomoTick(
         session: sp.session,
       });
     }
+    // Tick léger pour les occupants qui ne participent pas (l'onglet "Avec la salle")
+    if (sp.remaining % 10 === 0) {
+      for (const sid of room.players.keys()) {
+        if (room.pomoParticipants.has(sid)) continue;
+        io.to(sid).emit("pomo:state", pomoState(room));
+      }
+    }
   }
+}
+
+function pomoState(room: RoomState): SharedPomoState {
+  const sp = room.sharedPomo;
+  return {
+    phase: sp.phase,
+    remaining: sp.remaining,
+    running: sp.running,
+    participants: sp.participants,
+    session: sp.session,
+  };
+}
+
+function broadcastPomoState(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: RoomState,
+): void {
+  io.to(room.id).emit("pomo:state", pomoState(room));
 }
 
 function startPomoIfNeeded(
@@ -1098,7 +1124,15 @@ io.on("connection", (socket) => {
         const prevRoom = rooms.get(prevRoomId);
         if (!prevRoom) continue;
         prevRoom.players.delete(previousSocketId);
-        prevRoom.pomoParticipants.delete(previousSocketId);
+        if (prevRoom.pomoParticipants.delete(previousSocketId)) {
+          prevRoom.sharedPomo.participants = prevRoom.pomoParticipants.size;
+          if (prevRoom.pomoParticipants.size === 0 && prevRoom.sharedPomo.intervalId) {
+            clearInterval(prevRoom.sharedPomo.intervalId);
+            prevRoom.sharedPomo.intervalId = null;
+            prevRoom.sharedPomo.running = false;
+          }
+          broadcastPomoState(io, prevRoom);
+        }
         if (prevRoom.sharedVideo.ownerId === previousSocketId) {
           prevRoom.sharedVideo.videoId = null;
           prevRoom.sharedVideo.playing = false;
@@ -1183,6 +1217,7 @@ io.on("connection", (socket) => {
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
+    socket.emit("pomo:state", pomoState(targetRoom));
     console.log(`[join] ${name} → room:${targetRoomId} @ (${spawnCol},${spawnRow})`);
 
     // Per-user initial state (independent of room)
@@ -1269,6 +1304,7 @@ io.on("connection", (socket) => {
     socket.to(currentRoom.id).emit("player-left", { id: socket.id });
     socket.leave(currentRoom.id);
     broadcastLeaderboard(io, currentRoom);
+    broadcastPomoState(io, currentRoom);
 
     // Re-spawn at entry point
     const spawnCol = 1;
@@ -1294,6 +1330,7 @@ io.on("connection", (socket) => {
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
+    socket.emit("pomo:state", pomoState(targetRoom));
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
 
@@ -1998,13 +2035,7 @@ io.on("connection", (socket) => {
     room.pomoParticipants.add(socket.id);
     room.sharedPomo.participants = room.pomoParticipants.size;
     startPomoIfNeeded(io, room);
-    socket.emit("pomo:state", {
-      phase: room.sharedPomo.phase,
-      remaining: room.sharedPomo.remaining,
-      running: room.sharedPomo.running,
-      participants: room.sharedPomo.participants,
-      session: room.sharedPomo.session,
-    });
+    broadcastPomoState(io, room);
     for (const sid of room.pomoParticipants) {
       io.to(sid).emit("pomo:tick", {
         remaining: room.sharedPomo.remaining,
@@ -2027,6 +2058,7 @@ io.on("connection", (socket) => {
       room.sharedPomo.intervalId = null;
       room.sharedPomo.running = false;
     }
+    broadcastPomoState(io, room);
   });
 
   // ── Video ambiance (par room) ────────────────────────────────────────────
@@ -2093,6 +2125,7 @@ io.on("connection", (socket) => {
           room.sharedPomo.intervalId = null;
           room.sharedPomo.running = false;
         }
+        broadcastPomoState(io, room);
       }
       broadcastLeaderboard(io, room);
       broadcastRoomsList(io);
