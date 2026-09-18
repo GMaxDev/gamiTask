@@ -4,6 +4,7 @@ import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
+import {loadLook,type Look} from './look.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import {homeDecision,myPrivateRoom} from './rooms.ts';
@@ -144,11 +145,12 @@ let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
 let cafe: any,room=load('gamitask.room','public');if(room!=='private')room='public';
+let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
-  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,hat:shop.hat});builtFurniture=JSON.stringify(shop.placed);
+  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:{...look,hat:shop.hat}});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
   drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
 }

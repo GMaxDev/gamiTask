@@ -5,10 +5,12 @@ import { createNavigator } from './navigation.ts';
 import { GRID, footprint, cellsOf } from './shop.ts';
 import type { Cell } from './shop.ts';
 import { C, createPrimitives } from './primitives.ts';
+import { buildAvatar, applyLook, lookFor, type Rig } from './avatar.ts';
+import type { Look } from './look.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
-export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={} as Record<string, Cell>,hat=null as string|null}={}) {
+export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={},look}: {room?: 'public'|'private'; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
@@ -331,42 +333,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   for(const {object} of seats)if(object.isGroup)bake(object);
   bake(scene);
 
-  // A little person: legs pivot at the hip so they swing while walking and fold when sitting.
-  function person(x: number,z: number,{shirt=C.sage,trousers=C.cream,hair='#634535',skin='#edc39d',apron=null as string|null,headphones=true}={}){
-    const g=group(x,.08,z),body=new THREE.Group();g.add(body);
-    const legL=new THREE.Group(),legR=new THREE.Group();legL.position.set(-.14,.47,0);legR.position.set(.14,.47,0);body.add(legL,legR);
-    for(const leg of [legL,legR]){box(.19,.39,.22,trousers,0,-.2,0,.07,leg);box(.22,.12,.32,C.edge,0,-.37,.045,.04,leg);}
-    box(.58,.53,.36,shirt,0,.69,0,.15,body);
-    const armL=box(.17,.43,.21,shirt,-.36,.65,0,.07,body),armR=box(.17,.43,.21,shirt,.36,.65,0,.07,body);
-    ball(.095,'#ebbf97',-.36,.43,0,body);ball(.095,'#ebbf97',.36,.43,0,body);
-    const head=new THREE.Group();head.position.y=1.0;body.add(head);// pivots at the neck so the character can look around
-    ball(.31,skin,0,.21,0,head,1,1.1,.91);
-    ball(.32,hair,0,.34,-.045,head,1.04,.85,.98);ball(.14,hair,-.20,.38,.17,head);ball(.13,hair,.02,.44,.19,head);
-    for(const dx of [-.11,.11])ball(.023,C.dark,dx,.20,.258,head,1,1.2,.6);
-    ball(.046,'#d89479',-.20,.12,.223,head,1,.45,.3);ball(.046,'#d89479',.20,.12,.223,head,1,.45,.3);
-    if(headphones){mesh(new THREE.TorusGeometry(.335,.035,6,16,Math.PI),C.cream,0,.27,0,head);for(const dx of [-.33,.33])ball(.1,C.cream,dx,.23,0,head,.48,1.2,.9);}
-    if(apron){// bib, skirt, waist tie and a front pocket
-      box(.30,.22,.05,apron,0,.90,.185,.02,body);box(.54,.40,.05,apron,0,.60,.19,.03,body);box(.60,.05,.42,apron,0,.80,0,.02,body);
-      box(.20,.12,.02,'#d8b27a',0,.55,.222,.008,body);for(const dx of [-.12,.12])box(.03,.30,.02,apron,dx,1.06,.19,.005,body);
-    }
-    return {g,body,head,legL,legR,armL,armR,phase:Math.random()*7};
-  }
-  const player=person(0,room==='private'?2:2.5),avatar=player.g;
-  // Hats sit on the head pivot so they turn with it. Built on demand, swapped live.
-  function buildHat(id: string,parent: any){
-    const g=new THREE.Group();parent.add(g);
-    switch(id){
-      case 'hat-party':{const cone=cyl(0,.17,.4,C.terra,0,.7,0,g,12);for(let i=0;i<3;i++)cyl(0,.17-(i+.5)*.045,.02,C.cream,0,.6+i*.1,0,g,12);ball(.045,C.gold,0,.9,0,g);break;}
-      case 'hat-halo':{const ring=mesh(new THREE.TorusGeometry(.22,.03,8,24),mat(C.gold,{emissive:C.gold,emissiveIntensity:.7}),0,.82,0,g);ring.rotation.x=Math.PI/2;ring.castShadow=false;g.userData.float=true;break;}
-      case 'hat-crown':{cyl(.25,.22,.16,C.gold,0,.58,0,g,10);for(let i=0;i<6;i++){const a=i/6*Math.PI*2;cyl(0,.05,.14,C.gold,Math.sin(a)*.22,.72,Math.cos(a)*.22,g,6);}for(let i=0;i<3;i++)ball(.03,[C.terra,C.sage,'#8aa6b8'][i],Math.sin(i*2.1)*.24,.58,Math.cos(i*2.1)*.24,g);break;}
-      case 'hat-cowboy':{const brim=cyl(.44,.44,.035,'#8b5a2b',0,.5,0,g,20);brim.rotation.x=.08;cyl(.21,.24,.22,'#8b5a2b',0,.62,0,g,14);cyl(.245,.245,.04,C.dark,0,.55,0,g,14);break;}
-      case 'hat-wizard':{cyl(.4,.4,.035,'#3d3a6b',0,.5,0,g,20);const cone=cyl(0,.25,.62,'#3d3a6b',0,.8,0,g,12);cone.rotation.z=-.12;ball(.045,C.gold,-.02,1.02,.1,g);for(let i=0;i<3;i++)ball(.025,C.gold,Math.sin(i*2.5)*.14,.62+i*.1,Math.cos(i*2.5)*.14,g);break;}
-    }
-    return g;
-  }
-  let playerHat: any=null;
-  function setHat(id: string|null){playerHat?.removeFromParent();playerHat=id?buildHat(id,player.head):null;}
-  setHat(hat);
+  const player: Rig=buildAvatar(P,0,room==='private'?2:2.5,look),avatar=player.g;
+  function setHat(id: string|null){applyLook(P,player,{...player.look,hat:id});}
+  function setLook(l: Look){applyLook(P,player,l);}
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
   function nameTag(text: string,color: number){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=256;c.height=64;
@@ -415,7 +384,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     placing=null;renderer.domElement.style.cursor='';
   }
   const cellAt=(e: any)=>{const p=point(e);if(!p)return null;const f=footprint(placing.id);return {c:Math.floor(p.x+HW-(f.w-1)/2),r:Math.floor(p.z+HD-(f.d-1)/2),at:[p.x,p.z] as [number,number]};};
-  const barista=room==='public'?person(-7.5,-9.25,{shirt:C.cream,trousers:C.dark,hair:'#3b2a22',skin:'#d9a982',apron:'#4d5b52',headphones:false}):null;
+  const barista=room==='public'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'}):null;
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
   // Nearest tables to where the player starts get the first notes, so a new task is visible right away.
   taskSpots.sort((a,b)=>a.distanceTo(avatar.position)-b.distanceTo(avatar.position));
@@ -536,14 +505,14 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Remote players: one person + walker each, driven by the cells the server sends.
   const cellCentreOf=(col: number,row: number)=>({x:-HW+col+.5,z:-HD+row+.5});
   const seatNear=(p: {x: number;z: number})=>seats.find(s=>!s.taken&&Math.hypot(s.x-p.x,s.z-p.z)<.75)??null;
-  interface Remote{p: ReturnType<typeof person>;w: ReturnType<typeof walker>;hat: THREE.Group|null;tag: THREE.Sprite;bubble: THREE.Sprite|null}
+  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null}
   const remotes=new Map<string, Remote>();
   function addRemote(id: string,info: RemoteInfo){
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
-    const p=person(at.x,at.z,{shirt:'#'+info.color.toString(16).padStart(6,'0')}),w=walker(p,2.4);
+    const p=buildAvatar(P,at.x,at.z,lookFor(info.color,info.hat)),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
-    const r: Remote={p,w,hat:null,tag,bubble:null};remotes.set(id,r);
-    setRemoteHat(id,info.hat);setRemoteState(id,info.state);
+    const r: Remote={p,w,tag,bubble:null};remotes.set(id,r);
+    setRemoteState(id,info.state);
     const seat=seatNear(at);if(seat)w.go(seat,seat);
   }
   function moveRemote(id: string,col: number,row: number){const r=remotes.get(id);if(!r)return;const at=cellCentreOf(col,row),seat=seatNear(at);r.w.go(seat??at,seat);}
@@ -552,7 +521,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(r.bubble){dropSprite(r.bubble);r.bubble=null;}
     if(state==='focus'||state==='pause'||state==='collective'){r.bubble=stateBubble(state==='pause'?'pause':'focus');r.p.g.add(r.bubble);}
   }
-  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;r.hat?.removeFromParent();r.hat=hat?buildHat(hat,r.p.head):null;}
+  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,{...r.p.look,hat});}
   function removeRemote(id: string){
     const r=remotes.get(id);if(!r)return;
     r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
@@ -632,7 +601,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(!dragging&&!placing)hoverTicket(lastPointer?ticketAt(lastPointer):null);
     if(hovered)onState?.({hover:anchor(hovered)});
     hand.rotation.z+=(-clockTarget*Math.PI*2-hand.rotation.z)*Math.min(1,dt*4);clockRing.scale.setScalar(clockRunning&&!reducedMotion?1+Math.sin(time*2)*.015:1);
-    if(playerHat?.userData.float)playerHat.position.y=(reducedMotion?0:Math.sin(time*2.2)*.03);
+    if(player.parts.hat?.userData.float)player.parts.hat.position.y=(reducedMotion?0:Math.sin(time*2.2)*.03);
     cursor.position.y=1.95+(reducedMotion?0:Math.sin(time*3)*.06)-(me.seated?.47*me.sitBlend:0);cursor.rotation.y=time*1.2;
     if(glowing){glowTime+=dt;const k=reducedMotion?.3:.3+.3*Math.sin(glowTime*2.5);glowing.traverse((o: any)=>{if(o.userData.mat)o.material.emissiveIntensity=k;});}
     // At 100% the whole room fits, so the camera only leans toward the player; the more you zoom in, the more it locks onto them.
@@ -641,5 +610,5 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     renderer.render(scene,camera);raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setHat,startPlacing,stopPlacing,playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
+  return {setTasks,setClock,setHat,setLook,startPlacing,stopPlacing,playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
