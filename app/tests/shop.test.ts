@@ -1,11 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createShop,buy,equipHat,place,unplace,takenCells,bonuses,GRID} from '../src/shop.js';
-import {createProgress,completeTask,completePomodoro} from '../src/progress.js';
+import {createShop,buy,equipHat,place,unplace,takenCells,bonuses,GRID} from '../src/shop.ts';
+import {createProgress,completeTask,completePomodoro} from '../src/progress.ts';
 
 test('buying needs coins and cannot repeat',()=>{
  const shop=createShop(),wallet={coins:120};
- assert.equal(buy(shop,wallet,'hat-halo'),null);assert.equal(buy(shop,wallet,'plant').id,'plant');assert.equal(wallet.coins,40);
+ assert.equal(buy(shop,wallet,'hat-halo'),null);assert.equal(buy(shop,wallet,'plant')!.id,'plant');assert.equal(wallet.coins,40);
  assert.equal(buy(shop,wallet,'plant'),null);assert.equal(buy(shop,wallet,'nope'),null);
 });
 test('only an owned hat can be worn',()=>{
@@ -26,6 +26,6 @@ test('a complete set pays bonuses through progress',()=>{
  const r=completePomodoro(p,1000,{coinsTask:0,coinsPomo:10,xpPomo:20});assert.equal(r.coins,35);assert.equal(r.xp,70);
 });
 test('saved data is sanitised',()=>{
- const shop=createShop({owned:['plant','ghost','hat-halo','cactus'],hat:'hat-crown',placed:{plant:{c:1,r:1},lamp:{c:2,r:2},cactus:{c:1,r:1},couch:1}});
+ const shop=createShop({owned:['plant','ghost','hat-halo','cactus'],hat:'hat-crown',placed:{plant:{c:1,r:1},lamp:{c:2,r:2},cactus:{c:1,r:1},couch:1}} as any);
  assert.deepEqual(shop,{owned:['plant','hat-halo','cactus'],hat:null,placed:{plant:{c:1,r:1}}});
 });

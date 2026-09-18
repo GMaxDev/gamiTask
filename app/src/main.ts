@@ -1,21 +1,22 @@
 import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag} from 'lucide';
-import {createCafe} from './scene.js';
-import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.js';
-import {CATEGORIES,createTasks,addTask,updateTask,toggleTask,removeTask,pending,dailyReset} from './tasks.js';
-import {createProgress,completeTask,completePomodoro,levelInfo,ACHIEVEMENTS} from './progress.js';
-import {HATS,FURNITURE,SETS,createShop,buy,equipHat,place,unplace,takenCells,completeSets,bonuses,item as shopItem} from './shop.js';
+import {createCafe} from './scene.ts';
+import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
+import {CATEGORIES,createTasks,addTask,updateTask,toggleTask,removeTask,pending,dailyReset} from './tasks.ts';
+import {createProgress,completeTask,completePomodoro,levelInfo,ACHIEVEMENTS} from './progress.ts';
+import {HATS,FURNITURE,SETS,createShop,buy,equipHat,place,unplace,takenCells,completeSets,bonuses,item as shopItem} from './shop.ts';
 import './style.css';
 
 const icons={Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag};
-const icon=(name,cls='')=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
-const $=s=>document.querySelector(s);
+const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
+// ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
+const $=(s: string): any=>document.querySelector(s);
 function drawIcons(){createIcons({icons,attrs:{'stroke-width':1.65}});}
-function load(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
-function save(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch{/* The experience also works without persistent browser storage. */}}
+function load(key: string,fallback: any): any{try{return JSON.parse(localStorage.getItem(key) as string)??fallback;}catch{return fallback;}}
+function save(key: string,value: any){try{localStorage.setItem(key,JSON.stringify(value));}catch{/* The experience also works without persistent browser storage. */}}
 const today=()=>new Date().toLocaleDateString('sv-SE');
 let timer=createTimer(load('gamitask.timer',{})),stats=load('gamitask.stats',{});
 const shop=createShop(load('gamitask.shop',{}));
-let placingId=null,placingCell=null;
+let placingId: string|null=null,placingCell: {c: number; r: number}|null=null;
 if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
 stats.sessions=Number.isFinite(stats.sessions)?Math.max(0,stats.sessions):0;stats.minutes=Number.isFinite(stats.minutes)?Math.max(0,stats.minutes):0;
 
@@ -86,44 +87,44 @@ $('#app').innerHTML=`
   <dialog id="help-dialog"><div class="dialog-heading"><h2>Bienvenue au café.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div><p>Ce petit coin est à toi. Prends tes marques.</p><ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul><p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p><button class="primary close-dialog">Je m’installe</button></dialog>
 `;
 drawIcons();
-let toastTimeout;
-let audio,rain,rainGain,soundOn=false;
-function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
-let cafe,room=load('gamitask.room','public');if(room!=='private')room='public';
+let toastTimeout: ReturnType<typeof setTimeout>;
+let audio: any,rain: any,rainGain: any,soundOn=false;
+function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
+let cafe: any,room=load('gamitask.room','public');if(room!=='private')room='public';
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
-  document.querySelectorAll('[data-room]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
+  document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,hat:shop.hat});drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
 }
 // Iris wipe: a neutral veil grows from the button, the new room is built behind it, then the veil shrinks away.
 let switching=false;
-async function irisSwap(x,y,label,iconName,fn){
+async function irisSwap(x: number,y: number,label: string,iconName: string,fn: () => void){
   const veil=$('#veil'),r=Math.hypot(innerWidth,innerHeight)*1.05,shut=`circle(0px at ${x}px ${y}px)`,open=`circle(${r}px at ${x}px ${y}px)`;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,timing={duration:reduced?0:650,easing:'cubic-bezier(.45,0,.2,1)',fill:'forwards'};
   $('#veil-text').textContent=label;$('#veil-icon').innerHTML=icon(iconName);drawIcons();
   // the disc's rim casts a soft shadow on the room: a transparent circle with a drop shadow, scaled in step with the clip
   const edge=$('#veil-edge');edge.style.left=`${x}px`;edge.style.top=`${y}px`;edge.style.width=edge.style.height=`${r*2}px`;
-  const rim=k=>edge.animate([{transform:`translate(-50%,-50%) scale(${k?0:1})`},{transform:`translate(-50%,-50%) scale(${k?1:0})`}],timing);
+  const rim=(k: boolean)=>edge.animate([{transform:`translate(-50%,-50%) scale(${k?0:1})`},{transform:`translate(-50%,-50%) scale(${k?1:0})`}],timing);
   veil.classList.add('cover');rim(true);await veil.animate([{clipPath:shut},{clipPath:open}],timing).finished;
-  fn();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));// let the new room draw its first frame
+  fn();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r as any)));// let the new room draw its first frame
   rim(false);await veil.animate([{clipPath:open},{clipPath:shut}],timing).finished;veil.classList.remove('cover');edge.style.width=edge.style.height='0px';
 }
-document.querySelectorAll('[data-room]').forEach(b=>b.onclick=async()=>{
+document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching)return;switching=true;
   const r=b.getBoundingClientRect(),next=b.dataset.room,home=next==='private';
   await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}});
   toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');switching=false;
 });
-function onSceneState(state){
+function onSceneState(state: any){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
-    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=v=>v.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
       h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.type==='daily'?' · chaque jour':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot.title}</strong><small>${state.hover.hotspot.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='tasks')openDrawer(true);
     if(state.hotspot==='timer')$('#settings').click();
     if(state.hotspot==='shop')openDrawer(true,'shop');
     if(state.placing){placingCell=state.placing.cell;$('#place-ok').disabled=!placingCell;if(state.placing.refused)toast('Pas la place ici.');}
-    if(state.focusTask){openDrawer(true);const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`);if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
+    if(state.focusTask){openDrawer(true);const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as any;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
 try{
@@ -135,14 +136,14 @@ $('#help').onclick=()=>$('#help-dialog').showModal();
 $('#progress-chip').onclick=()=>$('#progress-dialog').showModal();
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
 let drawerTab='tasks';
-function showTab(tab){drawerTab=tab;document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
+function showTab(tab: string){drawerTab=tab;document.querySelectorAll('[data-tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
 function openDrawer(open=true,tab=drawerTab){$('#tasks-drawer').classList.toggle('open',open);$('#tasks-drawer').setAttribute('aria-hidden',String(!open));$('#open-tasks').setAttribute('aria-expanded',String(open));showTab(open?tab:drawerTab);if(open&&tab==='tasks')setTimeout(()=>$('#task-text').focus(),250);}
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+document.querySelectorAll('[data-tab]').forEach((b: any)=>b.onclick=()=>showTab(b.dataset.tab));
 $('#open-tasks').onclick=()=>openDrawer(!$('#tasks-drawer').classList.contains('open'));
 $('.drawer-close').onclick=()=>openDrawer(false);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#tasks-drawer').classList.contains('open'))openDrawer(false);});
-document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
-document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
+document.querySelectorAll('.close-dialog').forEach((b: any)=>b.onclick=()=>b.closest('dialog').close());
+document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',(e: any)=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
 
 // Progression: coins, XP, streak and achievements — a pure model in progress.js, saved locally.
 const progress=createProgress(load('gamitask.progress',{}));
@@ -151,12 +152,12 @@ function renderShop(){
   const home=room==='private',done=completeSets(shop);
   $('#shop-coins').textContent=progress.coins;$('#shop-where').textContent=home?'— chez toi':'— à installer chez toi';
   $('#shop-hats').innerHTML=HATS.map(h=>{const owned=shop.owned.includes(h.id),worn=shop.hat===h.id;return `<li class="${owned?'owned':''}"><span class="shop-emoji">${h.emoji}</span><span class="shop-name">${h.name}<small>${owned?(worn?'Porté':'À toi'):`${h.price} pièces`}</small></span><button data-hat="${h.id}" ${!owned&&progress.coins<h.price?'disabled':''}>${owned?(worn?'Retirer':'Porter'):'Acheter'}</button></li>`;}).join('');
-  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.owned.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set);
+  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.owned.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set) as any;
     const action=!owned?`<button data-buy="${f.id}" ${progress.coins<f.price?'disabled':''}>Acheter</button>`:!home?'<small>chez toi</small>':placed?`<button data-move="${f.id}">Déplacer</button><button data-unplace="${f.id}" class="quiet">Ranger</button>`:`<button data-place="${f.id}">Placer</button>`;
     return `<li class="${owned?'owned':''}"><span class="shop-emoji">${f.emoji}</span><span class="shop-name">${f.name}<small>${owned?(placed?'Installé':'Rangé'):`${f.price} pièces`} · set ${set.emoji}</small></span><span class="shop-actions">${action}</span></li>`;}).join('');
   $('#shop-sets').innerHTML=SETS.map(s=>{const have=s.items.filter(id=>shop.owned.includes(id)).length,full=done.includes(s);return `<li class="${full?'owned':''}"><span class="shop-emoji">${s.emoji}</span><span class="shop-name">${s.name}<small>${s.desc} · ${have}/${s.items.length}</small></span><span class="set-state">${full?'Actif':''}</span></li>`;}).join('');
 }
-$('#tab-shop').addEventListener('click',e=>{
+$('#tab-shop').addEventListener('click',(e: any)=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.buy||b.dataset.hat&&!shop.owned.includes(b.dataset.hat)){const it=buy(shop,progress,b.dataset.buy||b.dataset.hat);if(!it){toast('Il te manque quelques pièces.');return;}saveShop();renderProgress();toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===it.id)){equipHat(shop,it.id);saveShop();cafe?.setHat(shop.hat);}renderShop();return;}
   if(b.dataset.hat){equipHat(shop,shop.hat===b.dataset.hat?null:b.dataset.hat);saveShop();cafe?.setHat(shop.hat);renderShop();return;}
@@ -164,20 +165,20 @@ $('#tab-shop').addEventListener('click',e=>{
   if(b.dataset.unplace){unplace(shop,b.dataset.unplace);saveShop();rearrange('Rangé.');}
 });
 // Placement: the room shows its free tiles, you click one, then confirm. Moving a piece starts from where it stands.
-function startPlacing(id){
+function startPlacing(id: string){
   if(room!=='private'||!cafe)return;placingId=id;placingCell=null;openDrawer(false);
-  $('#place-text').innerHTML=`Clique une case pour ${shop.placed[id]?'déplacer':'poser'} <strong>${shopItem(id).emoji} ${shopItem(id).name}</strong>`;$('#place-ok').disabled=true;$('#place-bar').hidden=false;drawIcons();
+  $('#place-text').innerHTML=`Clique une case pour ${shop.placed[id]?'déplacer':'poser'} <strong>${shopItem(id)?.emoji} ${shopItem(id)?.name}</strong>`;$('#place-ok').disabled=true;$('#place-bar').hidden=false;drawIcons();
   cafe.startPlacing(id,shop.placed[id]??null,takenCells(shop,id));
 }
 function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#place-bar').hidden=true;}
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
-$('#place-ok').onclick=()=>{if(!placingId||!placingCell||!place(shop,placingId,placingCell))return;const it=shopItem(placingId);endPlacing();saveShop();rearrange(`${it.emoji} ${it.name} : c’est posé.`);};
+$('#place-ok').onclick=()=>{if(!placingId||!placingCell||!place(shop,placingId,placingCell))return;const it=shopItem(placingId) as any;endPlacing();saveShop();rearrange(`${it.emoji} ${it.name} : c’est posé.`);};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
 // furniture is part of the baked room, so a change rebuilds your room behind the iris
-function rearrange(message){if(switching)return;try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}toast(message);renderShop();}// furniture changes rebuild the room in place, no iris
+function rearrange(message: string){if(switching)return;try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}toast(message);renderShop();}// furniture changes rebuild the room in place, no iris
 let toastQueue=Promise.resolve();
-const later=(fn,ms)=>{toastQueue=toastQueue.then(()=>new Promise(r=>setTimeout(()=>{fn();r();},ms)));};// one toast at a time
-function celebrate(unlocked){for(const a of unlocked)later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}
+const later=(fn: () => void,ms: number)=>{toastQueue=toastQueue.then(()=>new Promise<void>(r=>setTimeout(()=>{fn();r();},ms)));};// one toast at a time
+function celebrate(unlocked: any[]){for(const a of unlocked)later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}
 function renderProgress(){
   const {level,into,span}=levelInfo(progress),pct=Math.round(into/span*100);
   $('#coins').textContent=progress.coins;$('#coins-big').textContent=progress.coins;$('#level-badge').textContent=`Niveau ${level}`;$('#level-big').textContent=`Niveau ${level}`;$('#xp-fill-big').style.width=`${pct}%`;
@@ -186,7 +187,7 @@ function renderProgress(){
   $('#streak').hidden=progress.streak<2;$('#streak-count').textContent=progress.streak;
   $('#achievements-count').textContent=`${progress.achievements.length}/${ACHIEVEMENTS.length}`;
 }
-function rewardTask(t){const r=completeTask(progress,bonuses(shop));save('gamitask.progress',progress);renderProgress();toast(`${t.type==='daily'?'Fait pour aujourd’hui.':'C’est fait.'} +${r.coins} pièces.`);celebrate(r.unlocked);}
+function rewardTask(t: any){const r=completeTask(progress,bonuses(shop));save('gamitask.progress',progress);renderProgress();toast(`${t.type==='daily'?'Fait pour aujourd’hui.':'C’est fait.'} +${r.coins} pièces.`);celebrate(r.unlocked);}
 function rewardPomodoro(){
   const r=completePomodoro(progress,Date.now(),bonuses(shop));save('gamitask.progress',progress);renderProgress();
   toast(`Une petite victoire de plus. +${r.coins} pièces${r.bonus>5?` (série ×${r.streak})`:''}, +${r.xp} XP.`);
@@ -196,7 +197,7 @@ function rewardPomodoro(){
 renderProgress();
 
 function persistTimer(){save('gamitask.timer',timer);}
-let lastRunning=null,lastMode=null,lastShown=null;
+let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
 function renderTimer(){
   const remaining=remainingSeconds(timer),running=timer.endAt!==null;
   if(running&&remaining===0){
@@ -214,55 +215,55 @@ function renderTimer(){
     $('#start').innerHTML=icon(running?'pause':'play')+`<span>${running?'Faire une pause':remaining<timer.durations[timer.mode]*60?'Reprendre':timer.mode==='focus'?'C’est parti':'Prendre une pause'}</span>`;
     $('#timer-kicker').textContent=running?(timer.mode==='focus'?'UN PETIT PAS À LA FOIS':'PRENDS UNE RESPIRATION'):'ON Y VA DOUCEMENT';
     $('#session-label').textContent=timer.mode==='focus'?'Session de concentration':timer.mode==='short'?'Une petite respiration':'Une pause bien méritée';
-    document.querySelectorAll('[data-mode]').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===timer.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===timer.mode));});
+    document.querySelectorAll('[data-mode]').forEach((b: any)=>{b.classList.toggle('selected',b.dataset.mode===timer.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===timer.mode));});
     $('.timer-card').classList.toggle('running',running);drawIcons();lastRunning=running;lastMode=timer.mode;
   }
   $('#sessions').textContent=stats.sessions;$('#minutes').textContent=stats.minutes;
   const cycle=stats.sessions%4||(stats.sessions?3:0);// a completed cycle of four keeps every dot lit instead of dropping back to one
-  document.querySelectorAll('.session-dots > span').forEach((s,i)=>s.classList.toggle('filled',i<=cycle));
+  document.querySelectorAll('.session-dots > span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
   $('#cycle-label').textContent=stats.sessions?`${stats.sessions} petite${stats.sessions>1?'s':''} victoire${stats.sessions>1?'s':''}`:'Un pas après l’autre';
 }
 $('#start').onclick=()=>{ensureAudio();toggleTimer(timer);persistTimer();renderTimer();};
 $('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{resetTimer(timer,b.dataset.mode);persistTimer();lastRunning=null;renderTimer();});
+document.querySelectorAll('[data-mode]').forEach((b: any)=>b.onclick=()=>{resetTimer(timer,b.dataset.mode);persistTimer();lastRunning=null;renderTimer();});
 $('#settings').onclick=()=>{for(const [key,value] of Object.entries(timer.durations))$('#settings-form').elements[key].value=value;$('#settings-dialog').showModal();};
-$('#settings-form').onsubmit=e=>{e.preventDefault();for(const key of Object.keys(timer.durations))timer.durations[key]=Number($('#settings-form').elements[key].value);resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
+$('#settings-form').onsubmit=(e: any)=>{e.preventDefault();for(const key of Object.keys(timer.durations) as (keyof typeof timer.durations)[])timer.durations[key]=Number($('#settings-form').elements[key].value);resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
 setInterval(renderTimer,250);document.addEventListener('visibilitychange',renderTimer);renderTimer();
 
 // Tasks: a pure model in tasks.js, saved locally, mirrored as little order slips in the café.
 const tasks=createTasks(load('gamitask.tasks',{}));
 {const old=load('gamitask.intention',null);if(old?.text?.trim()){const t=addTask(tasks,old.text);if(t&&old.done)t.done=true;}try{localStorage.removeItem('gamitask.intention');}catch{}}
-let newCategory=null;
-const catOf=id=>CATEGORIES.find(c=>c.id===id);
+let newCategory: string|null=null;
+const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
 function persistTasks(){save('gamitask.tasks',tasks);cafe?.setTasks(pending(tasks));}
 function renderTasks(){
   const list=$('#task-list'),todo=pending(tasks).length;list.innerHTML='';
-  for(const t of [...tasks.list].sort((a,b)=>a.done-b.done)){
+  for(const t of [...tasks.list].sort((a,b)=>Number(a.done)-Number(b.done))){
     const li=document.createElement('li');li.dataset.id=t.id;li.className=t.done?'done':'';const cat=catOf(t.category);
-    li.innerHTML=`<button class="check-button" aria-label="${t.done?'Reprendre':'Terminer'} : ${t.text}" aria-pressed="${t.done}">${icon('check')}</button><button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><span class="task-text" contenteditable="plaintext-only" spellcheck="false">${t.text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}</span>${t.type==='daily'?`<span class="daily-badge" title="Chaque jour">${icon('repeat')}</span>`:''}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+    li.innerHTML=`<button class="check-button" aria-label="${t.done?'Reprendre':'Terminer'} : ${t.text}" aria-pressed="${t.done}">${icon('check')}</button><button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><span class="task-text" contenteditable="plaintext-only" spellcheck="false">${t.text.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c])}</span>${t.type==='daily'?`<span class="daily-badge" title="Chaque jour">${icon('repeat')}</span>`:''}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
     list.append(li);
   }
   $('#tasks-empty').hidden=tasks.list.length>0;$('#tasks-count').textContent=todo?`${todo} à faire`:tasks.list.length?'Tout est fait':'';
-  document.querySelectorAll('#task-cats button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
+  document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
   drawIcons();
 }
-$('#task-cats').onclick=e=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
-$('#task-form').onsubmit=e=>{e.preventDefault();const t=addTask(tasks,$('#task-text').value,newCategory,$('#task-daily').checked?'daily':'task');if(!t)return;$('#task-text').value='';persistTasks();renderTasks();};
-$('#task-list').addEventListener('click',e=>{
+$('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
+$('#task-form').onsubmit=(e: any)=>{e.preventDefault();const t=addTask(tasks,$('#task-text').value,newCategory,$('#task-daily').checked?'daily':'task');if(!t)return;$('#task-text').value='';persistTasks();renderTasks();};
+$('#task-list').addEventListener('click',(e: any)=>{
   const li=e.target.closest('li');if(!li)return;const id=li.dataset.id;
   if(e.target.closest('.check-button')){const t=toggleTask(tasks,id);if(t?.done){if(t.rewarded)toast(t.type==='daily'?'Fait pour aujourd’hui. À demain.':'C’est fait. Savoure cette petite victoire.');else{t.rewarded=true;rewardTask(t);}}}
-  else if(e.target.closest('.cat-dot')){const t=tasks.list.find(t=>t.id===id);const i=CATEGORIES.findIndex(c=>c.id===t.category);updateTask(tasks,id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
+  else if(e.target.closest('.cat-dot')){const t=tasks.list.find(t=>t.id===id);const i=CATEGORIES.findIndex(c=>c.id===t?.category);updateTask(tasks,id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
   else if(e.target.closest('.remove-task'))removeTask(tasks,id);
   else return;
   persistTasks();renderTasks();
 });
-$('#task-list').addEventListener('keydown',e=>{if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}});
-$('#task-list').addEventListener('focusout',e=>{if(!e.target.matches('.task-text'))return;const id=e.target.closest('li').dataset.id;const t=updateTask(tasks,id,{text:e.target.textContent});if(t)e.target.textContent=t.text;persistTasks();});
+$('#task-list').addEventListener('keydown',(e: any)=>{if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}});
+$('#task-list').addEventListener('focusout',(e: any)=>{if(!e.target.matches('.task-text'))return;const id=e.target.closest('li').dataset.id;const t=updateTask(tasks,id,{text:e.target.textContent});if(t)e.target.textContent=t.text;persistTasks();});
 setInterval(()=>{const before=tasks.lastReset;dailyReset(tasks);if(tasks.lastReset!==before){persistTasks();renderTasks();}},60000);// midnight rollover while the tab stays open
 persistTasks();renderTasks();
 
 // Optional generated rain: no remote audio, tracking, or autoplay.
-function ensureAudio(){try{audio??=new (window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{});return audio;}catch{return null;}}
+function ensureAudio(){try{audio??=new (window.AudioContext||(window as any).webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{});return audio;}catch{return null;}}
 function chime(){if(!audio||audio.state!=='running')return;for(const [i,freq] of [523.25,659.25,783.99].entries()){const osc=audio.createOscillator(),gain=audio.createGain();osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,audio.currentTime+i*.16);gain.gain.linearRampToValueAtTime(.045,audio.currentTime+i*.16+.02);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+i*.16+.9);osc.connect(gain);gain.connect(audio.destination);osc.start(audio.currentTime+i*.16);osc.stop(audio.currentTime+i*.16+1);}}
 $('#sound').onclick=()=>{
   const ctx=ensureAudio();if(!ctx){toast('Le son n’est pas disponible dans ce navigateur.');return;}

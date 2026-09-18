@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createNavigator } from './navigation.js';
-import { GRID, footprint, cellsOf } from './shop.js';
+import { createNavigator } from './navigation.ts';
+import { GRID, footprint, cellsOf } from './shop.ts';
+import type { Cell } from './shop.ts';
 
 const C={cream:'#f4e4c9',wood:'#bd8356',edge:'#905e3d',oak:'#d9aa72',sage:'#819478',dark:'#384d43',terra:'#c9764f',peach:'#e5a27a',white:'#fff4df',gold:'#d2a754',soil:'#594438'};
 
-export function createCafe(container, onState, {room='public',furniture={},hat=null}={}) {
+export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean }
+export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={} as Record<string, Cell>,hat=null as string|null}={}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
@@ -16,26 +18,26 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
   renderer.domElement.tabIndex=0;container.append(renderer.domElement);
   const camera=new THREE.OrthographicCamera(-10,10,10,-10,.1,100);
   const W=room==='private'?12:24,D=room==='private'?10:20,HW=W/2,HD=D/2;// the public café is 24x20; your own room is a cosy 12x10
-  let root=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
-  const materials=new Map(), obstacles=[], steam=[], pendants=[], seats=[], taskSpots=[], hotspots=[];
-  function hotspot(object,id,title,sub){object.userData.keep=true;object.userData.hotspot={id,title,sub};hotspots.push(object);return object;}
+  let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
+  const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
+  function hotspot(object: any,id: string,title: string,sub: string){object.userData.keep=true;object.userData.hotspot={id,title,sub};hotspots.push(object);return object;}
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function mat(color,extra={}){if(Object.keys(extra).length)return new THREE.MeshStandardMaterial({color,roughness:.82,...extra});if(!materials.has(color))materials.set(color,new THREE.MeshStandardMaterial({color,roughness:.82}));return materials.get(color);}
-  function mesh(geo,color,x,y,z,parent=root,extra={}){const m=new THREE.Mesh(geo,typeof color==='string'?mat(color,extra):color);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-  function box(w,h,d,color,x,y,z,r=.04,parent=root){return mesh(r?new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/3,h/3,d/3)):new THREE.BoxGeometry(w,h,d),color,x,y,z,parent);}
-  function cyl(rt,rb,h,color,x,y,z,parent=root,n=16){return mesh(new THREE.CylinderGeometry(rt,rb,h,n),color,x,y,z,parent);}
-  function ball(r,color,x,y,z,parent=root,sx=1,sy=1,sz=1){const m=mesh(new THREE.SphereGeometry(r,12,8),color,x,y,z,parent);m.scale.set(sx,sy,sz);return m;}
-  function group(x,y,z,rot=0){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=rot;root.add(g);return g;}
+  function mat(color: any,extra: any={}): any {if(Object.keys(extra).length)return new THREE.MeshStandardMaterial({color,roughness:.82,...extra});if(!materials.has(color))materials.set(color,new THREE.MeshStandardMaterial({color,roughness:.82}));return materials.get(color);}
+  function mesh(geo: any,color: any,x: number,y: number,z: number,parent: any=root,extra: any={}): any {const m=new THREE.Mesh(geo,typeof color==='string'?mat(color,extra):color);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+  function box(w: number,h: number,d: number,color: any,x: number,y: number,z: number,r=.04,parent: any=root): any {return mesh(r?new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/3,h/3,d/3)):new THREE.BoxGeometry(w,h,d),color,x,y,z,parent);}
+  function cyl(rt: number,rb: number,h: number,color: any,x: number,y: number,z: number,parent: any=root,n=16): any {return mesh(new THREE.CylinderGeometry(rt,rb,h,n),color,x,y,z,parent);}
+  function ball(r: number,color: any,x: number,y: number,z: number,parent: any=root,sx=1,sy=1,sz=1): any {const m=mesh(new THREE.SphereGeometry(r,12,8),color,x,y,z,parent);m.scale.set(sx,sy,sz);return m;}
+  function group(x: number,y: number,z: number,rot=0): any {const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=rot;root.add(g);return g;}
   const rootOrigin=()=>{root.updateWorldMatrix(true,false);return new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);};
   let previewing=false;// while a ghost piece is being built, nothing is registered for gameplay
-  function obstacle(x,z,w,d){if(previewing)return;const o=rootOrigin();obstacles.push({x:x+o.x,z:z+o.z,w,d});}
+  function obstacle(x: number,z: number,w: number,d: number){if(previewing)return;const o=rootOrigin();obstacles.push({x:x+o.x,z:z+o.z,w,d});}
   // A seat: world position, cushion height, the direction it faces and the mesh that catches the click.
-  function taskSpot(x,y,z){if(previewing)return;const o=rootOrigin();taskSpots.push(new THREE.Vector3(x+o.x,y,z+o.z));}
-  function seat(x,z,y,rot,object){if(previewing)return;object.userData.keep=true;const o=rootOrigin();seats.push({x:x+o.x,z:z+o.z,y,rot,object});}
-  function shadow(x,z,sx,sz,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
-  function label(text,w,h,x,y,z,opts={}){
+  function taskSpot(x: number,y: number,z: number){if(previewing)return;const o=rootOrigin();taskSpots.push(new THREE.Vector3(x+o.x,y,z+o.z));}
+  function seat(x: number,z: number,y: number,rot: number,object: any){if(previewing)return;object.userData.keep=true;const o=rootOrigin();seats.push({x:x+o.x,z:z+o.z,y,rot,object});}
+  function shadow(x: number,z: number,sx: number,sz: number,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
+  function label(text: string,w: number,h: number,x: number,y: number,z: number,opts: any={}){
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.round(1024*h/w);
-    const ctx=canvas.getContext('2d');ctx.fillStyle=opts.bg||C.dark;ctx.fillRect(0,0,canvas.width,canvas.height);
+    const ctx=canvas.getContext('2d') as CanvasRenderingContext2D;ctx.fillStyle=opts.bg||C.dark;ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=opts.color||C.cream;
     const lines=text.split('\n');const size=opts.size||Math.min(130,canvas.height/(lines.length+1));
     lines.forEach((line,i)=>{ctx.font=`${i===0?'600':'400'} ${i===0?size:size*.63}px ${opts.font||'Georgia'}`;ctx.fillText(line,512,canvas.height/2+(i-(lines.length-1)/2)*size*1.27);});
@@ -43,7 +45,7 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     const m=mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:texture,roughness:1}),x,y,z);m.castShadow=false;
     if(opts.ry)m.rotation.y=opts.ry;return m;
   }
-  function plant(x,z,size=1,y=0,parent=root){
+  function plant(x: number,z: number,size=1,y=0,parent: any=root){
     cyl(.23*size,.18*size,.43*size,C.cream,x,y+.215*size,z,parent);
     cyl(.215*size,.215*size,.035*size,C.soil,x,y+.43*size,z,parent);
     const stem=cyl(.023*size,.03*size,.8*size,C.dark,x,y+.78*size,z,parent);
@@ -54,7 +56,7 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     }
     return stem;
   }
-  function mug(x,y,z,color=C.white,parent=root,steaming=true){
+  function mug(x: number,y: number,z: number,color: any=C.white,parent: any=root,steaming=true){
     cyl(.11,.085,.18,color,x,y+.09,z,parent);
     cyl(.087,.087,.008,'#64452e',x,y+.185,z,parent);
     const h=mesh(new THREE.TorusGeometry(.07,.022,6,12),color,x+.12,y+.10,z,parent);h.rotation.y=.3;
@@ -64,13 +66,13 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
       puff.userData.keep=true;steam.push({puff,baseY:y+.22,phase:i/4,x,z,drift:Math.random()*6});
     }
   }
-  function book(x,y,z,w=.36,color=C.sage,parent=root){box(w,.065,.3,color,x,y,z,.014,parent);box(w-.025,.033,.29,C.cream,x,y+.003,z+.009,.002,parent);}
-  function chair(x,z,rot=0,color=C.sage){
+  function book(x: number,y: number,z: number,w=.36,color: any=C.sage,parent: any=root){box(w,.065,.3,color,x,y,z,.014,parent);box(w-.025,.033,.29,C.cream,x,y+.003,z+.009,.002,parent);}
+  function chair(x: number,z: number,rot=0,color: any=C.sage){
     const g=group(x,0,z,rot);box(.66,.14,.66,color,0,.65,0,.08,g);box(.66,.56,.13,color,0,.98,-.29,.09,g);
     for(const a of [-1,1])for(const b of [-1,1])box(.065,.61,.065,C.edge,a*.23,.31,b*.22,.014,g);
     obstacle(x,z,.65,.65);shadow(x,z,.43,.4);seat(x,z,.72,rot,g);return g;
   }
-  function sofa(x,z,rot=0){
+  function sofa(x: number,z: number,rot=0){
     const g=group(x,0,z,rot);
     box(1.15,.34,3.33,C.edge,0,.30,0,.06,g);box(.25,1.05,3.45,C.sage,-.48,.94,0,.12,g);box(1.12,.3,3.14,C.sage,.03,.64,0,.12,g);
     for(const dz of [-1.58,1.58])box(1.19,.6,.22,C.sage,.02,.81,dz,.09,g);
@@ -79,54 +81,54 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     for(const dz of [-.85,.85])seat(x+.1*c+dz*sn,z-.1*sn+dz*c,.79,rot+Math.PI/2,g);
     return g;
   }
-  function rug(x,z,rot=0){const g=group(x,0,z,rot);box(2.65,.022,3.63,'#d6a574',0,.062,0,.15,g);for(let i=0;i<8;i++)box(.018,.005,3.42,'#e8c697',-1.15+i*.33,.076,0,0,g);return g;}
-  function coffeeTable(x,z,rot=0){
+  function rug(x: number,z: number,rot=0){const g=group(x,0,z,rot);box(2.65,.022,3.63,'#d6a574',0,.062,0,.15,g);for(let i=0;i<8;i++)box(.018,.005,3.42,'#e8c697',-1.15+i*.33,.076,0,0,g);return g;}
+  function coffeeTable(x: number,z: number,rot=0){
     const g=group(x,0,z,rot);box(.82,.13,1.46,C.oak,0,.58,0,.13,g);for(const dz of [-.5,.5])for(const dx of [-.27,.27])box(.065,.5,.065,C.edge,dx,.29,dz,.015,g);
     obstacle(x,z,rot?1.5:.85,rot?.85:1.5);mug(.04,.66,-.35,C.white,g);book(0,.68,.25,.43,C.terra,g);g.updateWorldMatrix(true,false);const w=new THREE.Vector3(.2,.66,.62).applyMatrix4(g.matrixWorld);taskSpots.push(w);return g;
   }
-  function bookcase(x,z,rot=0){
+  function bookcase(x: number,z: number,rot=0){
     const g=group(x,0,z,rot);box(.82,1.39,1.48,C.oak,0,.72,0,.04,g);
     for(const y of [.33,.82,1.30]){box(.05,.38,1.24,C.edge,.43,y,0,.005,g);for(let i=0;i<5;i++)box(.44,.28+(i%3)*.03,.13,[C.sage,C.cream,C.terra,C.gold,C.peach][i],-.1,y,-.47+i*.23,.01,g);}
     obstacle(x,z,rot?1.5:.85,rot?.85:1.5);return g;
   }
-  function shelfWall(x,z,len){// tall bookshelf against the back wall
+  function shelfWall(x: number,z: number,len: number){// tall bookshelf against the back wall
     box(len,2.45,.42,C.oak,x,1.22,z,.03);box(.06,2.3,.36,C.edge,x-len/2+.05,1.22,z+.02,.005);box(.06,2.3,.36,C.edge,x+len/2-.05,1.22,z+.02,.005);
     for(const y of [.42,.98,1.54,2.10]){box(len-.1,.05,.36,C.edge,x,y,z+.02,.005);
       for(let i=0;i<Math.floor((len-.3)/.24);i++){if((i*7+y*10)%5<1.5)continue;box(.16,.30+((i*3+y*4)%3)*.05,.22,[C.sage,C.cream,C.terra,C.gold,C.peach,C.dark][(i+Math.round(y*10))%6],x-len/2+.25+i*.24,y+.19,z+.06,.01);}}
     obstacle(x,z,len,.5);
   }
-  function backWindow(x){// tall window in the back wall with the same soft landscape as the side one
+  function backWindow(x: number){// tall window in the back wall with the same soft landscape as the side one
     box(3.55,2.3,.12,C.edge,x,2.08,-HD+.09,.04);box(3.33,2.10,.08,'#bed1be',x,2.08,-HD+.175,.01);box(3.12,1.9,.025,windowGlow,x,2.1,-HD+.23,0);
     for(let i=0;i<3;i++)box(.065,2.17,.1,C.cream,x-1.6+i*1.6,2.08,-HD+.29,.008);box(3.25,.065,.1,C.cream,x,2.12,-HD+.30,.008);box(3.65,.13,.42,C.oak,x,.94,-HD+.28,.04);
   }
-  function lamp(x,z){cyl(.22,.26,.03,C.dark,x,.02,z);cyl(.02,.02,1.7,C.edge,x,.87,z);cyl(.32,.42,.42,C.terra,x,1.75,z,root,24);cyl(.3,.3,.02,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.6}),x,1.55,z);if(!previewing){const l=new THREE.PointLight('#ffca80',1.2,4,2);l.position.set(x,1.5,z);root.add(l);pendants.push(l);}obstacle(x,z,.5,.5);}
-  function squareTable(x,z){box(.9,.08,.9,C.oak,x,1.0,z,.03);cyl(.07,.1,.95,C.edge,x,.5,z);cyl(.32,.36,.06,C.edge,x,.04,z);obstacle(x,z,.95,.95);shadow(x,z,.55,.5);taskSpot(x+.2,1.06,z-.22);}
+  function lamp(x: number,z: number){cyl(.22,.26,.03,C.dark,x,.02,z);cyl(.02,.02,1.7,C.edge,x,.87,z);cyl(.32,.42,.42,C.terra,x,1.75,z,root,24);cyl(.3,.3,.02,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.6}),x,1.55,z);if(!previewing){const l=new THREE.PointLight('#ffca80',1.2,4,2);l.position.set(x,1.5,z);root.add(l);pendants.push(l);}obstacle(x,z,.5,.5);}
+  function squareTable(x: number,z: number){box(.9,.08,.9,C.oak,x,1.0,z,.03);cyl(.07,.1,.95,C.edge,x,.5,z);cyl(.32,.36,.06,C.edge,x,.04,z);obstacle(x,z,.95,.95);shadow(x,z,.55,.5);taskSpot(x+.2,1.06,z-.22);}
   // Your room is a grid of floor tiles; a piece sits centred on its footprint.
-  const cellCentre=(id,{c,r})=>{const f=footprint(id);return [-HW+c+f.w/2,-HD+r+f.d/2];};
-  const furnitureObstacles={};// obstacle indices per placed piece, so a piece being moved does not block itself
-  function armchair(x,z,rot){
+  const cellCentre=(id: string,{c,r}: Cell): [number,number]=>{const f=footprint(id);return [-HW+c+f.w/2,-HD+r+f.d/2];};
+  const furnitureObstacles: Record<string, number[]>={};// obstacle indices per placed piece, so a piece being moved does not block itself
+  function armchair(x: number,z: number,rot: number){
     const g=group(x,0,z,rot);box(.95,.36,.95,C.edge,0,.24,0,.06,g);box(.9,.22,.85,C.terra,0,.5,0,.1,g);box(.95,.7,.24,C.terra,0,.78,-.36,.1,g);
     for(const dx of [-.42,.42])box(.14,.5,.9,C.terra,dx,.62,0,.06,g);const pillow=box(.4,.34,.14,C.cream,0,.72,-.24,.06,g);pillow.rotation.x=-.15;
     obstacle(x,z,1.0,1.0);shadow(x,z,.6,.55);seat(x,z,.66,rot,g);return g;
   }
-  function cactus(x,z){
+  function cactus(x: number,z: number){
     cyl(.2,.16,.36,C.terra,x,.18,z);cyl(.19,.19,.03,C.soil,x,.36,z);
     cyl(.1,.12,.8,'#6f8f5a',x,.76,z);for(const [dx,h,y] of [[-.19,.36,.8],[.19,.3,.66]]){cyl(.06,.06,.2,'#6f8f5a',x+dx,y,z).rotation.z=Math.PI/2;cyl(.06,.05,h,'#6f8f5a',x+dx*1.45,y+h/2,z);}
     ball(.05,C.peach,x,1.2,z);obstacle(x,z,.55,.55);shadow(x,z,.3,.28);
   }
-  function coffeeCorner(x,z){
+  function coffeeCorner(x: number,z: number){
     cyl(.38,.38,.06,C.oak,x,.72,z,root,24);cyl(.05,.07,.66,C.edge,x,.36,z);cyl(.24,.3,.05,C.edge,x,.03,z);
     mug(x+.1,.75,z-.08,C.white,root,true);cyl(.09,.07,.14,C.terra,x-.15,.82,z+.1);ball(.11,C.sage,x-.15,.94,z+.1,root,1,.8,1);
     obstacle(x,z,.85,.85);shadow(x,z,.45,.4);taskSpot(x+.15,.75,z+.18);
   }
-  function buildPiece(id,x,z,rot=0){
-    ({plant:()=>{plant(x,z,1.3);obstacle(x,z,.75,.75);shadow(x,z,.5,.45);},cactus:()=>cactus(x,z),lamp:()=>lamp(x,z),bookshelf:()=>bookcase(x,z,0),coffee:()=>coffeeCorner(x,z),couch:()=>armchair(x,z,rot)})[id]?.();
+  function buildPiece(id: string,x: number,z: number,rot=0){
+    (({plant:()=>{plant(x,z,1.3);obstacle(x,z,.75,.75);shadow(x,z,.5,.45);},cactus:()=>cactus(x,z),lamp:()=>lamp(x,z),bookshelf:()=>bookcase(x,z,0),coffee:()=>coffeeCorner(x,z),couch:()=>armchair(x,z,rot)}) as Record<string, ()=>void>)[id]?.();
   }
-  function placeFurniture(id,cell){
+  function placeFurniture(id: string,cell: Cell){
     if(!cell)return;const [x,z]=cellCentre(id,cell),before=obstacles.length;
     buildPiece(id,x,z,Math.atan2(-x,-z));furnitureObstacles[id]=Array.from({length:obstacles.length-before},(_,i)=>before+i);
   }
-  function roundTable(x,z){
+  function roundTable(x: number,z: number){
     cyl(.76,.76,.14,C.oak,x,1.03,z,root,32);cyl(.095,.14,.96,C.edge,x,.48,z);
     cyl(.4,.48,.10,C.edge,x,.07,z);shadow(x,z,.91,.8);obstacle(x,z,1.48,1.48);
     mug(x+.28,1.11,z-.12,C.white,root,true);cyl(.16,.11,.24,C.terra,x-.29,1.21,z-.15);ball(.17,C.sage,x-.29,1.42,z-.15,root,1,.9,1);
@@ -303,9 +305,9 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
   }
 
   // Bake the static décor: one mesh per material instead of one per box. Seats stay separate so they can glow and be clicked.
-  function bake(target){
-    const buckets=new Map(),doomed=[];target.updateWorldMatrix(true,true);const inverse=new THREE.Matrix4().copy(target.matrixWorld).invert();
-    target.traverse(o=>{
+  function bake(target: any){
+    const buckets=new Map<any, any>(),doomed: any[]=[];target.updateWorldMatrix(true,true);const inverse=new THREE.Matrix4().copy(target.matrixWorld).invert();
+    target.traverse((o: any)=>{
       if(!o.isMesh||o===target)return;
       for(let a=o;a&&a!==target;a=a.parent)if(a.userData.keep&&a!==target)return;
       const g=(o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone()).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,o.matrixWorld));// RoundedBoxGeometry is non-indexed, so everything merges non-indexed
@@ -313,7 +315,7 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     });
     for(const o of doomed){o.parent.remove(o);o.geometry.dispose();}
     for(const [material,{geos,cast}] of buckets){
-      const m=new THREE.Mesh(mergeGeometries(geos,false),material);geos.forEach(g=>g.dispose());
+      const m=new THREE.Mesh(mergeGeometries(geos,false),material);geos.forEach((g: any)=>g.dispose());
       m.castShadow=cast;m.receiveShadow=true;m.userData.keep=true;target.add(m);
     }
   }
@@ -321,7 +323,7 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
   bake(scene);
 
   // A little person: legs pivot at the hip so they swing while walking and fold when sitting.
-  function person(x,z,{shirt=C.sage,trousers=C.cream,hair='#634535',skin='#edc39d',apron=null,headphones=true}={}){
+  function person(x: number,z: number,{shirt=C.sage,trousers=C.cream,hair='#634535',skin='#edc39d',apron=null as string|null,headphones=true}={}){
     const g=group(x,.08,z),body=new THREE.Group();g.add(body);
     const legL=new THREE.Group(),legR=new THREE.Group();legL.position.set(-.14,.47,0);legR.position.set(.14,.47,0);body.add(legL,legR);
     for(const leg of [legL,legR]){box(.19,.39,.22,trousers,0,-.2,0,.07,leg);box(.22,.12,.32,C.edge,0,-.37,.045,.04,leg);}
@@ -342,7 +344,7 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
   }
   const player=person(0,room==='private'?2:2.5),avatar=player.g;
   // Hats sit on the head pivot so they turn with it. Built on demand, swapped live.
-  function buildHat(id,parent){
+  function buildHat(id: string,parent: any){
     const g=new THREE.Group();parent.add(g);
     switch(id){
       case 'hat-party':{const cone=cyl(0,.17,.4,C.terra,0,.7,0,g,12);for(let i=0;i<3;i++)cyl(0,.17-(i+.5)*.045,.02,C.cream,0,.6+i*.1,0,g,12);ball(.045,C.gold,0,.9,0,g);break;}
@@ -353,61 +355,61 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     }
     return g;
   }
-  let playerHat=null;
-  function setHat(id){playerHat?.removeFromParent();playerHat=id?buildHat(id,player.head):null;}
+  let playerHat: any=null;
+  function setHat(id: string|null){playerHat?.removeFromParent();playerHat=id?buildHat(id,player.head):null;}
   setHat(hat);
   // Placement mode: the floor shows its free tiles, a ghost of the piece follows the pointer, a click picks a tile.
-  let placing=null;const gridGroup=new THREE.Group();scene.add(gridGroup);
-  const key=(c,r)=>`${c},${r}`;
-  function blockedCells(ignore){
-    const set=new Set();
+  let placing: any=null;const gridGroup=new THREE.Group();scene.add(gridGroup);
+  const key=(c: number,r: number)=>`${c},${r}`;
+  function blockedCells(ignore: Set<number>){
+    const set=new Set<string>();
     for(let r=0;r<GRID.rows;r++)for(let c=0;c<GRID.cols;c++){const x=-HW+c+.5,z=-HD+r+.5;
-      if(obstacles.some((o,i)=>!ignore.has(i)&&Math.abs(x-o.x)<o.w/2+.3&&Math.abs(z-o.z)<o.d/2+.3))set.add(key(c,r));}
+      if(obstacles.some((o: any,i: number)=>!ignore.has(i)&&Math.abs(x-o.x)<o.w/2+.3&&Math.abs(z-o.z)<o.d/2+.3))set.add(key(c,r));}
     return set;
   }
-  function cellFits(cell){const f=footprint(placing.id);return cell.c>=0&&cell.r>=0&&cell.c+f.w<=GRID.cols&&cell.r+f.d<=GRID.rows&&cellsOf(placing.id,cell).every(k=>!placing.blocked.has(k));}
-  function tintGhost(ok){placing.ghost.traverse(o=>{if(o.isMesh&&o.material.emissive){o.material.emissive.set(ok?'#7fbf7a':'#d9705a');o.material.emissiveIntensity=.35;}});}
-  function paintGrid(){for(const [k,q] of placing.quads){const chosen=placing.cell&&cellsOf(placing.id,placing.cell).includes(k),hover=placing.hover&&cellsOf(placing.id,placing.hover).includes(k);q.material.color.set(chosen?'#5f9e5a':hover?(placing.hoverOk?'#d2a754':'#d9705a'):'#8a9a78');q.material.opacity=chosen?.7:hover?.7:.22;}}
-  function startPlacing(id,cell,taken){
-    stopPlacing();const ignore=new Set(furnitureObstacles[id]??[]);
+  function cellFits(cell: Cell){const f=footprint(placing.id);return cell.c>=0&&cell.r>=0&&cell.c+f.w<=GRID.cols&&cell.r+f.d<=GRID.rows&&cellsOf(placing.id,cell).every((k: string)=>!placing.blocked.has(k));}
+  function tintGhost(ok: boolean){placing.ghost.traverse((o: any)=>{if(o.isMesh&&o.material.emissive){o.material.emissive.set(ok?'#7fbf7a':'#d9705a');o.material.emissiveIntensity=.35;}});}
+  function paintGrid(){for(const [k,q] of placing.quads){const chosen=placing.cell&&cellsOf(placing.id,placing.cell).includes(k),hover=placing.hover&&cellsOf(placing.id,placing.hover).includes(k);(q as any).material.color.set(chosen?'#5f9e5a':hover?(placing.hoverOk?'#d2a754':'#d9705a'):'#8a9a78');(q as any).material.opacity=chosen?.7:hover?.7:.22;}}
+  function startPlacing(id: string,cell: Cell|null,taken: Set<string>){
+    stopPlacing();const ignore=new Set<number>(furnitureObstacles[id]??[]);
     placing={id,cell:null,hover:null,blocked:new Set([...blockedCells(ignore),...taken]),quads:new Map(),ghost:null};
     for(let r=0;r<GRID.rows;r++)for(let c=0;c<GRID.cols;c++){if(placing.blocked.has(key(c,r)))continue;
       const q=mesh(new THREE.PlaneGeometry(.9,.9),new THREE.MeshBasicMaterial({color:'#8a9a78',transparent:true,opacity:.22,depthWrite:false}),-HW+c+.5,.095,-HD+r+.5,gridGroup);q.rotation.x=-Math.PI/2;q.castShadow=false;placing.quads.set(key(c,r),q);}
-    const lines=[];for(const k of placing.quads.keys()){const [c,r]=k.split(',').map(Number),x0=-HW+c,z0=-HD+r;lines.push(x0,.1,z0,x0+1,.1,z0,x0+1,.1,z0,x0+1,.1,z0+1,x0+1,.1,z0+1,x0,.1,z0+1,x0,.1,z0+1,x0,.1,z0);}
+    const lines: number[]=[];for(const k of placing.quads.keys()){const [c,r]=k.split(',').map(Number),x0=-HW+c,z0=-HD+r;lines.push(x0,.1,z0,x0+1,.1,z0,x0+1,.1,z0,x0+1,.1,z0+1,x0+1,.1,z0+1,x0,.1,z0+1,x0,.1,z0+1,x0,.1,z0);}
     gridGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(lines,3)),new THREE.LineBasicMaterial({color:'#4d5b43',transparent:true,opacity:.6,depthWrite:false})));
     previewing=true;const prev=root;root=placing.ghost=new THREE.Group();scene.add(root);buildPiece(id,0,0,0);root=prev;previewing=false;
-    placing.ghost.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.55;o.castShadow=false;}});
+    placing.ghost.traverse((o: any)=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.55;o.castShadow=false;}});
     placing.ghost.visible=false;renderer.domElement.style.cursor='crosshair';
     if(cell&&cellFits(cell))pickCell(cell);else paintGrid();
   }
-  function moveGhost(cell,at=null){placing.hover=cell;const ok=placing.hoverOk=cellFits(cell);if(placing.cell&&at){paintGrid();return ok;}const [x,z]=at??cellCentre(placing.id,cell);placing.ghost.visible=true;placing.ghost.position.set(x,0,z);placing.ghost.rotation.y=placing.id==='couch'?Math.atan2(-x,-z):0;tintGhost(ok);paintGrid();return ok;}
-  function pickCell(cell){if(!cellFits(cell))return false;placing.cell={c:cell.c,r:cell.r};moveGhost(cell);onState?.({placing:{id:placing.id,cell:placing.cell}});return true;}
+  function moveGhost(cell: Cell,at: [number,number]|null=null){placing.hover=cell;const ok=placing.hoverOk=cellFits(cell);if(placing.cell&&at){paintGrid();return ok;}const [x,z]=at??cellCentre(placing.id,cell);placing.ghost.visible=true;placing.ghost.position.set(x,0,z);placing.ghost.rotation.y=placing.id==='couch'?Math.atan2(-x,-z):0;tintGhost(ok);paintGrid();return ok;}
+  function pickCell(cell: Cell){if(!cellFits(cell))return false;placing.cell={c:cell.c,r:cell.r};moveGhost(cell);onState?.({placing:{id:placing.id,cell:placing.cell}});return true;}
   function stopPlacing(){
-    if(!placing)return;gridGroup.traverse(o=>{if(o!==gridGroup){o.geometry?.dispose();o.material?.dispose?.();}});gridGroup.clear();scene.remove(placing.ghost);placing.ghost.traverse(o=>{o.geometry?.dispose();o.material?.dispose?.();});
+    if(!placing)return;gridGroup.traverse((o: any)=>{if(o!==gridGroup){o.geometry?.dispose();o.material?.dispose?.();}});gridGroup.clear();scene.remove(placing.ghost);placing.ghost.traverse((o: any)=>{o.geometry?.dispose();o.material?.dispose?.();});
     placing=null;renderer.domElement.style.cursor='';
   }
-  const cellAt=e=>{const p=point(e);if(!p)return null;const f=footprint(placing.id);return {c:Math.floor(p.x+HW-(f.w-1)/2),r:Math.floor(p.z+HD-(f.d-1)/2),at:[p.x,p.z]};};
+  const cellAt=(e: any)=>{const p=point(e);if(!p)return null;const f=footprint(placing.id);return {c:Math.floor(p.x+HW-(f.w-1)/2),r:Math.floor(p.z+HD-(f.d-1)/2),at:[p.x,p.z] as [number,number]};};
   const barista=room==='public'?person(-7.5,-9.25,{shirt:C.cream,trousers:C.dark,hair:'#3b2a22',skin:'#d9a982',apron:'#4d5b52',headphones:false}):null;
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
   // Nearest tables to where the player starts get the first notes, so a new task is visible right away.
   taskSpots.sort((a,b)=>a.distanceTo(avatar.position)-b.distanceTo(avatar.position));
-  const tickets=new Map(),cameraYaw=Math.atan2(13,16);let hovered=null,lastPointer=null;
-  function hoverTicket(g){// g: a note group, a hotspot mesh, or null
+  const tickets=new Map<string, any>(),cameraYaw=Math.atan2(13,16);let hovered: any=null,lastPointer: any=null;
+  function hoverTicket(g: any){// g: a note group, a hotspot mesh, or null
     if(hovered&&hovered!==g){if(hovered.userData.material)hovered.userData.material.emissiveIntensity=0;hovered=null;renderer.domElement.style.cursor='';onState?.({hover:null});}
     if(g&&hovered!==g){hovered=g;if(g.userData.material)g.userData.material.emissiveIntensity=.22;renderer.domElement.style.cursor='pointer';}
   }
-  function anchor(g){
+  function anchor(g: any){
     const v=(g.userData.card??g).getWorldPosition(new THREE.Vector3());v.y+=g.userData.card?.34/Math.sqrt(zoom):(g.userData.hotspot.id==='timer'?.7:1.1);v.project(camera);
     const rect=renderer.domElement.getBoundingClientRect();return {task:g.userData.task,hotspot:g.userData.hotspot,x:rect.left+(v.x+1)/2*width,y:rect.top+(1-v.y)/2*height};
   }
-  function ticketAt(e){
+  function ticketAt(e: any){
     const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/width*2-1,-(e.clientY-rect.top)/height*2+1);ray.setFromCamera(pointer,camera);
-    const hit=ray.intersectObjects([...[...tickets.values()].map(g=>g.userData.card),...hotspots])[0];return hit?(hit.object.userData.note??hit.object):null;
+    const hit=ray.intersectObjects([...[...tickets.values()].map(g=>g.userData.card),...hotspots])[0];return hit?((hit.object as any).userData.note??hit.object):null;
   }
   // A task is a little chalk slate on a wooden easel, the kind cafés put on tables for the day's special.
-  function ticket(task){
-    const cat=task.category?{work:'#b85530',perso:'#7a8e4a',urgent:'#a04050',study:'#8aa6b8'}[task.category]:null;
-    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=176;const ctx=canvas.getContext('2d');
+  function ticket(task: any){
+    const cat=task.category?({work:'#b85530',perso:'#7a8e4a',urgent:'#a04050',study:'#8aa6b8'} as Record<string,string>)[task.category]:null;
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=176;const ctx=canvas.getContext('2d') as CanvasRenderingContext2D;
     ctx.fillStyle='#3d4a44';ctx.fillRect(0,0,256,176);
     ctx.fillStyle='#ffffff10';for(let i=0;i<40;i++)ctx.fillRect(Math.random()*256,Math.random()*176,Math.random()*30,2);// chalk dust
     ctx.fillStyle='#f4eedd';ctx.font='500 27px "DM Sans", sans-serif';ctx.textBaseline='alphabetic';
@@ -431,9 +433,9 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     g.add(sparks);
     g.userData={material,texture,card,sparks,seeds,task,phase:Math.random()*7};return g;
   }
-  function setTasks(tasks){
-    const keep=new Set();
-    for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse(o=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
+  function setTasks(tasks: any[]){
+    const keep=new Set<string>();
+    for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
     for(const task of tasks){keep.add(task.id);if(tickets.has(task.id))continue;const g=ticket(task);tickets.set(task.id,g);}
     let i=0;for(const g of tickets.values()){const n=taskSpots.length,spot=taskSpots[i%n],round=Math.floor(i/n);g.userData.base=spot.clone().add(new THREE.Vector3(round*.12,round*.34,round*.12));i++;}
   }
@@ -446,23 +448,23 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
   const hand=new THREE.Group();hand.position.z=.07;clock.add(hand);box(.045,.4,.02,C.terra,0,.18,0,.01,hand);cyl(.05,.05,.03,C.dark,0,0,.005,hand).rotation.x=Math.PI/2;
   hotspot(clockBody,'timer','Mon pomodoro','cliquer pour régler le rythme');
   let clockTarget=0,clockRunning=false;
-  function setClock(fraction,running){clockTarget=THREE.MathUtils.clamp(fraction,0,1);clockRunning=running;clockRing.material.opacity=running?.95:.35;}
+  function setClock(fraction: number,running: boolean){clockTarget=THREE.MathUtils.clamp(fraction,0,1);clockRunning=running;clockRing.material.opacity=running?.95:.35;}
   const cursor=mesh(new THREE.ConeGeometry(.11,.22,4),mat(C.gold,{emissive:C.gold,emissiveIntensity:.35,roughness:.5}),0,1.95,0,avatar);cursor.rotation.x=Math.PI;cursor.castShadow=false;
   const ring=mesh(new THREE.RingGeometry(.39,.43,40),new THREE.MeshBasicMaterial({color:C.white,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}),0,.004,0,avatar);ring.rotation.x=-Math.PI/2;
   const marker=mesh(new THREE.RingGeometry(.13,.19,32),new THREE.MeshBasicMaterial({color:'#fff5dc',transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}),0,.085,0);marker.rotation.x=-Math.PI/2;marker.castShadow=false;
 
-  const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5});let time=0,zoom=1,follow=true,dragging=false,dragStart=null,moved=false,glowing=null,glowTime=0;
+  const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5});let time=0,zoom=1,follow=true,dragging=false,dragStart: any=null,moved=false,glowing: any=null,glowTime=0;
   // Walking, sitting and limb animation shared by the player and the barista.
-  function walker(p,speed,hooks={}){
-    const w={route:[],pendingSeat:null,seated:null,standPoint:null,sitBlend:0,
+  function walker(p: any,speed: number,hooks: any={}){
+    const w: any={route:[],pendingSeat:null,seated:null,standPoint:null,sitBlend:0,
       standUp(){if(!w.seated)return;p.g.position.set(w.standPoint.x,.08,w.standPoint.z);w.seated.taken=null;w.seated=null;w.sitBlend=0;hooks.onStand?.();},
-      go(target,seat=null){// seat: sit down on arrival. Returns false when there is no way there.
+      go(target: any,seat: any=null){// seat: sit down on arrival. Returns false when there is no way there.
         if(!target||target.x<-HW-.5||target.x>HW+.5||target.z<-HD-.5||target.z>HD+.5)return false;
         const next=navigation.path(w.seated?w.standPoint:p.g.position,target);if(!next.length)return false;
         w.standUp();w.cancel();w.route=next;w.pendingSeat=seat;if(seat)seat.taken=w;w.working=false;return true;
       },
       cancel(){w.route=[];if(w.pendingSeat)w.pendingSeat.taken=null;w.pendingSeat=null;},
-      step(dt){
+      step(dt: number){
         const pos=p.g.position,walking=w.route.length>0;
         if(walking){const n=w.route[0],dx=n.x-pos.x,dz=n.z-pos.z,d=Math.hypot(dx,dz),s=speed*dt;
           if(d<=s){pos.x=n.x;pos.z=n.z;w.route.shift();if(!w.route.length){if(w.pendingSeat){w.seated=w.pendingSeat;w.pendingSeat=null;w.standPoint={x:n.x,z:n.z};}hooks.onArrive?.(w.seated);}}
@@ -492,11 +494,11 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
       }};
     return w;
   }
-  const me=walker(player,2.4,{onArrive(seat){glow(null);onState?.({walking:false});if(seat)onState?.({seated:true});},onStand(){onState?.({seated:false});}});
+  const me=walker(player,2.4,{onArrive(seat: any){glow(null);onState?.({walking:false});if(seat)onState?.({seated:true});},onStand(){onState?.({seated:false});}});
   // The barista wanders between the counter, free seats and random spots, pausing in between.
-  const bar=barista&&walker(barista,1.9,{onArrive(){bar.working=bar.atWork;bar.wait=bar.seated?8+Math.random()*12:bar.working?6+Math.random()*10:1+Math.random()*4;}});if(bar)bar.wait=2;
+  const bar: any=barista&&walker(barista,1.9,{onArrive(){bar.working=bar.atWork;bar.wait=bar.seated?8+Math.random()*12:bar.working?6+Math.random()*10:1+Math.random()*4;}});if(bar)bar.wait=2;
   const workSpots=[{x:-7.5,z:-9.25},{x:-4.5,z:-9.25},{x:-2.5,z:-9.25}];
-  function baristaThink(dt){
+  function baristaThink(dt: number){
     if(!bar)return;bar.wait-=dt;if(bar.route.length||bar.wait>0)return;
     const roll=Math.random();
     bar.atWork=false;
@@ -506,27 +508,27 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     bar.wait=1;
   }
   // Slow pulse on the selected seat. Materials are shared per colour, so each mesh gets a private clone while it glows.
-  function glow(object){
-    glowing?.traverse(o=>{if(o.userData.mat){o.material.dispose();o.material=o.userData.mat;delete o.userData.mat;}});
+  function glow(object: any){
+    glowing?.traverse((o: any)=>{if(o.userData.mat){o.material.dispose();o.material=o.userData.mat;delete o.userData.mat;}});
     glowing=object;glowTime=0;
-    object?.traverse(o=>{if(o.isMesh){o.userData.mat=o.material;o.material=o.material.clone();o.material.emissive.set('#ffd595');}});
+    object?.traverse((o: any)=>{if(o.isMesh){o.userData.mat=o.material;o.material=o.material.clone();o.material.emissive.set('#ffd595');}});
   }
   const camTarget=new THREE.Vector3(0,.85,0),pan=new THREE.Vector3(),cameraOffset=new THREE.Vector3(13,12.5,16);
   const ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),floor=new THREE.Plane(new THREE.Vector3(0,1,0),-.08);
   let width=1,height=1;
   function resize(){width=container.clientWidth;height=container.clientHeight;renderer.setSize(width,height);const aspect=width/height,span=Math.max(HW*1.067,HW*1.417/aspect);camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();}
   const observer=new ResizeObserver(resize);observer.observe(container);resize();
-  function setZoom(value){zoom=THREE.MathUtils.clamp(value,.72,4);camera.zoom=zoom;camera.updateProjectionMatrix();onState?.({zoom,follow});}
+  function setZoom(value: number){zoom=THREE.MathUtils.clamp(value,.72,4);camera.zoom=zoom;camera.updateProjectionMatrix();onState?.({zoom,follow});}
   function recenter(){follow=true;pan.set(0,0,0);setZoom(1);onState?.({zoom,follow});}
   function setFollow(){follow=!follow;if(follow)pan.set(0,0,0);onState?.({zoom,follow});}
-  function point(e){const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/width*2-1,-(e.clientY-rect.top)/height*2+1);ray.setFromCamera(pointer,camera);const out=new THREE.Vector3();return ray.ray.intersectPlane(floor,out)?out:null;}
-  function moveTo(target,seat=null){
+  function point(e: any){const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/width*2-1,-(e.clientY-rect.top)/height*2+1);ray.setFromCamera(pointer,camera);const out=new THREE.Vector3();return ray.ray.intersectPlane(floor,out)?out:null;}
+  function moveTo(target: any,seat: any=null){
     if(!me.go(target,seat))return;glow(null);
     if(seat){marker.material.opacity=0;glow(seat.object);}else{const end=me.route.at(-1);marker.position.set(end.x,.085,end.z);marker.material.opacity=.9;}
     onState?.({walking:true});
   }
-  renderer.domElement.addEventListener('pointerdown',e=>{if(e.button>1)return;dragStart={x:e.clientX,y:e.clientY,pan:pan.clone()};dragging=true;moved=false;try{renderer.domElement.setPointerCapture(e.pointerId);}catch{}});
-  renderer.domElement.addEventListener('pointermove',e=>{
+  renderer.domElement.addEventListener('pointerdown',(e: PointerEvent)=>{if(e.button>1)return;dragStart={x:e.clientX,y:e.clientY,pan:pan.clone()};dragging=true;moved=false;try{renderer.domElement.setPointerCapture(e.pointerId);}catch{}});
+  renderer.domElement.addEventListener('pointermove',(e: PointerEvent)=>{
     lastPointer={clientX:e.clientX,clientY:e.clientY};if(placing&&!dragging){const cell=cellAt(e);if(cell)moveGhost(cell,cell.at);return;}if(!dragging)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
     if(Math.hypot(dx,dy)>5)moved=true;
     if(moved){if(follow){pan.copy(camTarget).sub(new THREE.Vector3(0,.85,0));dragStart.pan.copy(pan);follow=false;onState?.({zoom,follow});}
@@ -535,23 +537,23 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
       pan.x=THREE.MathUtils.clamp(pan.x,-HW,HW);pan.z=THREE.MathUtils.clamp(pan.z,-HD,HD);
     }
   });
-  function seatAt(){const hit=ray.intersectObjects(seats.map(s=>s.object),true)[0];if(!hit)return null;const near=seats.filter(s=>s.object===hit.object.parent||s.object===hit.object);return near.sort((a,b)=>Math.hypot(a.x-hit.point.x,a.z-hit.point.z)-Math.hypot(b.x-hit.point.x,b.z-hit.point.z))[0]||null;}
-  renderer.domElement.addEventListener('pointerup',e=>{
+  function seatAt(): any{const hit=ray.intersectObjects(seats.map(s=>s.object),true)[0];if(!hit)return null;const near=seats.filter(s=>s.object===hit.object.parent||s.object===hit.object);return near.sort((a,b)=>Math.hypot(a.x-hit.point.x,a.z-hit.point.z)-Math.hypot(b.x-hit.point.x,b.z-hit.point.z))[0]||null;}
+  renderer.domElement.addEventListener('pointerup',(e: PointerEvent)=>{
     if(placing){if(!moved&&e.button===0){const cell=cellAt(e);if(cell&&!pickCell(cell))onState?.({placing:{id:placing.id,cell:null,refused:true}});}dragging=false;return;}
     if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked){onState?.(picked.userData.hotspot?{hotspot:picked.userData.hotspot.id}:{focusTask:picked.userData.task.id});dragging=false;return;}const p=point(e),target=seatAt();if(target&&target!==me.seated){if(target.taken&&target.taken!==me){target.taken.standUp();target.taken.cancel();target.taken.wait=0;}moveTo(target,target);}else if(!target)moveTo(p);}
     dragging=false;
   });
   renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
   renderer.domElement.addEventListener('pointerleave',()=>{lastPointer=null;hoverTicket(null);});
-  renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
-  renderer.domElement.addEventListener('keydown',e=>{
-    const moves={ArrowUp:[0,-.75],ArrowDown:[0,.75],ArrowLeft:[-.75,0],ArrowRight:[.75,0]};
+  renderer.domElement.addEventListener('wheel',(e: WheelEvent)=>{e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
+  renderer.domElement.addEventListener('keydown',(e: KeyboardEvent)=>{
+    const moves: Record<string, [number,number]>={ArrowUp:[0,-.75],ArrowDown:[0,.75],ArrowLeft:[-.75,0],ArrowRight:[.75,0]};
     if(moves[e.key]){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
   });
   let evening=false;
   function toggleLight(){evening=!evening;sun.intensity=evening?1.1:3.2;fill.intensity=evening?.6:1.1;sun.color.set(evening?'#ffa26e':'#ffe0ae');pendants.forEach(l=>l.intensity=evening?5:2);return evening;}
-  let previous=performance.now(),raf;
-  function animate(now){
+  let previous=performance.now(),raf: number;
+  function animate(now: number){
     const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;
     me.step(dt);baristaThink(dt);bar?.step(dt);
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
@@ -565,12 +567,12 @@ export function createCafe(container, onState, {room='public',furniture={},hat=n
     hand.rotation.z+=(-clockTarget*Math.PI*2-hand.rotation.z)*Math.min(1,dt*4);clockRing.scale.setScalar(clockRunning&&!reducedMotion?1+Math.sin(time*2)*.015:1);
     if(playerHat?.userData.float)playerHat.position.y=(reducedMotion?0:Math.sin(time*2.2)*.03);
     cursor.position.y=1.95+(reducedMotion?0:Math.sin(time*3)*.06)-(me.seated?.47*me.sitBlend:0);cursor.rotation.y=time*1.2;
-    if(glowing){glowTime+=dt;const k=reducedMotion?.3:.3+.3*Math.sin(glowTime*2.5);glowing.traverse(o=>{if(o.userData.mat)o.material.emissiveIntensity=k;});}
+    if(glowing){glowTime+=dt;const k=reducedMotion?.3:.3+.3*Math.sin(glowTime*2.5);glowing.traverse((o: any)=>{if(o.userData.mat)o.material.emissiveIntensity=k;});}
     // At 100% the whole room fits, so the camera only leans toward the player; the more you zoom in, the more it locks onto them.
     const k=Math.min(1,.7+(zoom-1)*.3),desired=follow?new THREE.Vector3(avatar.position.x*k,.85,avatar.position.z*k-.5*(1-k)):new THREE.Vector3(0,.85,0).add(pan);
     camTarget.lerp(desired,1-Math.exp(-dt*(reducedMotion?20:3.5)));camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);
     renderer.render(scene,camera);raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setHat,startPlacing,stopPlacing,zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();scene.traverse(o=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
+  return {setTasks,setClock,setHat,startPlacing,stopPlacing,zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
