@@ -1457,7 +1457,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  const VALID_EMOTES = new Set(["😂", "😍", "😎", "🥳", "😭", "🤯"]);
+  const VALID_EMOTES = new Set(["👋", "😄", "❤️", "👍", "☕", "🍅", "🎉", "😴"]);
   socket.on("chat:emote", ({ emoji }) => {
     if (!allow(socket.id, "chat:emote", 5, 3000)) return;
     if (!VALID_EMOTES.has(emoji)) return;
