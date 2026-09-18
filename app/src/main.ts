@@ -1,10 +1,11 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,Rotate3d,Undo2,Smile,Scissors,Shirt} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,type Look} from './look.ts';
+import {createEditor} from './editor.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import {homeDecision,myPrivateRoom} from './rooms.ts';
@@ -14,7 +15,7 @@ import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import './style.css';
 
-const icons={Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag};
+const icons={Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,Rotate3d,Undo2,Smile,Scissors,Shirt};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -140,17 +141,36 @@ async function start(){
   });
   bindServerEvents();
 }
-$('#identity-chip').onclick=()=>askIdentity().then(()=>toast('À bientôt sous ce nom. Il sera pris en compte à la prochaine connexion.'));
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
 let cafe: any,room=load('gamitask.room','public');if(room!=='private')room='public';
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
+function saveLook(){save('gamitask.look',look);}
+// Character editor: a sheet over the scene, the café avatar itself is the preview.
+let editing=false;
+const editor=createEditor($('#app') as HTMLElement,{
+  onPreview:l=>cafe?.setLook(l),
+  onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();closeEditor();toast('C’est tout toi. Les autres te verront ainsi à ta prochaine visite.');},
+  onExit(){cafe?.setLook(look);closeEditor();},
+  resetView:()=>cafe?.resetView(),
+});
+drawIcons();
+function openEditor(){
+  if(editing||!cafe||switching||placingId)return;editing=true;
+  openDrawer(false);($('.world') as HTMLElement).classList.add('editing');
+  editor.open(look,identity.name,shop.hats);cafe.enterEditor();
+}
+function closeEditor(){
+  if(!editing)return;editing=false;($('.world') as HTMLElement).classList.remove('editing');
+  editor.close();cafe?.exitEditor();($('#identity-chip') as HTMLElement).focus();// never leave focus inside the hidden sheet
+}
+$('#identity-chip').onclick=openEditor;($('#identity-chip') as HTMLElement).setAttribute('aria-label','Mon personnage');
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
-  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:{...look,hat:shop.hat}});builtFurniture=JSON.stringify(shop.placed);
+  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
   drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
 }
@@ -186,7 +206,7 @@ function abandonHome(){
   maybeReady();
 }
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
-  if(b.dataset.room===room||switching)return;switching=true;
+  if(b.dataset.room===room||switching||editing)return;switching=true;
   try{
     const r=b.getBoundingClientRect(),next=b.dataset.room as 'public'|'private',home=next==='private';
     await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}});
@@ -198,6 +218,7 @@ function onSceneState(state: SceneState){
     if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
       h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.type==='daily'?' · chaque jour':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
+    if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
     if(state.hotspot==='timer')$('#settings').click();
     if(state.hotspot==='shop')openDrawer(true,'shop');
@@ -218,9 +239,9 @@ let drawerTab='tasks';
 function showTab(tab: string){drawerTab=tab;document.querySelectorAll('[data-tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
 function openDrawer(open=true,tab=drawerTab){$('#tasks-drawer').classList.toggle('open',open);$('#tasks-drawer').setAttribute('aria-hidden',String(!open));$('#open-tasks').setAttribute('aria-expanded',String(open));showTab(open?tab:drawerTab);if(open&&tab==='tasks')setTimeout(()=>$('#task-text').focus(),250);}
 document.querySelectorAll('[data-tab]').forEach((b: any)=>b.onclick=()=>showTab(b.dataset.tab));
-$('#open-tasks').onclick=()=>openDrawer(!$('#tasks-drawer').classList.contains('open'));
+$('#open-tasks').onclick=()=>{if(!editing)openDrawer(!$('#tasks-drawer').classList.contains('open'));};
 $('.drawer-close').onclick=()=>openDrawer(false);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#tasks-drawer').classList.contains('open'))openDrawer(false);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!editing&&$('#tasks-drawer').classList.contains('open'))openDrawer(false);});
 document.querySelectorAll('.close-dialog').forEach((b: any)=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',(e: any)=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
 
@@ -243,13 +264,13 @@ $('#tab-shop').addEventListener('click',(e: Event)=>{
   if(d.buy)net.socket.emit('shop:buy',{userId:identity.userId,itemId:d.buy});
   else if(d.buyFurniture)net.socket.emit('furniture:buy',{userId:identity.userId,itemId:d.buyFurniture});
   else if(d.hat){const hatId=shop.hat===d.hat?null:d.hat;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId});
-    shop.hat=hatId;cafe?.setHat(shop.hat);renderShop();}// the server answers `player-hat` to the others only, so we apply it here
+    shop.hat=hatId;look={...look,hat:hatId};saveLook();cafe?.setLook(look);renderShop();}// the server answers `player-hat` to the others only, so we apply it here
   else if(d.place||d.move)startPlacing(d.place||d.move!);
   else if(d.unplace)net.socket.emit('furniture:toggle-place',{userId:identity.userId,itemId:d.unplace});
 });
 // Placement: the room shows its free tiles, you click one, then confirm. Moving a piece starts from where it stands.
 function startPlacing(id:string){
-  if(room!=='private'||!cafe)return;placingId=id;placingCell=null;openDrawer(false);
+  if(room!=='private'||!cafe||editing)return;placingId=id;placingCell=null;openDrawer(false);
   $('#place-text').innerHTML=`Clique une case pour ${shop.placed[id]?'déplacer':'poser'} <strong>${shopItem(id)!.emoji} ${shopItem(id)!.name}</strong>`;($('#place-ok') as HTMLButtonElement).disabled=true;($('#place-bar') as HTMLElement).hidden=false;drawIcons();
   cafe.startPlacing(id,shop.placed[id]??null,takenCells(shop,id));
 }
@@ -303,7 +324,7 @@ function bindServerEvents(){
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
     if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}
-    cafe?.setHat(shop.hat);renderShop();});
+    look=loadLook(look,identity.color,shop.hats);look={...look,hat:shop.hat};saveLook();cafe?.setLook(look);renderShop();});
   s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===itemId))wearNext=itemId;});
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
   s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();const now=JSON.stringify(shop.placed);
