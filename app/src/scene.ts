@@ -1,12 +1,10 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { createNavigator } from './navigation.ts';
 import { GRID, footprint, cellsOf } from './shop.ts';
 import type { Cell } from './shop.ts';
-
-const C={cream:'#f4e4c9',wood:'#bd8356',edge:'#905e3d',oak:'#d9aa72',sage:'#819478',dark:'#384d43',terra:'#c9764f',peach:'#e5a27a',white:'#fff4df',gold:'#d2a754',soil:'#594438'};
+import { C, createPrimitives } from './primitives.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
@@ -22,14 +20,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const W=room==='private'?12:24,D=room==='private'?10:20,HW=W/2,HD=D/2;// the public café is 24x20; your own room is a cosy 12x10
   let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
   const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
+  const P=createPrimitives(()=>root,materials);const {mat,mesh,box,cyl,ball,group}=P;
   function hotspot(object: any,id: string,title: string,sub: string){object.userData.keep=true;object.userData.hotspot={id,title,sub};hotspots.push(object);return object;}
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function mat(color: any,extra: any={}): any {if(Object.keys(extra).length)return new THREE.MeshStandardMaterial({color,roughness:.82,...extra});if(!materials.has(color))materials.set(color,new THREE.MeshStandardMaterial({color,roughness:.82}));return materials.get(color);}
-  function mesh(geo: any,color: any,x: number,y: number,z: number,parent: any=root,extra: any={}): any {const m=new THREE.Mesh(geo,typeof color==='string'?mat(color,extra):color);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-  function box(w: number,h: number,d: number,color: any,x: number,y: number,z: number,r=.04,parent: any=root): any {return mesh(r?new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/3,h/3,d/3)):new THREE.BoxGeometry(w,h,d),color,x,y,z,parent);}
-  function cyl(rt: number,rb: number,h: number,color: any,x: number,y: number,z: number,parent: any=root,n=16): any {return mesh(new THREE.CylinderGeometry(rt,rb,h,n),color,x,y,z,parent);}
-  function ball(r: number,color: any,x: number,y: number,z: number,parent: any=root,sx=1,sy=1,sz=1): any {const m=mesh(new THREE.SphereGeometry(r,12,8),color,x,y,z,parent);m.scale.set(sx,sy,sz);return m;}
-  function group(x: number,y: number,z: number,rot=0): any {const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=rot;root.add(g);return g;}
   const rootOrigin=()=>{root.updateWorldMatrix(true,false);return new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);};
   let previewing=false;// while a ghost piece is being built, nothing is registered for gameplay
   function obstacle(x: number,z: number,w: number,d: number){if(previewing)return;const o=rootOrigin();obstacles.push({x:x+o.x,z:z+o.z,w,d});}
