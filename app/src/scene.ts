@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { createNavigator } from './navigation.ts';
 import { GRID, footprint, cellsOf } from './shop.ts';
 import type { Cell } from './shop.ts';
@@ -14,13 +15,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
   renderer.domElement.setAttribute('aria-label','Café en 3D : cliquer au sol pour marcher, glisser pour déplacer la vue, molette pour zoomer');
   renderer.domElement.tabIndex=0;container.append(renderer.domElement);
   const camera=new THREE.OrthographicCamera(-10,10,10,-10,.1,100);
   const W=room==='private'?12:24,D=room==='private'?10:20,HW=W/2,HD=D/2;// the public café is 24x20; your own room is a cosy 12x10
   let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
-  const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
+  const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
   function hotspot(object: any,id: string,title: string,sub: string){object.userData.keep=true;object.userData.hotspot={id,title,sub};hotspots.push(object);return object;}
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function mat(color: any,extra: any={}): any {if(Object.keys(extra).length)return new THREE.MeshStandardMaterial({color,roughness:.82,...extra});if(!materials.has(color))materials.set(color,new THREE.MeshStandardMaterial({color,roughness:.82}));return materials.get(color);}
@@ -70,21 +71,21 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function book(x: number,y: number,z: number,w=.36,color: any=C.sage,parent: any=root){box(w,.065,.3,color,x,y,z,.014,parent);box(w-.025,.033,.29,C.cream,x,y+.003,z+.009,.002,parent);}
   function chair(x: number,z: number,rot=0,color: any=C.sage){
     const g=group(x,0,z,rot);box(.66,.14,.66,color,0,.65,0,.08,g);box(.66,.56,.13,color,0,.98,-.29,.09,g);
-    for(const a of [-1,1])for(const b of [-1,1])box(.065,.61,.065,C.edge,a*.23,.31,b*.22,.014,g);
+    for(const a of [-1,1])for(const b of [-1,1])box(.065,.61,.065,TRIM,a*.23,.31,b*.22,.014,g);
     obstacle(x,z,.65,.65);shadow(x,z,.43,.4);seat(x,z,.72,rot,g);return g;
   }
   function sofa(x: number,z: number,rot=0){
     const g=group(x,0,z,rot);
-    box(1.15,.34,3.33,C.edge,0,.30,0,.06,g);box(.25,1.05,3.45,C.sage,-.48,.94,0,.12,g);box(1.12,.3,3.14,C.sage,.03,.64,0,.12,g);
-    for(const dz of [-1.58,1.58])box(1.19,.6,.22,C.sage,.02,.81,dz,.09,g);
-    for(const dz of [-.90,.85]){const pillow=box(.23,.53,.59,dz<0?C.peach:C.cream,-.23,1.0,dz,.1,g);pillow.rotation.z=-.18;}
+    box(1.15,.34,3.33,TRIM,0,.30,0,.06,g);box(.25,1.05,3.45,FABRIC,-.48,.94,0,.12,g);box(1.12,.3,3.14,FABRIC,.03,.64,0,.12,g);
+    for(const dz of [-1.58,1.58])box(1.19,.6,.22,FABRIC,.02,.81,dz,.09,g);
+    for(const dz of [-.90,.85]){const pillow=box(.23,.53,.59,dz<0?PEACH:CREAM,-.23,1.0,dz,.1,g);pillow.rotation.z=-.18;}
     const c=Math.cos(rot),sn=Math.sin(rot);obstacle(x,z,rot?3.46:1.2,rot?1.2:3.46);
     for(const dz of [-.85,.85])seat(x+.1*c+dz*sn,z-.1*sn+dz*c,.79,rot+Math.PI/2,g);
     return g;
   }
   function rug(x: number,z: number,rot=0){const g=group(x,0,z,rot);box(2.65,.022,3.63,'#d6a574',0,.062,0,.15,g);for(let i=0;i<8;i++)box(.018,.005,3.42,'#e8c697',-1.15+i*.33,.076,0,0,g);return g;}
   function coffeeTable(x: number,z: number,rot=0){
-    const g=group(x,0,z,rot);box(.82,.13,1.46,C.oak,0,.58,0,.13,g);for(const dz of [-.5,.5])for(const dx of [-.27,.27])box(.065,.5,.065,C.edge,dx,.29,dz,.015,g);
+    const g=group(x,0,z,rot);box(.82,.13,1.46,OAK,0,.58,0,.13,g);for(const dz of [-.5,.5])for(const dx of [-.27,.27])box(.065,.5,.065,TRIM,dx,.29,dz,.015,g);
     obstacle(x,z,rot?1.5:.85,rot?.85:1.5);mug(.04,.66,-.35,C.white,g);book(0,.68,.25,.43,C.terra,g);g.updateWorldMatrix(true,false);const w=new THREE.Vector3(.2,.66,.62).applyMatrix4(g.matrixWorld);taskSpots.push(w);return g;
   }
   function bookcase(x: number,z: number,rot=0){
@@ -101,9 +102,10 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function backWindow(x: number){// tall window in the back wall with the same soft landscape as the side one
     box(3.55,2.3,.12,C.edge,x,2.08,-HD+.09,.04);box(3.33,2.10,.08,'#bed1be',x,2.08,-HD+.175,.01);box(3.12,1.9,.025,windowGlow,x,2.1,-HD+.23,0);
     for(let i=0;i<3;i++)box(.065,2.17,.1,C.cream,x-1.6+i*1.6,2.08,-HD+.29,.008);box(3.25,.065,.1,C.cream,x,2.12,-HD+.30,.008);box(3.65,.13,.42,C.oak,x,.94,-HD+.28,.04);
+    windowLight(x,2.1,-HD+.36,3.12,1.9,[x,1.1,-HD+4]);
   }
-  function lamp(x: number,z: number){cyl(.22,.26,.03,C.dark,x,.02,z);cyl(.02,.02,1.7,C.edge,x,.87,z);cyl(.32,.42,.42,C.terra,x,1.75,z,root,24);cyl(.3,.3,.02,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.6}),x,1.55,z);if(!previewing){const l=new THREE.PointLight('#ffca80',1.2,4,2);l.position.set(x,1.5,z);root.add(l);pendants.push(l);}obstacle(x,z,.5,.5);}
-  function squareTable(x: number,z: number){box(.9,.08,.9,C.oak,x,1.0,z,.03);cyl(.07,.1,.95,C.edge,x,.5,z);cyl(.32,.36,.06,C.edge,x,.04,z);obstacle(x,z,.95,.95);shadow(x,z,.55,.5);taskSpot(x+.2,1.06,z-.22);}
+  function lamp(x: number,z: number){cyl(.22,.26,.03,C.dark,x,.02,z);cyl(.02,.02,1.7,C.edge,x,.87,z);cyl(.32,.42,.42,SHADE,x,1.75,z,root,24);cyl(.3,.3,.02,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.6}),x,1.55,z);if(!previewing)pool(x,1.5,z,root);obstacle(x,z,.5,.5);}
+  function squareTable(x: number,z: number){box(.9,.08,.9,OAK,x,1.0,z,.03);cyl(.07,.1,.95,TRIM,x,.5,z);cyl(.32,.36,.06,TRIM,x,.04,z);obstacle(x,z,.95,.95);shadow(x,z,.55,.5);taskSpot(x+.2,1.06,z-.22);}
   // Your room is a grid of floor tiles; a piece sits centred on its footprint.
   const cellCentre=(id: string,{c,r}: Cell): [number,number]=>{const f=footprint(id);return [-HW+c+f.w/2,-HD+r+f.d/2];};
   const furnitureObstacles: Record<string, number[]>={};// obstacle indices per placed piece, so a piece being moved does not block itself
@@ -130,22 +132,34 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     buildPiece(id,x,z,Math.atan2(-x,-z));furnitureObstacles[id]=Array.from({length:obstacles.length-before},(_,i)=>before+i);
   }
   function roundTable(x: number,z: number){
-    cyl(.76,.76,.14,C.oak,x,1.03,z,root,32);cyl(.095,.14,.96,C.edge,x,.48,z);
-    cyl(.4,.48,.10,C.edge,x,.07,z);shadow(x,z,.91,.8);obstacle(x,z,1.48,1.48);
+    cyl(.76,.76,.14,OAK,x,1.03,z,root,32);cyl(.095,.14,.96,TRIM,x,.48,z);
+    cyl(.4,.48,.10,TRIM,x,.07,z);shadow(x,z,.91,.8);obstacle(x,z,1.48,1.48);
     mug(x+.28,1.11,z-.12,C.white,root,true);cyl(.16,.11,.24,C.terra,x-.29,1.21,z-.15);ball(.17,C.sage,x-.29,1.42,z-.15,root,1,.9,1);
     book(x-.11,1.15,z+.30,.43,C.sage);taskSpot(x+.3,1.12,z+.3);
   }
 
-  scene.add(new THREE.HemisphereLight('#fff5dc','#b3bca4',2.6));
-  const sun=new THREE.DirectionalLight('#ffe0ae',3.2);sun.position.set(-3,10,5);sun.castShadow=true;
+  RectAreaLightUniformsLib.init();// RectAreaLight is unlit garbage without its LTC tables
+  const hemi=new THREE.HemisphereLight('#fff5dc','#a8b294',1.2);scene.add(hemi);
+  const sun=new THREE.DirectionalLight('#ffd08f',2.2);sun.position.set(-3,10,5);sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,near:.5,far:50});sun.shadow.normalBias=.035;sun.shadow.bias=-.00015;sun.shadow.radius=4;scene.add(sun);
-  const fill=new THREE.DirectionalLight('#f9f4e8',1.1);fill.position.set(9,6,-3);scene.add(fill);
+  const fill=new THREE.DirectionalLight('#dfe8f4',.5);fill.position.set(9,6,-3);scene.add(fill);
+  // Finishes shared by every piece of a kind, so baking still merges them into one mesh each.
+  const FLOOR=['#d7b48d','#d9b892','#d4ae87','#debc97'].map(c=>mat(c,{roughness:.95})),OAK=mat(C.oak,{roughness:.6}),TRIM=mat(C.edge,{roughness:.6}),FABRIC=mat(C.sage,{roughness:.9}),PEACH=mat(C.peach,{roughness:.9}),CREAM=mat(C.cream,{roughness:.9}),SHADE=mat(C.terra,{roughness:.45,metalness:.2});
+  // A lamp's warm halo plus the soft circle it drops on the floor.
+  function pool(x: number,y: number,z: number,parent: any,shadows=false){
+    const p=new THREE.PointLight('#ffca80',11,6,2);p.position.set(x,y,z);parent.add(p);pendants.push(p);
+    const s=new THREE.SpotLight('#ffb86b',26,y+2.6,1.0,.6,2);s.position.set(x,y,z);s.target.position.set(x,0,z);parent.add(s,s.target);
+    if(shadows){s.castShadow=true;s.shadow.mapSize.set(1024,1024);s.shadow.bias=-.0009;s.shadow.normalBias=.03;}
+    pendants.push(s);
+  }
+  function windowLight(x: number,y: number,z: number,w: number,h: number,lookAt: [number,number,number]){
+    const l=new THREE.RectAreaLight('#eaf1ff',3.6,w,h);l.position.set(x,y,z);l.lookAt(...lookAt);scene.add(l);windows.push(l);
+  }
   // A freestanding diorama; the front and right sides remain open.
   box(W+.35,.38,D+.35,C.edge,0,-.24,0,.12);
   box(W+.25,.20,D+.25,C.oak,0,-.05,0,.08);
   for(let iz=0;iz<D;iz++)for(let ix=0;ix<W;ix++) {
-    const colors=['#d7b48d','#d9b892','#d4ae87','#debc97'];
-    box(.98,.045,.98,colors[(ix*3+iz*7)%4],ix-HW+.5,.025,iz-HD+.5,.015);
+    box(.98,.045,.98,FLOOR[(ix*3+iz*7)%4],ix-HW+.5,.025,iz-HD+.5,.015);
   }
   box(W+.28,3.85,.20,C.cream,0,1.93,-HD-.07,.035);
   box(.20,3.85,D+.28,'#ecd8b8',-HW-.07,1.93,0,.035);
@@ -169,6 +183,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   for(let i=0;i<3;i++)box(.1,2.17,.065,C.cream,-5.71,2.08,-3.3+i*1.6,.008);
   box(.1,.065,3.25,C.cream,-5.70,2.12,-1.7,.008);
   box(.42,.13,3.65,C.oak,-5.72,.94,-1.7,.04);
+  windowLight(-HW+.4,2.1,-HD+3.3,3.12,1.9,[-HW+4,1.1,-HD+3.3]);// same pane, but the café group is offset so this one is placed in world space
   plant(-5.63,-2.85,.48,1.02);plant(-5.63,-.6,.56,1.02);
   // A low wall panel with vertical timber slats behind the sofa.
   box(.10,1.0,3.8,C.sage,-5.91,.6,2.75,.02);
@@ -228,8 +243,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Two café tables, plus a shared desk with a laptop.
   roundTable(-1.3,-.1);chair(-2.42,-.1,Math.PI/2,C.terra);chair(-.19,-.1,-Math.PI/2,C.sage);
   roundTable(.30,3.02);chair(-.78,3.15,Math.PI/2,C.sage);chair(1.4,3.02,-Math.PI/2,C.terra);
-  box(1.6,.16,2.45,C.oak,3.81,1.05,.46,.09);taskSpot(4.3,1.14,-.3);taskSpot(3.4,1.14,1.3);
-  for(const x of [3.22,4.40])for(const z of [-.50,1.42])box(.10,.98,.10,C.edge,x,.52,z,.02);
+  box(1.6,.16,2.45,OAK,3.81,1.05,.46,.09);taskSpot(4.3,1.14,-.3);taskSpot(3.4,1.14,1.3);
+  for(const x of [3.22,4.40])for(const z of [-.50,1.42])box(.10,.98,.10,TRIM,x,.52,z,.02);
   obstacle(3.81,.46,1.64,2.5);shadow(3.81,.46,1.0,1.45);
   chair(2.49,-.21,Math.PI/2,C.terra);chair(2.49,1.17,Math.PI/2,C.sage);
   chair(5.03,-.21,-Math.PI/2,C.sage);chair(5.03,1.17,-Math.PI/2,C.terra);
@@ -246,9 +261,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Two pendant lamps. Fine cords preserve the low-poly silhouette.
   for(const x of [-1.3,3.7]){
     cyl(.014,.014,.9,C.edge,x,3.45,.2);
-    cyl(.18,.43,.32,C.terra,x,2.92,.2,root,24);
+    cyl(.18,.43,.32,SHADE,x,2.92,.2,root,24);
     cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,.2);
-    const light=new THREE.PointLight('#ffca80',2,5,2);light.position.set(x,2.6,.2);root.add(light);pendants.push(light);
+    pool(x,2.6,.2,root,true);// the two lamps over the tables are the only ones in the café that drop a shadow
   }
 
   // --- The rest of the bigger room, in world coordinates. ---
@@ -269,7 +284,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   plant(-11.3,9.3,1.35);obstacle(-11.3,9.3,.75,.75);plant(-11.3,1.0,1.1);obstacle(-11.3,1.0,.7,.7);
   label('petits matins',2.1,.62,-HW+.11,2.95,5.2,{ry:Math.PI/2,bg:'#ecd8b8',color:C.edge,size:145});
   // Middle and front-right: a communal table, two more café tables and the entrance.
-  box(4.4,.16,1.4,C.oak,5.6,1.05,2.6,.09);for(const x of [4.0,6.2,7.4])taskSpot(x,1.14,2.35);for(const x of [3.6,7.6])for(const z of [2.05,3.15])box(.10,.98,.10,C.edge,x,.52,z,.02);
+  box(4.4,.16,1.4,OAK,5.6,1.05,2.6,.09);for(const x of [4.0,6.2,7.4])taskSpot(x,1.14,2.35);for(const x of [3.6,7.6])for(const z of [2.05,3.15])box(.10,.98,.10,TRIM,x,.52,z,.02);
   obstacle(5.6,2.6,4.45,1.45);shadow(5.6,2.6,2.3,.9);
   for(const x of [4.2,5.6,7.0]){chair(x,1.45,0,x===5.6?C.terra:C.sage);chair(x,3.75,Math.PI,x===5.6?C.sage:C.terra);}
   mug(4.3,1.15,2.3,C.terra,root,true);mug(6.9,1.15,2.9,C.sage);book(5.5,1.17,2.9,.46,C.sage);cyl(.16,.11,.24,C.terra,5.7,1.25,2.3);ball(.17,C.sage,5.7,1.46,2.3,root,1,.9,1);
@@ -280,8 +295,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Little welcome mat at the open entrance.
   box(1.5,.022,.68,C.sage,7.0,.061,9.5,.08);
   for(const [x,z] of [[6.2,-6.5],[5.6,2.6],[-10.2,5.2],[1.0,6.6]]){
-    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,C.terra,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
-    const light=new THREE.PointLight('#ffca80',2,5,2);light.position.set(x,2.6,z);scene.add(light);pendants.push(light);
+    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
+    pool(x,2.6,z,scene);
   }
   } else {
   // --- Your own room: a quiet corner with a desk, a small sofa and space left for the furniture you will buy. ---
@@ -289,7 +304,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   box(.10,1.0,6.4,C.sage,-HW+.09,.6,1.2,.02);for(let i=0;i<27;i++)box(.06,.91,.042,'#6f846b',-HW+.18,.59,-1.9+i*.235,.01);
   label('chez moi',2.1,.62,-HW+.11,2.95,1.2,{ry:Math.PI/2,bg:'#ecd8b8',color:C.edge,size:145});
   // desk against the back wall, with a laptop, a mug and a lamp
-  hotspot(box(2.2,.12,.9,C.oak,2.6,1.02,-HD+.75,.05),'shop','Aménager','boutique et mobilier de ta pièce');for(const x of [1.65,3.55])for(const z of [-HD+.4,-HD+1.1])box(.08,.96,.08,C.edge,x,.5,z,.015);
+  hotspot(box(2.2,.12,.9,OAK,2.6,1.02,-HD+.75,.05),'shop','Aménager','boutique et mobilier de ta pièce');for(const x of [1.65,3.55])for(const z of [-HD+.4,-HD+1.1])box(.08,.96,.08,TRIM,x,.5,z,.015);
   obstacle(2.6,-HD+.75,2.25,.95);shadow(2.6,-HD+.75,1.3,.6);taskSpot(1.8,1.1,-HD+.55);
   const laptop=group(2.9,1.08,-HD+.7,Math.PI);box(.65,.035,.46,'#c2baa8',0,0,0,.025,laptop);const screen=box(.65,.43,.035,C.dark,0,.215,-.21,.025,laptop);screen.rotation.x=-.18;const display=box(.57,.34,.01,'#c0d1b5',0,.215,-.184,.012,laptop);display.rotation.x=-.18;
   mug(2.05,1.08,-HD+.95,C.terra);book(3.5,1.1,-HD+1.0,.4,C.sage);lamp(4.1,-HD+.55);
@@ -300,8 +315,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   box(1.5,.022,.68,C.sage,3.0,.061,4.5,.08);// welcome mat
   for(const [id,slot] of Object.entries(furniture))placeFurniture(id,slot);// what you bought and put here
   for(const [x,z] of [[-3.6,-1.4],[2.6,1.2]]){
-    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,C.terra,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
-    const light=new THREE.PointLight('#ffca80',2,5,2);light.position.set(x,2.6,z);scene.add(light);pendants.push(light);
+    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
+    pool(x,2.6,z,scene,true);// both pendants at home are over the sofa and the desk, so both cast
   }
   }
 
@@ -598,7 +613,16 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(moves[e.key]){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
   });
   let evening=false;
-  function toggleLight(){evening=!evening;sun.intensity=evening?1.1:3.2;fill.intensity=evening?.6:1.1;sun.color.set(evening?'#ffa26e':'#ffe0ae');pendants.forEach(l=>l.intensity=evening?5:2);return evening;}
+  const day=[...pendants,...windows,sun,fill,hemi].map(l=>l.intensity);// the daylight values, captured once so toggling back is exact
+  function toggleLight(){
+    evening=!evening;const n=pendants.length;
+    pendants.forEach((l,i)=>l.intensity=day[i]*(evening?3:1));
+    windows.forEach((l,i)=>l.intensity=evening?0:day[n+i]);
+    sun.intensity=evening?.35:day[day.length-3];sun.color.set(evening?'#ff8c4c':'#ffd08f');
+    fill.intensity=evening?.15:day[day.length-2];
+    hemi.intensity=evening?.35:day[day.length-1];hemi.color.set(evening?'#8ea2cc':'#fff5dc');
+    return evening;
+  }
   let previous=performance.now(),raf: number;
   function animate(now: number){
     const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;
