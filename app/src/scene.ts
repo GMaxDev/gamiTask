@@ -553,12 +553,14 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function clearRemotes(){for(const id of [...remotes.keys()])removeRemote(id);}
   // Chat bubbles and emotes: camera-facing sprites in their own slots, so a message never replaces the focus/pause bubble.
-  interface Bubble{s: THREE.Sprite;until: number;float: boolean;y: number}
+  // Bubbles keep a fixed size on screen (12px text) whatever the zoom: their world scale is recomputed every frame from pixels-per-unit.
+  interface Bubble{s: THREE.Sprite;until: number;float: boolean;bottom: number;px: {w: number;h: number}}
   const bubbles=new Map<string, Bubble>();// key `${id}:chat` / `${id}:emote`, id '' being the player
-  function sprite(c: HTMLCanvasElement,sx: number,sy: number,x: number,y: number){
+  const BUBBLE_TEXT_PX=12;
+  function sprite(c: HTMLCanvasElement,sx: number,sy: number,x: number,y: number,pxW: number,pxH: number){
     const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
     const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
-    s.scale.set(sx,sy,1);s.position.set(x,y,0);s.raycast=()=>{};return s;// never in the way of a click on the room
+    s.scale.set(sx,sy,1);s.position.set(x,y,0);s.raycast=()=>{};s.userData.px={w:pxW,h:pxH};return s;// never in the way of a click on the room
   }
   function chatBubble(text: string,y: number){
     const t=text.length>60?text.slice(0,59)+'…':text;
@@ -572,17 +574,19 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     ctx.fillStyle='#fffdf6f2';ctx.beginPath();ctx.roundRect((512-w)/2,(128-h)/2,w,h,20);ctx.fill();
     ctx.fillStyle='#4d5b43';ctx.textAlign='center';ctx.textBaseline='middle';
     lines.forEach((l,i)=>ctx.fillText(l,256,64+(i-(lines.length-1)/2)*40,460));
-    return sprite(c,3.2,.8,0,y);
+    const k=BUBBLE_TEXT_PX/34;return sprite(c,3.2,.8,0,y,512*k,128*k);// 34px font on the canvas → 12px on screen
   }
   function emoteBubble(emoji: string,y: number){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=64;c.height=64;
     ctx.font='44px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(emoji,32,36);
-    return sprite(c,.7,.7,-.45,y);
+    return sprite(c,.7,.7,-.45,y,36,36);
   }
   function showBubble(key: string,group: THREE.Object3D,s: THREE.Sprite,life: number,float: boolean){
     const old=bubbles.get(key);if(old)dropSprite(old.s);
-    group.add(s);bubbles.set(key,{s,until:time+life,float,y:s.position.y});
+    group.add(s);bubbles.set(key,{s,until:time+life,float,bottom:s.position.y-s.scale.y/2,px:s.userData.px});
   }
+  const pixelsPerUnit=()=>height*camera.zoom/(camera.top-camera.bottom);
+  function fitBubble(b: Bubble){const ppu=pixelsPerUnit(),w=b.px.w/ppu,h=b.px.h/ppu;b.s.scale.set(w,h,1);b.s.position.y=b.bottom+h/2+(b.float&&!reducedMotion?Math.sin(time*3)*.15:0);}
   function dropBubbles(id: string){for(const key of [`${id}:chat`,`${id}:emote`]){const b=bubbles.get(key);if(b){dropSprite(b.s);bubbles.delete(key);}}}
   function say(id: string,text: string){const r=remotes.get(id);if(r)showBubble(`${id}:chat`,r.p.g,chatBubble(text,2.6),5,false);}
   function sayMe(text: string){showBubble(':chat',avatar,chatBubble(text,2.5),5,false);}
@@ -742,7 +746,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       if(k!==lastCell||(arrived&&lastArrived!==arrived)){lastCell=k;cellListener?.(col,row,arrived);}lastArrived=arrived;}
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
     marker.material.opacity=Math.max(0,marker.material.opacity-dt*.22);
-    for(const [k,b] of bubbles){if(time>b.until){dropSprite(b.s);bubbles.delete(k);continue;}if(b.float)b.s.position.y=b.y+(reducedMotion?0:Math.sin(time*3)*.15);}
+    for(const [k,b] of bubbles){if(time>b.until){dropSprite(b.s);bubbles.delete(k);continue;}fitBubble(b);}
     for(const g of tickets.values()){const b=g.userData.base;g.position.set(b.x,b.y+(reducedMotion?.06:.06+Math.sin(time*1.4+g.userData.phase)*.03),b.z);g.rotation.y=cameraYaw+(reducedMotion?0:Math.sin(time*.8+g.userData.phase)*.08);g.scale.setScalar((g===hovered?1.35:1.2)/Math.sqrt(zoom));
       const {sparks,seeds}=g.userData,pos=sparks.geometry.attributes.position;sparks.material.size=4.5*Math.sqrt(zoom)*Math.min(devicePixelRatio,1.5);
       for(let k=0;k<pos.count;k++){const life=reducedMotion?seeds[k*3+2]:(time*.35+seeds[k*3+2])%1,a=seeds[k*3]*6.28+life*2;pos.setXYZ(k,Math.cos(a)*(.34+seeds[k*3+1]*.2),.05+life*.75,Math.sin(a)*(.28+seeds[k*3+1]*.2));}
