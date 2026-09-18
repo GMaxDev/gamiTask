@@ -165,17 +165,26 @@ async function irisSwap(x: number,y: number,label: string,iconName: string,fn: (
 // Rooms: the server owns them. The click plays the iris and remounts, then `room:info` confirms (or corrects) where we really are.
 let rooms: RoomSummary[]=[];
 const myPrivateRoom=()=>rooms.find(r=>r.isPrivate&&r.ownerId===identity.userId)??null;
+let homeTimer: ReturnType<typeof setTimeout>|undefined;
 function switchServerRoom(next:'public'|'private'){
-  if(next==='public'){pendingHome=false;net.socket.emit('room:switch',{roomId:'ocean'});return;}
+  if(next==='public'){pendingHome=false;clearTimeout(homeTimer);net.socket.emit('room:switch',{roomId:'ocean'});return;}
   const mine=myPrivateRoom();
-  if(mine){pendingHome=false;net.socket.emit('room:switch',{roomId:mine.id});}
-  else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});}
+  if(mine){pendingHome=false;clearTimeout(homeTimer);net.socket.emit('room:switch',{roomId:mine.id});}
+  // a refused creation is silent (guest rule, rate limit, stale row): give up after a few seconds rather than wait forever
+  else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
+    homeTimer=setTimeout(()=>{if(!myPrivateRoom())abandonHome();},4000);}
+}
+function abandonHome(){
+  clearTimeout(homeTimer);pendingHome=false;toast('Ta pièce n’a pas pu être créée.');
+  if(room==='private'&&!(rooms.find(r=>r.id===net.roomId())?.isPrivate??false)){room='public';save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}}
 }
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching)return;switching=true;
-  const r=b.getBoundingClientRect(),next=b.dataset.room as 'public'|'private',home=next==='private';
-  await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}});
-  switchServerRoom(next);toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');switching=false;
+  try{
+    const r=b.getBoundingClientRect(),next=b.dataset.room as 'public'|'private',home=next==='private';
+    await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}});
+    switchServerRoom(next);toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');
+  }finally{switching=false;}
 });
 function onSceneState(state: SceneState){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
@@ -243,7 +252,7 @@ function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#pl
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
 // furniture is part of the baked room, so a change rebuilds your room in place, no iris
-function rearrange(message: string){if(switching)return;try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}toast(message);renderShop();}
+function rearrange(message: string){if(switching)return;try{mountRoom();syncScene();}catch(error){console.error(error);}toast(message);renderShop();}
 let toastQueue=Promise.resolve();
 const later=(fn: () => void,ms: number)=>{toastQueue=toastQueue.then(()=>new Promise<void>(r=>setTimeout(()=>{fn();r();},ms)));};// one toast at a time
 function renderProgress(){
@@ -267,7 +276,7 @@ function bindServerEvents(){
   s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-left',({id})=>cafe?.removeRemote(id));
-  s.on('rooms:list',({rooms:list})=>{rooms=list;if(pendingHome)switchServerRoom('private');});
+  s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(myPrivateRoom()||!homeAsked)switchServerRoom('private');else abandonHome();});
   s.on('room:info',({roomId})=>{if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const isHome=rooms.find(r=>r.id===roomId)?.isPrivate??false;
     if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}}});
