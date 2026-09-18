@@ -131,7 +131,7 @@ function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.tex
 let ready={room:false,tasks:false};
 function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
 async function start(){
-  if(fresh)await askIdentity();
+  if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
   if(room==='private')pendingHome=true;
   net=connect(API_URL,identity,'ocean');
   net.onStatus(s=>{
@@ -148,10 +148,13 @@ let cafe: any,room=load('gamitask.room','public');if(room!=='private')room='publ
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 function saveLook(){save('gamitask.look',look);}
 // Character editor: a sheet over the scene, the café avatar itself is the preview.
-let editing=false;
+let editing=false,previewLook: Look|null=null;// what the sheet is showing, so a scene remount can rebuild it
 const editor=createEditor($('#app') as HTMLElement,{
-  onPreview:l=>cafe?.setLook(l),
-  onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();closeEditor();toast('C’est tout toi. Les autres te verront ainsi à ta prochaine visite.');},
+  onPreview(l){previewLook=l;cafe?.setLook(l);},
+  onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();
+    // the server owns the worn hat: it answers `player-hat` to the others only, and `cosmetics:state` would undo a local-only change
+    if(l.hat!==shop.hat){shop.hat=l.hat;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:l.hat});renderShop();}
+    closeEditor();toast('C’est tout toi. Les autres te verront ainsi à ta prochaine visite.');},
   onExit(){cafe?.setLook(look);closeEditor();},
   resetView:()=>cafe?.resetView(),
 });
@@ -163,15 +166,16 @@ function openEditor(){
 }
 function closeEditor(){
   if(!editing)return;editing=false;($('.world') as HTMLElement).classList.remove('editing');
-  editor.close();cafe?.exitEditor();($('#identity-chip') as HTMLElement).focus();// never leave focus inside the hidden sheet
+  previewLook=null;editor.close();cafe?.exitEditor();($('#identity-chip') as HTMLElement).focus();// never leave focus inside the hidden sheet
 }
 $('#identity-chip').onclick=openEditor;($('#identity-chip') as HTMLElement).setAttribute('aria-label','Mon personnage');
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
-  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look});builtFurniture=JSON.stringify(shop.placed);
+  cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
+  if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
   drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
 }
 // Iris wipe: a neutral veil grows from the button, the new room is built behind it, then the veil shrinks away.
@@ -324,7 +328,7 @@ function bindServerEvents(){
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
     if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}
-    look=loadLook(look,identity.color,shop.hats);look={...look,hat:shop.hat};saveLook();cafe?.setLook(look);renderShop();});
+    look=loadLook(look,identity.color,shop.hats);look={...look,hat:shop.hat};saveLook();if(!editing)cafe?.setLook(look);renderShop();});// mid-edit the sheet owns the avatar: never overwrite the preview
   s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===itemId))wearNext=itemId;});
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
   s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();const now=JSON.stringify(shop.placed);
