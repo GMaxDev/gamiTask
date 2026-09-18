@@ -1,10 +1,13 @@
+/// <reference types="vite/client" />
 import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
-import {CATEGORIES,createTasks,addTask,updateTask,toggleTask,removeTask,pending,dailyReset} from './tasks.ts';
-import {createProgress,completeTask,completePomodoro,levelInfo,ACHIEVEMENTS} from './progress.ts';
-import {HATS,FURNITURE,SETS,createShop,buy,equipHat,place,unplace,takenCells,completeSets,bonuses,item as shopItem} from './shop.ts';
+import {loadIdentity,cleanName,PALETTE} from './identity.ts';
+import {connect,type Net} from './net.ts';
+import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
+import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
+import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import './style.css';
 
 const icons={Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag};
@@ -16,7 +19,7 @@ function load(key: string,fallback: any): any{try{return JSON.parse(localStorage
 function save(key: string,value: any){try{localStorage.setItem(key,JSON.stringify(value));}catch{/* The experience also works without persistent browser storage. */}}
 const today=()=>new Date().toLocaleDateString('sv-SE');
 let timer=createTimer(load('gamitask.timer',{})),stats=load('gamitask.stats',{});
-const shop=createShop(load('gamitask.shop',{}));
+const shop=createShop();// declared here: mountRoom() reads shop.placed / shop.hat before the shop block runs
 let placingId: string|null=null,placingCell: {c: number; r: number}|null=null;
 if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
 stats.sessions=Number.isFinite(stats.sessions)?Math.max(0,stats.sessions):0;stats.minutes=Number.isFinite(stats.minutes)?Math.max(0,stats.minutes):0;
@@ -32,6 +35,7 @@ $('#app').innerHTML=`
           <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
         </button>
+        <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
       <div class="world-bottom"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
@@ -86,8 +90,51 @@ $('#app').innerHTML=`
   </dialog>
   <dialog id="settings-dialog"><form id="settings-form"><div class="dialog-heading"><h2>Ton propre rythme.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div><p>Choisis la durée de tes sessions, en minutes.</p><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></form></dialog>
   <dialog id="help-dialog"><div class="dialog-heading"><h2>Bienvenue au café.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div><p>Ce petit coin est à toi. Prends tes marques.</p><ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul><p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p><button class="primary close-dialog">Je m’installe</button></dialog>
+  <dialog id="identity-dialog"><form id="identity-form" method="dialog"><div class="dialog-heading"><h2>On se présente ?</h2></div>
+    <p>Un pseudo et une couleur, c’est tout ce qu’il faut pour entrer au café.</p>
+    <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
+    <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
+    <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
+  </form></dialog>
+  <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
 `;
 drawIcons();
+// Who you are: kept locally, sent to the server at every `join`.
+const uuid=()=>crypto.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+const {identity,fresh}=loadIdentity(load('gamitask.identity',null),uuid);
+function saveIdentity(){save('gamitask.identity',identity);renderIdentity();}
+function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);}
+function askIdentity():Promise<void>{
+  const dialog=$('#identity-dialog') as HTMLDialogElement,form=$('#identity-form') as HTMLFormElement;
+  (form.elements.namedItem('name') as HTMLInputElement).value=identity.name;
+  for(const r of form.querySelectorAll<HTMLInputElement>('input[name=color]'))r.checked=Number(r.value)===identity.color;
+  dialog.showModal();
+  return new Promise(resolve=>{form.onsubmit=e=>{const name=cleanName((form.elements.namedItem('name') as HTMLInputElement).value);if(!name){e.preventDefault();return;}
+    identity.name=name;identity.color=Number((form.elements.namedItem('color') as RadioNodeList).value);saveIdentity();resolve();};});
+}
+($('#identity-dialog') as HTMLDialogElement).addEventListener('cancel',e=>{if(!identity.name)e.preventDefault();});// no way out of the very first hello
+renderIdentity();
+
+// Connection: the café is unreachable until the server answers, so a veil covers the room in the meantime.
+const API_URL=(import.meta.env.VITE_API_URL as string|undefined)??'http://localhost:3001';
+let net:Net;
+let pendingHome=false;// a saved 'private' room is resolved into a real private room id in Task 12
+const veil=$('#net-veil') as HTMLElement,veilText=$('#net-text') as HTMLElement;
+function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.textContent=text;}
+let ready={room:false,tasks:false};
+function maybeReady(){if(ready.room&&ready.tasks)showVeil(null);}
+async function start(){
+  if(fresh)await askIdentity();
+  if(room==='private')pendingHome=true;
+  net=connect(API_URL,identity,'ocean');
+  net.onStatus(s=>{
+    if(s==='online'){ready={room:false,tasks:false};showVeil('Connexion au café…');}
+    if(s==='offline')showVeil('Le café est injoignable, on réessaie…');
+    if(s==='replaced')showVeil('Le café est ouvert dans un autre onglet.');
+  });
+  bindServerEvents();
+}
+$('#identity-chip').onclick=()=>askIdentity().then(()=>toast('À bientôt sous ce nom. Il sera pris en compte à la prochaine connexion.'));
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
@@ -131,10 +178,11 @@ function onSceneState(state: SceneState){
 try{
   mountRoom();$('.loading')?.remove();
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
+start();// the room is built behind the veil, then the server fills it
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
 $('#light').onclick=()=>{if(!cafe)return;const evening=cafe.toggleLight();$('#light').innerHTML=icon(evening?'moon':'sun')+`<span>${evening?'Douce soirée':'Lumière du jour'}</span>`;$('.world').classList.toggle('evening',evening);drawIcons();};
 $('#help').onclick=()=>$('#help-dialog').showModal();
-$('#progress-chip').onclick=()=>$('#progress-dialog').showModal();
+$('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
 let drawerTab='tasks';
 function showTab(tab: string){drawerTab=tab;document.querySelectorAll('[data-tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
@@ -146,40 +194,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#tasks-drawer').
 document.querySelectorAll('.close-dialog').forEach((b: any)=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',(e: any)=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
 
-// Progression: coins, XP, streak and achievements — a pure model in progress.js, saved locally.
-const progress=createProgress(load('gamitask.progress',{}));
-function saveShop(){save('gamitask.shop',shop);save('gamitask.progress',progress);}
-function renderShop(){
-  const home=room==='private',done=completeSets(shop);
-  $('#shop-coins').textContent=progress.coins;$('#shop-where').textContent=home?'— chez toi':'— à installer chez toi';
-  $('#shop-hats').innerHTML=HATS.map(h=>{const owned=shop.owned.includes(h.id),worn=shop.hat===h.id;return `<li class="${owned?'owned':''}"><span class="shop-emoji">${h.emoji}</span><span class="shop-name">${h.name}<small>${owned?(worn?'Porté':'À toi'):`${h.price} pièces`}</small></span><button data-hat="${h.id}" ${!owned&&progress.coins<h.price?'disabled':''}>${owned?(worn?'Retirer':'Porter'):'Acheter'}</button></li>`;}).join('');
-  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.owned.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set) as any;
-    const action=!owned?`<button data-buy="${f.id}" ${progress.coins<f.price?'disabled':''}>Acheter</button>`:!home?'<small>chez toi</small>':placed?`<button data-move="${f.id}">Déplacer</button><button data-unplace="${f.id}" class="quiet">Ranger</button>`:`<button data-place="${f.id}">Placer</button>`;
-    return `<li class="${owned?'owned':''}"><span class="shop-emoji">${f.emoji}</span><span class="shop-name">${f.name}<small>${owned?(placed?'Installé':'Rangé'):`${f.price} pièces`} · set ${set.emoji}</small></span><span class="shop-actions">${action}</span></li>`;}).join('');
-  $('#shop-sets').innerHTML=SETS.map(s=>{const have=s.items.filter(id=>shop.owned.includes(id)).length,full=done.includes(s);return `<li class="${full?'owned':''}"><span class="shop-emoji">${s.emoji}</span><span class="shop-name">${s.name}<small>${s.desc} · ${have}/${s.items.length}</small></span><span class="set-state">${full?'Actif':''}</span></li>`;}).join('');
-}
-$('#tab-shop').addEventListener('click',(e: any)=>{
-  const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.buy||b.dataset.hat&&!shop.owned.includes(b.dataset.hat)){const it=buy(shop,progress,b.dataset.buy||b.dataset.hat);if(!it){toast('Il te manque quelques pièces.');return;}saveShop();renderProgress();toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===it.id)){equipHat(shop,it.id);saveShop();cafe?.setHat(shop.hat);}renderShop();return;}
-  if(b.dataset.hat){equipHat(shop,shop.hat===b.dataset.hat?null:b.dataset.hat);saveShop();cafe?.setHat(shop.hat);renderShop();return;}
-  if(b.dataset.place||b.dataset.move){startPlacing(b.dataset.place||b.dataset.move);return;}
-  if(b.dataset.unplace){unplace(shop,b.dataset.unplace);saveShop();rearrange('Rangé.');}
-});
+// Progression: coins, XP, streak and achievements — the server owns the rules, the client only renders them.
+const progress=createProgress();
+function renderShop(){/* wired to the server in Task 10 */}
 // Placement: the room shows its free tiles, you click one, then confirm. Moving a piece starts from where it stands.
-function startPlacing(id: string){
-  if(room!=='private'||!cafe)return;placingId=id;placingCell=null;openDrawer(false);
-  $('#place-text').innerHTML=`Clique une case pour ${shop.placed[id]?'déplacer':'poser'} <strong>${shopItem(id)?.emoji} ${shopItem(id)?.name}</strong>`;$('#place-ok').disabled=true;$('#place-bar').hidden=false;drawIcons();
-  cafe.startPlacing(id,shop.placed[id]??null,takenCells(shop,id));
-}
 function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#place-bar').hidden=true;}
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
-$('#place-ok').onclick=()=>{if(!placingId||!placingCell||!place(shop,placingId,placingCell))return;const it=shopItem(placingId) as any;endPlacing();saveShop();rearrange(`${it.emoji} ${it.name} : c’est posé.`);};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
-// furniture is part of the baked room, so a change rebuilds your room behind the iris
-function rearrange(message: string){if(switching)return;try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}toast(message);renderShop();}// furniture changes rebuild the room in place, no iris
+// furniture is part of the baked room, so a change rebuilds your room in place, no iris
+function rearrange(message: string){if(switching)return;try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}toast(message);renderShop();}
 let toastQueue=Promise.resolve();
 const later=(fn: () => void,ms: number)=>{toastQueue=toastQueue.then(()=>new Promise<void>(r=>setTimeout(()=>{fn();r();},ms)));};// one toast at a time
-function celebrate(unlocked: any[]){for(const a of unlocked)later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}
 function renderProgress(){
   const {level,into,span}=levelInfo(progress),pct=Math.round(into/span*100);
   $('#coins').textContent=progress.coins;$('#coins-big').textContent=progress.coins;$('#level-badge').textContent=`Niveau ${level}`;$('#level-big').textContent=`Niveau ${level}`;$('#xp-fill-big').style.width=`${pct}%`;
@@ -188,14 +213,26 @@ function renderProgress(){
   $('#streak').hidden=progress.streak<2;$('#streak-count').textContent=progress.streak;
   $('#achievements-count').textContent=`${progress.achievements.length}/${ACHIEVEMENTS.length}`;
 }
-function rewardTask(t: any){const r=completeTask(progress,bonuses(shop));save('gamitask.progress',progress);renderProgress();toast(`${t.type==='daily'?'Fait pour aujourd’hui.':'C’est fait.'} +${r.coins} pièces.`);celebrate(r.unlocked);}
-function rewardPomodoro(){
-  const r=completePomodoro(progress,Date.now(),bonuses(shop));save('gamitask.progress',progress);renderProgress();
-  toast(`Une petite victoire de plus. +${r.coins} pièces${r.bonus>5?` (série ×${r.streak})`:''}, +${r.xp} XP.`);
-  if(r.levelUp)later(()=>toast(`✨ Niveau ${r.level} ! Le café te va de mieux en mieux.`),2600);
-  celebrate(r.unlocked);
-}
+function rewardPomodoro(){net.socket.emit('pomodoro:complete',{userId:identity.userId});}
 renderProgress();
+// Everything the server says, applied as-is.
+function bindServerEvents(){
+  const s=net.socket;
+  s.on('room-state',()=>{ready.room=true;maybeReady();});// Task 12 extends this handler with the other players
+  s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
+  s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
+  s.on('task:toggled',({taskId,done,coins})=>{const t=taskToggled(tasks,taskId,done);const before=progress.coins;setCoins(progress,coins);renderTasks();renderProgress();syncScene();
+    if(t&&done)toast(`${t.type==='daily'?'Fait pour aujourd’hui.':'C’est fait.'}${coins>before?` +${coins-before} pièces.`:''}`);});
+  s.on('task:updated',({taskId,text,category})=>{taskUpdated(tasks,taskId,text,category);renderTasks();syncScene();});
+  s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
+  s.on('coins:update',({coins})=>{setCoins(progress,coins);renderProgress();renderShop();});
+  s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before)later(()=>toast(`✨ Niveau ${u.level} ! Le café te va de mieux en mieux.`),2600);});
+  s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
+  s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
+  s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
+  s.on('room:full',()=>{showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
+  // cosmetics, furniture and presence handlers are added in Tasks 10 and 12
+}
 
 function persistTimer(){save('gamitask.timer',timer);}
 let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
@@ -231,15 +268,14 @@ $('#settings').onclick=()=>{for(const [key,value] of Object.entries(timer.durati
 $('#settings-form').onsubmit=(e: any)=>{e.preventDefault();for(const key of Object.keys(timer.durations) as (keyof typeof timer.durations)[])timer.durations[key]=Number($('#settings-form').elements[key].value);resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
 setInterval(renderTimer,250);document.addEventListener('visibilitychange',renderTimer);renderTimer();
 
-// Tasks: a pure model in tasks.js, saved locally, mirrored as little order slips in the café.
-const tasks=createTasks(load('gamitask.tasks',{}));
-{const old=load('gamitask.intention',null);if(old?.text?.trim()){const t=addTask(tasks,old.text);if(t&&old.done)t.done=true;}try{localStorage.removeItem('gamitask.intention');}catch{}}
+// Tasks: the server holds the list, the client mirrors it as little order slips in the café.
+const tasks=createTasks();
 let newCategory: string|null=null;
 const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
-function persistTasks(){save('gamitask.tasks',tasks);cafe?.setTasks(pending(tasks));}
+function syncScene(){cafe?.setTasks(pending(tasks));}
 function renderTasks(){
   const list=$('#task-list'),todo=pending(tasks).length;list.innerHTML='';
-  for(const t of [...tasks.list].sort((a,b)=>Number(a.done)-Number(b.done))){
+  for(const t of tasks.list){
     const li=document.createElement('li');li.dataset.id=t.id;li.className=t.done?'done':'';const cat=catOf(t.category);
     li.innerHTML=`<button class="check-button" aria-label="${t.done?'Reprendre':'Terminer'} : ${t.text}" aria-pressed="${t.done}">${icon('check')}</button><button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><span class="task-text" contenteditable="plaintext-only" spellcheck="false">${t.text.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c])}</span>${t.type==='daily'?`<span class="daily-badge" title="Chaque jour">${icon('repeat')}</span>`:''}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
     list.append(li);
@@ -249,19 +285,18 @@ function renderTasks(){
   drawIcons();
 }
 $('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
-$('#task-form').onsubmit=(e: any)=>{e.preventDefault();const t=addTask(tasks,$('#task-text').value,newCategory,$('#task-daily').checked?'daily':'task');if(!t)return;$('#task-text').value='';persistTasks();renderTasks();};
-$('#task-list').addEventListener('click',(e: any)=>{
-  const li=e.target.closest('li');if(!li)return;const id=li.dataset.id;
-  if(e.target.closest('.check-button')){const t=toggleTask(tasks,id);if(t?.done){if(t.rewarded)toast(t.type==='daily'?'Fait pour aujourd’hui. À demain.':'C’est fait. Savoure cette petite victoire.');else{t.rewarded=true;rewardTask(t);}}}
-  else if(e.target.closest('.cat-dot')){const t=tasks.list.find(t=>t.id===id);const i=CATEGORIES.findIndex(c=>c.id===t?.category);updateTask(tasks,id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
-  else if(e.target.closest('.remove-task'))removeTask(tasks,id);
-  else return;
-  persistTasks();renderTasks();
+$('#task-form').onsubmit=(e: any)=>{e.preventDefault();const text=cleanText(($('#task-text') as HTMLInputElement).value);if(!text)return;
+  net.socket.emit('task:add',{userId:identity.userId,text,category:newCategory,type:($('#task-daily') as HTMLInputElement).checked?'daily':'task'});($('#task-text') as HTMLInputElement).value='';};
+$('#task-list').addEventListener('click',(e: Event)=>{
+  const li=(e.target as HTMLElement).closest('li');if(!li)return;const id=li.dataset.id!;const target=e.target as HTMLElement;
+  if(target.closest('.check-button'))net.socket.emit('task:toggle',{userId:identity.userId,taskId:id});
+  else if(target.closest('.cat-dot')){const t=tasks.list.find(t=>t.id===id);if(!t)return;const i=CATEGORIES.findIndex(c=>c.id===t.category);net.socket.emit('task:update',{userId:identity.userId,taskId:id,text:t.text,category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
+  else if(target.closest('.remove-task'))net.socket.emit('task:delete',{userId:identity.userId,taskId:id});
 });
 $('#task-list').addEventListener('keydown',(e: any)=>{if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}});
-$('#task-list').addEventListener('focusout',(e: any)=>{if(!e.target.matches('.task-text'))return;const id=e.target.closest('li').dataset.id;const t=updateTask(tasks,id,{text:e.target.textContent});if(t)e.target.textContent=t.text;persistTasks();});
-setInterval(()=>{const before=tasks.lastReset;dailyReset(tasks);if(tasks.lastReset!==before){persistTasks();renderTasks();}},60000);// midnight rollover while the tab stays open
-persistTasks();renderTasks();
+$('#task-list').addEventListener('focusout',(e: Event)=>{const el=e.target as HTMLElement;if(!el.matches('.task-text'))return;const id=el.closest('li')!.dataset.id!;const t=tasks.list.find(t=>t.id===id);const text=cleanText(el.textContent);
+  if(!t||!text){if(t)el.textContent=t.text;return;}if(text!==t.text)net.socket.emit('task:update',{userId:identity.userId,taskId:id,text,category:t.category});});
+renderTasks();
 
 // Optional generated rain: no remote audio, tracking, or autoplay.
 function ensureAudio(){try{audio??=new (window.AudioContext||(window as any).webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{});return audio;}catch{return null;}}
