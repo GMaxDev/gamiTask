@@ -196,6 +196,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',(e: an
 
 // Progression: coins, XP, streak and achievements — the server owns the rules, the client only renders them.
 const progress=createProgress();
+let wearNext:string|null=null;// a hat just bought, worn as soon as the server confirms we own it
 function renderShop(){
   const home=room==='private',done=completeSets(shop);
   $('#shop-coins').textContent=String(progress.coins);$('#shop-where').textContent=home?'— chez toi':'— à installer chez toi';
@@ -257,8 +258,11 @@ function bindServerEvents(){
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
   s.on('room:full',()=>{showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
-  s.on('cosmetics:state',u=>{setCosmetics(shop,u);cafe?.setHat(shop.hat);renderShop();});
-  s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:itemId});shop.hat=itemId;cafe?.setHat(itemId);});
+  // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
+  s.on('cosmetics:state',u=>{setCosmetics(shop,u);
+    if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}
+    cafe?.setHat(shop.hat);renderShop();});
+  s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===itemId))wearNext=itemId;});
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
   s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();if(room==='private'&&JSON.stringify(shop.placed)!==before)rearrange('C’est posé.');});
   // presence handlers are added in Task 12
