@@ -339,8 +339,10 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   scene.traverse((o: any)=>{if(o.isLight)o.layers.enable(AVATAR_LAYER);});// else the sharp avatar pass draws it unlit
 
   const player: Rig=buildAvatar(P,0,room==='private'?2:2.5,look),avatar=player.g;
-  function setHat(id: string|null){applyLook(P,player,{...player.look,hat:id});}
-  function setLook(l: Look){applyLook(P,player,l);}
+  // applyLook rebuilds the skull, hair and hat, and the new meshes start on layer 0 only
+  function reskin(l: Look){applyLook(P,player,l);if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
+  function setHat(id: string|null){reskin({...player.look,hat:id});}
+  function setLook(l: Look){reskin(l);}
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
   function nameTag(text: string,color: number){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=256;c.height=64;
@@ -617,9 +619,10 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   const observer=new ResizeObserver(resize);observer.observe(container);resize();
   renderer.compile(blur.scene,blur.cam);// compile the blur shader while the room mounts, so opening the editor does not hitch
-  function setZoom(value: number){zoom=THREE.MathUtils.clamp(value,.72,4);camera.zoom=zoom;camera.updateProjectionMatrix();onState?.({zoom,follow});}
-  function recenter(){follow=true;pan.set(0,0,0);setZoom(1);onState?.({zoom,follow});}
-  function setFollow(){follow=!follow;if(follow)pan.set(0,0,0);onState?.({zoom,follow});}
+  // The editor owns the camera; the view buttons must not fight editAnim. setZoom covers zoomIn, zoomOut and the wheel.
+  function setZoom(value: number){if(mode==='edit')return;zoom=THREE.MathUtils.clamp(value,.72,4);camera.zoom=zoom;camera.updateProjectionMatrix();onState?.({zoom,follow});}
+  function recenter(){if(mode==='edit')return;follow=true;pan.set(0,0,0);setZoom(1);onState?.({zoom,follow});}
+  function setFollow(){if(mode==='edit')return;follow=!follow;if(follow)pan.set(0,0,0);onState?.({zoom,follow});}
   function point(e: any){const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/width*2-1,-(e.clientY-rect.top)/height*2+1);ray.setFromCamera(pointer,camera);const out=new THREE.Vector3();return ray.ray.intersectPlane(floor,out)?out:null;}
   function moveTo(target: any,seat: any=null){
     if(!me.go(target,seat))return;glow(null);
@@ -646,7 +649,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   });
   renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
   renderer.domElement.addEventListener('pointerleave',()=>{lastPointer=null;hoverTicket(null);});
-  renderer.domElement.addEventListener('wheel',(e: WheelEvent)=>{e.preventDefault();if(mode==='edit')return;setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
+  renderer.domElement.addEventListener('wheel',(e: WheelEvent)=>{e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
   renderer.domElement.addEventListener('keydown',(e: KeyboardEvent)=>{
     const moves: Record<string, [number,number]>={ArrowUp:[0,-.75],ArrowDown:[0,.75],ArrowLeft:[-.75,0],ArrowRight:[.75,0]};
     if(moves[e.key]&&mode==='walk'){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
