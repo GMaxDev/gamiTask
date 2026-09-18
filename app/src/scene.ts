@@ -13,8 +13,13 @@ export interface RemoteInfo { name: string; color: number; hat: string | null; c
 export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={},look}: {room?: 'public'|'private'; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
+  const BASE_PR=Math.min(window.devicePixelRatio,1.25);let pixelRatio=BASE_PR;// adaptive: never above the base, never below .75
+  renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  // Shadows are rendered on demand. `stir` counts the frames still owed one; two frames cover a mover's last step and the pose it settles into.
+  renderer.shadowMap.autoUpdate=false;let stir=3;
+  const restage=()=>{stir=Math.max(stir,2);};
+  const stage=()=>{if(stir>0){stir--;renderer.shadowMap.needsUpdate=true;}};
   renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
   renderer.domElement.setAttribute('aria-label','Café en 3D : cliquer au sol pour marcher, glisser pour déplacer la vue, molette pour zoomer');
   renderer.domElement.tabIndex=0;container.append(renderer.domElement);
@@ -125,7 +130,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function placeFurniture(id: string,cell: Cell){
     if(!cell)return;const [x,z]=cellCentre(id,cell),before=obstacles.length;
-    buildPiece(id,x,z,Math.atan2(-x,-z));furnitureObstacles[id]=Array.from({length:obstacles.length-before},(_,i)=>before+i);
+    buildPiece(id,x,z,Math.atan2(-x,-z));restage();furnitureObstacles[id]=Array.from({length:obstacles.length-before},(_,i)=>before+i);
   }
   function roundTable(x: number,z: number){
     cyl(.76,.76,.14,OAK,x,1.03,z,root,32);cyl(.095,.14,.96,TRIM,x,.48,z);
@@ -137,7 +142,15 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   RectAreaLightUniformsLib.init();// RectAreaLight is unlit garbage without its LTC tables
   const hemi=new THREE.HemisphereLight('#fff5dc','#a8b294',1.2);scene.add(hemi);
   const sun=new THREE.DirectionalLight('#ffd08f',2.2);sun.position.set(-3,10,5);sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,near:.5,far:50});sun.shadow.normalBias=.035;sun.shadow.bias=-.00015;sun.shadow.radius=4;scene.add(sun);
+  sun.shadow.mapSize.set(1024,1024);sun.shadow.normalBias=.035;sun.shadow.bias=-.00015;sun.shadow.radius=4;scene.add(sun);
+  // Fit the shadow frustum to this room's box in the sun's own axes, so a 1024 map is never spent on empty space — the small room gets a sharper one for free.
+  function fitSun(){
+    const cam=sun.shadow.camera;cam.position.copy(sun.position);cam.lookAt(0,0,0);cam.updateMatrixWorld();
+    const inverse=new THREE.Matrix4().copy(cam.matrixWorld).invert(),b=new THREE.Box3();
+    for(const x of [-HW-1,HW+1])for(const y of [-.4,4.4])for(const z of [-HD-1,HD+1])b.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(inverse));
+    Object.assign(cam,{left:b.min.x,right:b.max.x,top:b.max.y,bottom:b.min.y,near:-b.max.z-.5,far:-b.min.z+.5});cam.updateProjectionMatrix();
+  }
+  fitSun();
   const fill=new THREE.DirectionalLight('#dfe8f4',.5);fill.position.set(9,6,-3);scene.add(fill);
   // Finishes shared by every piece of a kind, so baking still merges them into one mesh each.
   const FLOOR=['#d7b48d','#d9b892','#d4ae87','#debc97'].map(c=>mat(c,{roughness:.95})),OAK=mat(C.oak,{roughness:.6}),TRIM=mat(C.edge,{roughness:.6}),FABRIC=mat(C.sage,{roughness:.9}),PEACH=mat(C.peach,{roughness:.9}),CREAM=mat(C.cream,{roughness:.9}),SHADE=mat(C.terra,{roughness:.45,metalness:.2});
@@ -145,7 +158,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function pool(x: number,y: number,z: number,parent: any,shadows=false){
     const p=new THREE.PointLight('#ffca80',11,6,2);p.position.set(x,y,z);parent.add(p);pendants.push(p);
     const s=new THREE.SpotLight('#ffb86b',26,y+2.6,1.0,.6,2);s.position.set(x,y,z);s.target.position.set(x,0,z);parent.add(s,s.target);
-    if(shadows){s.castShadow=true;s.shadow.mapSize.set(1024,1024);s.shadow.bias=-.0009;s.shadow.normalBias=.03;}
+    if(shadows){s.castShadow=true;s.shadow.mapSize.set(512,512);s.shadow.bias=-.0009;s.shadow.normalBias=.03;}
     pendants.push(s);
   }
   function windowLight(x: number,y: number,z: number,w: number,h: number,lookAt: [number,number,number]){
@@ -340,7 +353,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
 
   const player: Rig=buildAvatar(P,0,room==='private'?2:2.5,look),avatar=player.g;
   // applyLook rebuilds the skull, hair and hat, and the new meshes start on layer 0 only
-  function reskin(l: Look){applyLook(P,player,l);if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
+  function reskin(l: Look){applyLook(P,player,l);restage();if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
   function setLook(l: Look){reskin(l);}
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
   function nameTag(text: string,color: number){
@@ -388,7 +401,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function pickCell(cell: Cell){if(!cellFits(cell))return false;placing.cell={c:cell.c,r:cell.r};moveGhost(cell);onState?.({placing:{id:placing.id,cell:placing.cell}});return true;}
   function stopPlacing(){
     if(!placing)return;gridGroup.traverse((o: any)=>{if(o!==gridGroup){o.geometry?.dispose();o.material?.dispose?.();}});gridGroup.clear();scene.remove(placing.ghost);placing.ghost.traverse((o: any)=>{o.geometry?.dispose();o.material?.dispose?.();});
-    placing=null;renderer.domElement.style.cursor='';if(mode==='place')mode='walk';
+    placing=null;renderer.domElement.style.cursor='';restage();if(mode==='place')mode='walk';
   }
   const cellAt=(e: any)=>{const p=point(e);if(!p)return null;const f=footprint(placing.id);return {c:Math.floor(p.x+HW-(f.w-1)/2),r:Math.floor(p.z+HD-(f.d-1)/2),at:[p.x,p.z] as [number,number]};};
   const barista=room==='public'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'}):null;
@@ -439,6 +452,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const keep=new Set<string>();
     for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
     for(const task of tasks){keep.add(task.id);if(tickets.has(task.id))continue;const g=ticket(task);tickets.set(task.id,g);}
+    restage();
     let i=0;for(const g of tickets.values()){const n=taskSpots.length,spot=taskSpots[i%n],round=Math.floor(i/n);g.userData.base=spot.clone().add(new THREE.Vector3(round*.12,round*.34,round*.12));i++;}
   }
   // A wall clock whose single hand sweeps through the current pomodoro.
@@ -518,7 +532,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
     const p=buildAvatar(P,at.x,at.z,lookFor(info.color,info.hat)),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
-    const r: Remote={p,w,tag,bubble:null};remotes.set(id,r);
+    const r: Remote={p,w,tag,bubble:null};remotes.set(id,r);restage();
     setRemoteState(id,info.state);
     const seat=seatNear(at);if(seat)w.go(seat,seat);
   }
@@ -528,13 +542,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(r.bubble){dropSprite(r.bubble);r.bubble=null;}
     if(state==='focus'||state==='pause'||state==='collective'){r.bubble=stateBubble(state==='pause'?'pause':'focus');r.p.g.add(r.bubble);}
   }
-  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,{...r.p.look,hat});}
+  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,{...r.p.look,hat});restage();}
   function removeRemote(id: string){
     const r=remotes.get(id);if(!r)return;
     r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
     r.p.g.traverse((o: any)=>{o.geometry?.dispose?.();});
     dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);
-    remotes.delete(id);
+    remotes.delete(id);restage();
   }
   function clearRemotes(){for(const id of [...remotes.keys()])removeRemote(id);}
   let lastCell='',lastArrived=false,cellListener: ((col: number,row: number,arrived: boolean)=>void)|null=null;
@@ -562,13 +576,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     editYaw=cameraYaw;
     editAnim={t:0,z0:camera.zoom,z1:editZoom(),p0:camTarget.clone(),p1:editTarget()};
     avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=false;
-    studio=new THREE.SpotLight('#fff3d8',26,9,.5,.6,1.4);studio.position.copy(avatar.position).add(new THREE.Vector3(2.2,4.2,2.6));studio.target=avatar;studio.layers.enable(AVATAR_LAYER);scene.add(studio);
+    studio=new THREE.SpotLight('#fff3d8',26,9,.5,.6,1.4);studio.position.copy(avatar.position).add(new THREE.Vector3(2.2,4.2,2.6));studio.target=avatar;studio.layers.enable(AVATAR_LAYER);scene.add(studio);restage();
     onState?.({editing:true});
   }
   function exitEditor(){
     if(mode!=='edit'||!savedView)return;
     avatar.traverse((o: any)=>o.layers.disable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=true;
-    if(studio){scene.remove(studio);studio.dispose();studio=null;}
+    if(studio){scene.remove(studio);studio.dispose();studio=null;}restage();
     editAnim={t:0,z0:camera.zoom,z1:savedView.zoom,p0:camTarget.clone(),p1:savedView.target.clone()};
     zoom=savedView.zoom;follow=savedView.follow;pan.copy(savedView.pan);savedView=null;mode='walk';dragging=false;
     onState?.({editing:false,zoom,follow});
@@ -606,8 +620,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       blur.mat.uniforms.tex.value=blur.rtB.texture;blur.mat.uniforms.dir.value.set(0,2.2/h);renderer.setRenderTarget(blur.rtA);renderer.render(blur.scene,blur.cam);
     }
     renderer.setRenderTarget(null);renderer.clear();blur.mat.uniforms.tex.value=blur.rtA.texture;blur.mat.uniforms.dir.value.set(0,0);blur.mat.uniforms.finish.value=1;renderer.render(blur.scene,blur.cam);blur.mat.uniforms.finish.value=0;
-    renderer.clearDepth();camera.layers.set(AVATAR_LAYER);renderer.autoClear=false;renderer.shadowMap.autoUpdate=false;renderer.render(scene,camera);
-    renderer.autoClear=true;renderer.shadowMap.autoUpdate=true;camera.layers.enableAll();
+    renderer.clearDepth();camera.layers.set(AVATAR_LAYER);renderer.autoClear=false;renderer.render(scene,camera);// the backdrop pass above already consumed any pending update, so the sharp pass never triggers one
+    renderer.autoClear=true;camera.layers.enableAll();
   }
   function resize(){width=container.clientWidth;height=container.clientHeight;renderer.setSize(width,height);const aspect=width/height,span=Math.max(HW*1.067,HW*1.417/aspect);camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();
     if(mode==='edit'){// the editor frames a fixed world height, so a resize re-derives the zoom rather than keeping it
@@ -661,14 +675,31 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     windows.forEach((l,i)=>l.intensity=evening?0:day[n+i]);
     sun.intensity=evening?.35:day[day.length-3];sun.color.set(evening?'#ff8c4c':'#ffd08f');
     fill.intensity=evening?.15:day[day.length-2];
-    hemi.intensity=evening?.35:day[day.length-1];hemi.color.set(evening?'#8ea2cc':'#fff5dc');
+    hemi.intensity=evening?.35:day[day.length-1];hemi.color.set(evening?'#8ea2cc':'#fff5dc');restage();
     return evening;
+  }
+  // A walker only counts as stirring while it is on a route or still sliding onto a cushion; idle breathing moves it by less than a shadow texel.
+  const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1);
+  function simulate(dt: number){
+    me.step(dt);baristaThink(dt);bar?.step(dt);
+    let moving=stirring(me)||!!(bar&&stirring(bar));
+    for(const r of remotes.values()){r.w.step(dt);moving||=stirring(r.w);}
+    if(moving)stir=2;
+  }
+  function setRatio(value: number){pixelRatio=value;renderer.setPixelRatio(value);resize();restage();}
+  // Adaptive resolution: a smoothed frame time steps the ratio down when the GPU is drowning and back up when it is bored. The editor keeps its sharp avatar pass, so it never adapts.
+  let frameMs=1000/60,slow=0,fast=0;
+  function adapt(dt: number){
+    frameMs+=(dt*1000-frameMs)*.1;
+    if(mode==='edit'){slow=fast=0;return;}
+    if(frameMs>14){slow+=dt;fast=0;}else if(frameMs<9){fast+=dt;slow=0;}else slow=fast=0;
+    if(slow>2&&pixelRatio>.75){setRatio(Math.max(.75,pixelRatio-.25));slow=0;}
+    else if(fast>5&&pixelRatio<BASE_PR){setRatio(Math.min(BASE_PR,pixelRatio+.25));fast=0;}
   }
   let previous=performance.now(),raf: number;
   function animate(now: number){
-    const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;
-    me.step(dt);baristaThink(dt);bar?.step(dt);
-    for(const r of remotes.values())r.w.step(dt);
+    const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;adapt(dt);
+    simulate(dt);
     {const col=Math.min(W-1,Math.max(0,Math.floor(avatar.position.x+HW))),row=Math.min(D-1,Math.max(0,Math.floor(avatar.position.z+HD))),k=`${col},${row}`,arrived=me.route.length===0&&!me.pendingSeat;
       if(k!==lastCell||(arrived&&lastArrived!==arrived)){lastCell=k;cellListener?.(col,row,arrived);}lastArrived=arrived;}
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
@@ -683,7 +714,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(player.parts.hat?.userData.float)player.parts.hat.position.y=(reducedMotion?0:Math.sin(time*2.2)*.03);
     cursor.position.y=1.95+(reducedMotion?0:Math.sin(time*3)*.06)-(me.seated?.47*me.sitBlend:0);cursor.rotation.y=time*1.2;
     if(glowing){glowTime+=dt;const k=reducedMotion?.3:.3+.3*Math.sin(glowTime*2.5);glowing.traverse((o: any)=>{if(o.userData.mat)o.material.emissiveIntensity=k;});}
-    if(mode==='edit'){const d=Math.atan2(Math.sin(editYaw-avatar.rotation.y),Math.cos(editYaw-avatar.rotation.y));avatar.rotation.y+=d*Math.min(1,dt*(reducedMotion?60:14));}
+    if(mode==='edit'){const d=Math.atan2(Math.sin(editYaw-avatar.rotation.y),Math.cos(editYaw-avatar.rotation.y));avatar.rotation.y+=d*Math.min(1,dt*(reducedMotion?60:14));if(Math.abs(d)>.002)stir=2;}
     if(editAnim){
       editAnim.t=Math.min(1,editAnim.t+dt/(reducedMotion?.001:.6));const k=spring(editAnim.t);
       camera.zoom=editAnim.z0+(editAnim.z1-editAnim.z0)*k;camera.updateProjectionMatrix();
@@ -695,6 +726,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       camTarget.lerp(desired,1-Math.exp(-dt*(reducedMotion?20:3.5)));
     }
     camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);
+    stage();
     if(mode==='edit')drawEditing();else renderer.render(scene,camera);
     raf=requestAnimationFrame(animate);
   }
