@@ -21,7 +21,7 @@
 .timer-hud .timer-tabs{margin:0;flex-direction:column;gap:2px;padding:3px}.timer-hud .timer-tabs button{padding:5px 9px;font-size:13px}
 .timer-main{display:flex;align-items:center;gap:12px}
 .dial-mini{position:relative;width:56px;height:56px;display:grid;place-items:center}
-.dial-mini>svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);fill:none;stroke-width:6}
+.dial-mini>svg{position:absolute;inset:0;pointer-events:none;width:100%;height:100%;transform:rotate(-90deg);fill:none;stroke-width:6}
 .dial-mini .primary{width:42px;height:42px;padding:0;border-radius:50%;gap:0}.dial-mini .primary span{display:none}.dial-mini .primary svg{width:16px;height:16px}
 .timer-readout{display:flex;flex-direction:column;min-width:96px}
 .timer-hud #timer-value{font-size:30px;letter-spacing:-1.6px;line-height:1.05}.timer-hud #session-label{font-size:14px;color:#a1a58f}
@@ -60,7 +60,7 @@
 .editor-tile{aspect-ratio:1;border-radius:18px;border:1px solid #e3d2b2;background:#fffaf0cc;display:grid;place-items:center;padding:0;overflow:hidden;transition:transform .15s,background .15s}.editor-tile img,.editor-tile canvas{width:100%;height:100%;object-fit:contain}.editor-tile:hover{transform:scale(1.05);background:#fff}.editor-tile[aria-selected=true]{background:#c9764f;border-color:#c9764f;transform:scale(1.06);box-shadow:0 6px 18px #c9764f44}
 .editor-palette{display:flex;flex-direction:column;gap:10px;padding:6px}.editor-palette button{width:40px;height:40px;border-radius:50%;border:3px solid #fffaf0;box-shadow:0 0 0 1px #00000014;transition:transform .15s}.editor-palette button[aria-selected=true]{transform:scale(1.15);box-shadow:0 0 0 3px #c9764f}
 .editor-name{display:flex;align-items:center;gap:12px;font-size:14px;color:#6b7560}.editor-name input{flex:0 0 220px;background:#fffaf0;border:1px solid #e3d2b2;border-radius:10px;padding:9px 12px;color:#4a5544}
-.world.editing .hud-top,.world.editing .view-controls,.world.editing .world-bottom,.world.editing .timer-hud,.world.editing .open-tasks,.world.editing .movement-hint{opacity:0;pointer-events:none;transition:opacity .28s ease}
+.world.editing .hud-top,.world.editing .view-controls,.world.editing .world-bottom,.world.editing .timer-dock,.world.editing .open-tasks,.world.editing .movement-hint{opacity:0;pointer-events:none;transition:opacity .28s ease}
 @media(max-width:800px){.editor-sheet{width:100vw;min-width:0;top:72px}.editor-topbar{left:12px;right:12px;top:16px;gap:8px}.editor-body{padding:18px 16px}.editor-grid{gap:10px}}
 @media(prefers-reduced-motion:reduce){.editor-sheet,.editor-topbar,.editor-tile,.editor-rail button{transition:none}}
 /* the chat floats above the ambience controls instead of growing the bottom row, so the help button keeps its place */
@@ -86,3 +86,24 @@
 .chat-mentions{position:absolute;left:10px;right:10px;bottom:100%;margin-bottom:4px;margin:0;padding:6px;list-style:none;background:#fffefa;border:1px solid #e6e8dc;border-radius:14px;box-shadow:0 5px 16px #61673f10;max-height:150px;overflow-y:auto}.chat-mentions[hidden]{display:none}
 .chat-mentions li{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:9px;font-size:14px;color:#55624a;cursor:pointer}.chat-mentions li.on,.chat-mentions li:hover{background:#edf0e4}
 @media(prefers-reduced-motion:reduce){.chat.open .chat-panel{animation:none}}
+/* the timer card lives in a dock: Chrome-style tabs on top, the active one melting into the card */
+.timer-dock{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;align-items:flex-start}
+.timer-hud{position:static;left:auto;bottom:auto;transform:none;z-index:auto}
+.timer-tabs-top{display:flex;gap:4px;margin-left:14px}
+.timer-tabs-top button{display:flex;align-items:center;gap:7px;padding:8px 16px;border:1px solid #e6e8dc;border-bottom:0;border-radius:12px 12px 0 0;background:#f0f1e9;color:#8b917f;font-size:13px;font-weight:600;position:relative;top:1px}
+.timer-tabs-top button[aria-selected=true]{background:#fffefa;color:#627452;z-index:1}
+.tab-dot{width:8px;height:8px;border-radius:50%;background:#c9764f;box-shadow:0 0 0 3px #c9764f2e}
+.tab-count{font-size:12px;color:#a1a58f;font-weight:500}
+.tab-dot[hidden],.tab-count[hidden]{display:none}
+#pane-solo,#pane-room{display:flex;align-items:center;gap:10px;transition:opacity .15s ease}
+#pane-solo[hidden],#pane-room[hidden]{display:none}
+.phase-tabs span{padding:5px 9px;border-radius:6px;font-size:13px;color:#949a87;text-align:center}
+.phase-tabs span.selected{background:#c9764f1a;color:#c9764f;font-weight:600}
+#room-dial-progress{stroke:#c9764f;stroke-dasharray:609.47;stroke-linecap:round;transition:stroke-dashoffset .4s}
+#pane-room .timer-readout{min-width:150px;max-width:236px}
+#room-value{font-family:Manrope,sans-serif;font-size:30px;font-weight:500;letter-spacing:-1.6px;line-height:1.05;color:#536447;font-variant-numeric:tabular-nums}
+#room-subtitle{font-size:14px;color:#a1a58f;line-height:1.35}
+#room-kicker{font-size:12px;letter-spacing:1.2px;color:#b2b6a2;margin-top:2px}
+#room-join.leaving{background:#c9764f}#room-join.leaving:hover{background:#b8683f}
+@media(max-width:800px){.timer-dock{left:12px;right:12px;bottom:14px;transform:none;align-items:stretch}.timer-hud{justify-content:space-between}.phase-tabs{display:none}}
+@media(prefers-reduced-motion:reduce){#pane-solo,#pane-room,#room-dial-progress{transition:none}}
