@@ -33,8 +33,11 @@ export function subtitle(p: RoomPomo,names: string[]): string{
   if(others===0)return 'Tu es seul·e pour l’instant';
   // no names yet (the server only sends a count): fall back to the numeric form
   if(names.length===0)return `Avec ${others} autre${others>1?'s':''} personne${others>1?'s':''}`;
-  if(names.length<=2)return `Avec ${names.join(' et ')}`;
-  return `Avec ${names[0]}, ${names[1]} et ${names.length-2} autres`;
+  // le compte fait foi : `names` peut être plus court que le nombre de participants annoncé
+  const shown=names.slice(0,2);
+  if(others<=shown.length)return `Avec ${shown.join(' et ')}`;
+  const rest=others-shown.length;
+  return `Avec ${shown.join(', ')} et ${rest} autre${rest>1?'s':''}`;
 }
 
 export function format(seconds: number): string{

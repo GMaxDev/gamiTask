@@ -150,8 +150,9 @@ async function start(){
   net=connect(API_URL,identity,'ocean');
   net.onStatus(s=>{
     if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
-    if(s==='offline')showVeil('Le café est injoignable, on réessaie…');
-    if(s==='replaced')showVeil('Le café est ouvert dans un autre onglet.');
+    // le serveur retire le participant à la déconnexion : on ne garde ni « Quitter », ni l'état collectif, ni l'horloge de la salle
+    if(s==='offline'){roomPomo.joined=false;renderRoomPomo();showVeil('Le café est injoignable, on réessaie…');}
+    if(s==='replaced'){roomPomo.joined=false;renderRoomPomo();showVeil('Le café est ouvert dans un autre onglet.');}
   });
   bindServerEvents();
 }
@@ -463,6 +464,7 @@ function renderRoomPomo(){
 }
 $('#tab-solo').onclick=()=>selectTab('solo');$('#tab-room').onclick=()=>selectTab('room');selectTab(timerTab);
 $('#room-join').onclick=()=>{
+  if(!net)return;// sans serveur il n'y a pas de session de salle : ne rien promettre à l'écran
   if(!roomPomo.joined){
     net.socket.emit('pomo:join');roomPomo.joined=true;
     if(timer.endAt!==null){toggleTimer(timer);persistTimer();lastRunning=null;renderTimer();}// une seule session à la fois : le solo se met en pause

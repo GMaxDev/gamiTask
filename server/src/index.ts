@@ -2051,7 +2051,7 @@ io.on("connection", (socket) => {
   socket.on("pomo:leave", () => {
     const room = getRoom(socket.id);
     if (!room) return;
-    room.pomoParticipants.delete(socket.id);
+    if (!room.pomoParticipants.delete(socket.id)) return;
     room.sharedPomo.participants = room.pomoParticipants.size;
     if (room.pomoParticipants.size === 0 && room.sharedPomo.intervalId) {
       clearInterval(room.sharedPomo.intervalId);

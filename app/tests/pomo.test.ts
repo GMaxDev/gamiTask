@@ -45,6 +45,8 @@ test('subtitle says who is in the session, with names when we have them',()=>{
  p.participants=2;assert.equal(subtitle(p,['Dorabis']),'Avec Dorabis');
  p.participants=3;assert.equal(subtitle(p,['Dorabis','Violette']),'Avec Dorabis et Violette');
  p.participants=5;assert.equal(subtitle(p,['Dorabis','Violette','Jo','Ana']),'Avec Dorabis, Violette et 2 autres');
+ p.participants=4;assert.equal(subtitle(p,['Dorabis','Violette','Jo']),'Avec Dorabis, Violette et 1 autre');
+ p.participants=4;assert.equal(subtitle(p,['Dorabis']),'Avec Dorabis et 2 autres');// le compte du serveur fait foi, pas la longueur de la liste
 });
 
 test('phaseLabel and format speak the café’s language',()=>{

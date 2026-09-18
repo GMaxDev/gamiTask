@@ -17,7 +17,7 @@
 .progress-chip{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:2px 10px;padding:8px 14px;background:#fbfcf3d9;border:1px solid #fff9;backdrop-filter:blur(12px);border-radius:14px;font-size:13px;color:#66735c;text-align:left}
 .progress-chip:hover{background:#fbfcf3}.progress-chip svg{width:13px;height:13px}
 .progress-chip .xp-bar{grid-column:1/-1;display:block;height:4px;margin-top:4px;width:100%}
-.timer-hud{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;background:#fbfcf3e6;border:1px solid #fff9;backdrop-filter:blur(14px);border-radius:18px;box-shadow:0 8px 30px #4e593514}
+.timer-hud{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;background:#fbfcf3e6;border:1px solid #fff9;backdrop-filter:blur(14px);border-radius:18px;box-shadow:0 8px 30px #4e593514}
 .timer-hud .timer-tabs{margin:0;flex-direction:column;gap:2px;padding:3px}.timer-hud .timer-tabs button{padding:5px 9px;font-size:13px}
 .timer-main{display:flex;align-items:center;gap:12px}
 .dial-mini{position:relative;width:56px;height:56px;display:grid;place-items:center}
@@ -28,7 +28,7 @@
 .timer-hud .icon-button{width:34px;height:34px;border-radius:10px}
 .open-tasks{position:absolute;right:26px;bottom:26px;z-index:2;display:flex;align-items:center;gap:8px;padding:12px 16px 12px 14px;background:#657757;color:#fffdf2;border-radius:16px;box-shadow:0 8px 24px #4e593526;font-size:14px;font-weight:500}
 .open-tasks svg{width:17px;height:17px}.open-tasks .tasks-count{color:#e2e9d6;font-size:13px}.open-tasks .tasks-count:empty{display:none}.open-tasks:hover{background:#596c4a}
-.world-bottom{left:22px;right:auto;bottom:26px;gap:10px}.movement-hint{bottom:6px}.toast{bottom:148px}
+.world-bottom{left:22px;right:auto;bottom:26px;gap:10px}.movement-hint{bottom:6px}.toast{bottom:200px}
 .drawer{position:fixed;top:0;right:0;height:100dvh;width:min(380px,100vw);z-index:5;background:#faf9f3f5;backdrop-filter:blur(16px);border-left:1px solid #e4e5d7;box-shadow:-12px 0 40px #2e382a1c;padding:26px 26px 22px;overflow-y:auto;scrollbar-width:thin;transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
 .drawer.open{transform:none}
 .drawer-head{position:relative;margin-bottom:6px}.drawer-head h2{font-family:var(--serif);font-weight:400;line-height:1.13;font-size:30px;letter-spacing:-1px;margin:8px 0 14px;color:#4b5541}
@@ -39,7 +39,7 @@
 #progress-dialog .xp-bar{margin-top:12px}#progress-dialog .day-stats{margin-top:20px;padding-top:18px}#progress-dialog .eyebrow{margin:22px 0 8px}
 .achievements-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}.achievements-list li{display:grid;grid-template-columns:24px 1fr;gap:0 10px;align-items:center;padding:8px 10px;border-radius:10px;background:#f2f3ea;opacity:.45}
 .achievements-list li.unlocked{opacity:1;background:#e8eedf}.achievements-list li span{font-size:16px;grid-row:1/3}.achievements-list li strong{font-size:14px;font-weight:600;color:#55624a}.achievements-list li small{font-size:12px;color:#8d9482}
-@media(max-width:800px){.workspace{display:block;height:100dvh;min-height:0}.world{height:100%;min-height:0}.hud-top{left:12px;top:12px;gap:8px}.brand>span:last-child{display:none}.brand{padding:5px}.progress-chip{padding:6px 10px;font-size:13px}.view-controls{top:12px;right:12px}.timer-hud{left:12px;right:12px;bottom:14px;transform:none;justify-content:space-between}.timer-hud .timer-tabs{display:none}.open-tasks{right:12px;bottom:88px;padding:11px}.open-tasks .tasks-count{display:none}.world-bottom{left:12px;bottom:88px}.ambience-button span:not(.sound-bars){display:none}.movement-hint{display:none}.toast{bottom:150px}}
+@media(max-width:800px){.workspace{display:block;height:100dvh;min-height:0}.world{height:100%;min-height:0}.hud-top{left:12px;top:12px;gap:8px}.brand>span:last-child{display:none}.brand{padding:5px}.progress-chip{padding:6px 10px;font-size:13px}.view-controls{top:12px;right:12px}.timer-hud .timer-tabs{display:none}.open-tasks{right:12px;bottom:88px;padding:11px}.open-tasks .tasks-count{display:none}.world-bottom{left:12px;bottom:88px}.ambience-button span:not(.sound-bars){display:none}.movement-hint{display:none}.toast{bottom:182px}}
 .room-switch{display:flex;gap:2px;padding:4px;background:#fbfcf3d9;border:1px solid #fff9;backdrop-filter:blur(12px);border-radius:14px}.room-switch button{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;font-size:13px;color:#8d9482;background:transparent}.room-switch button svg{width:14px;height:14px}.room-switch button[aria-pressed=true]{background:#657757;color:#fffdf2}.room-switch button:hover:not([aria-pressed=true]){background:#edf0e4}@media(max-width:800px){.room-switch button span{display:none}.room-switch button{padding:8px}}
 .veil{position:fixed;inset:0;z-index:8;background:#eee9df;display:grid;place-items:center;pointer-events:none;clip-path:circle(0px at 50% 50%)}.veil.cover{pointer-events:auto}.veil-label{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:26px;color:#4d5b43;opacity:0;transition:opacity .3s .25s}.veil.cover .veil-label{opacity:1}.veil-label svg{width:24px;height:24px;color:#657757}
 .veil-edge{position:fixed;left:50%;top:50%;width:0;height:0;border-radius:50%;z-index:9;pointer-events:none;transform:translate(-50%,-50%) scale(0);box-shadow:0 10px 36px 6px #2e382a3d,0 0 0 1px #ffffff55 inset}
@@ -88,7 +88,6 @@
 @media(prefers-reduced-motion:reduce){.chat.open .chat-panel{animation:none}}
 /* the timer card lives in a dock: Chrome-style tabs on top, the active one melting into the card */
 .timer-dock{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;align-items:flex-start}
-.timer-hud{position:static;left:auto;bottom:auto;transform:none;z-index:auto}
 .timer-tabs-top{display:flex;gap:4px;margin-left:14px}
 .timer-tabs-top button{display:flex;align-items:center;gap:7px;padding:8px 16px;border:1px solid #e6e8dc;border-bottom:0;border-radius:12px 12px 0 0;background:#f0f1e9;color:#8b917f;font-size:13px;font-weight:600;position:relative;top:1px}
 .timer-tabs-top button[aria-selected=true]{background:#fffefa;color:#627452;z-index:1}
