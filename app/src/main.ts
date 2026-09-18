@@ -160,10 +160,12 @@ async function irisSwap(x: number,y: number,label: string,iconName: string,fn: (
   $('#veil-text').textContent=label;$('#veil-icon').innerHTML=icon(iconName);drawIcons();
   // the disc's rim casts a soft shadow on the room: a transparent circle with a drop shadow, scaled in step with the clip
   const edge=$('#veil-edge');edge.style.left=`${x}px`;edge.style.top=`${y}px`;edge.style.width=edge.style.height=`${r*2}px`;
+  // A hidden tab suspends rAF and Web Animations: never await them forever, or the veil covers the room until the tab comes back.
+  const settle=(a: Animation)=>Promise.race([a.finished.catch(()=>{}),new Promise(r=>setTimeout(r,timing.duration+400))]).then(()=>{if(a.playState!=='finished')a.cancel();});
   const rim=(k: boolean)=>edge.animate([{transform:`translate(-50%,-50%) scale(${k?0:1})`},{transform:`translate(-50%,-50%) scale(${k?1:0})`}],timing);
-  veil.classList.add('cover');rim(true);await veil.animate([{clipPath:shut},{clipPath:open}],timing).finished;
-  fn();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r as any)));// let the new room draw its first frame
-  rim(false);await veil.animate([{clipPath:open},{clipPath:shut}],timing).finished;veil.classList.remove('cover');edge.style.width=edge.style.height='0px';
+  veil.classList.add('cover');rim(true);await settle(veil.animate([{clipPath:shut},{clipPath:open}],timing));
+  fn();await Promise.race([new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r as any))),new Promise(r=>setTimeout(r,120))]);// let the new room draw its first frame
+  rim(false);await settle(veil.animate([{clipPath:open},{clipPath:shut}],timing));veil.classList.remove('cover');for(const a of edge.getAnimations())a.cancel();edge.style.width=edge.style.height='0px';
 }
 // Rooms: the server owns them. The click plays the iris and remounts, then `room:info` confirms (or corrects) where we really are.
 let rooms: RoomSummary[]=[];
