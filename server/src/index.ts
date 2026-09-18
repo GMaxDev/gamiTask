@@ -1202,7 +1202,8 @@ io.on("connection", (socket) => {
     socket.emit("cosmetics:state", {
       owned: ownedList,
       equippedHat: user.equippedHat ?? null,
-      look: player.look,
+      // only a look the player already saved: a missing one must not wipe the client's local cache
+      look: user.look ? player.look : undefined,
     });
     socket.emit("furniture:state", {
       owned: ownedFurnitureList,
@@ -1871,7 +1872,7 @@ io.on("connection", (socket) => {
     socket.emit("cosmetics:state", {
       owned: [...owned, itemId],
       equippedHat: user.equippedHat ?? null,
-      look: userLook(user),
+      look: user.look ? userLook(user) : undefined,
     });
     const p = getPlayer(socket.id);
     if (p) p.coins = newCoins;

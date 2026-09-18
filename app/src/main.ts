@@ -152,9 +152,9 @@ let editing=false,previewLook: Look|null=null;// what the sheet is showing, so a
 const editor=createEditor($('#app') as HTMLElement,{
   onPreview(l){previewLook=l;cafe?.setLook(l);},
   onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();
-    net?.socket.emit('look:update',{userId:identity.userId,look:l});// the server stores it and tells the room right away
-    // the server owns the worn hat: it answers `player-hat` to the others only, and `cosmetics:state` would undo a local-only change
+    // the server owns the worn hat: equip first, so the `cosmetics:state` echoed by `look:update` already carries the new hat
     if(l.hat!==shop.hat){shop.hat=l.hat;net?.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:l.hat});renderShop();}
+    net?.socket.emit('look:update',{userId:identity.userId,look:l});// the server stores it and tells the room right away
     closeEditor();toast('C’est tout toi. Les autres te voient déjà ainsi.');},
   onExit(){cafe?.setLook(look);closeEditor();},
   resetView:()=>cafe?.resetView(),
