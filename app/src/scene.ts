@@ -657,7 +657,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   renderer.domElement.addEventListener('pointerup',(e: PointerEvent)=>{
     if(mode==='edit'){dragging=false;return;}
     if(mode==='place'){if(!moved&&e.button===0){const cell=cellAt(e);if(cell&&!pickCell(cell))onState?.({placing:{id:placing.id,cell:null,refused:true}});}dragging=false;return;}
-    if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked){onState?.(picked.userData.hotspot?{hotspot:picked.userData.hotspot.id}:{focusTask:picked.userData.task.id});dragging=false;return;}const p=point(e),target=seatAt();if(target&&target!==me.seated){if(target.taken&&target.taken!==me){target.taken.standUp();target.taken.cancel();target.taken.wait=0;}moveTo(target,target);}else if(!target)moveTo(p);}
+    if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked){onState?.(picked.userData.hotspot?{hotspot:picked.userData.hotspot.id}:{focusTask:picked.userData.task.id});dragging=false;return;}const p=point(e),target=seatAt();if(target&&target!==me.seated){if(target.taken&&target.taken!==me){target.taken.standUp();target.taken.cancel();target.taken.wait=0;restage();}moveTo(target,target);}else if(!target)moveTo(p);}
     dragging=false;
   });
   renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
@@ -679,7 +679,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     return evening;
   }
   // A walker only counts as stirring while it is on a route or still sliding onto a cushion; idle breathing moves it by less than a shadow texel.
-  const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1);
+  const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1)||w.working;// working: the barista swings its arms at the counter
   function simulate(dt: number){
     me.step(dt);baristaThink(dt);bar?.step(dt);
     let moving=stirring(me)||!!(bar&&stirring(bar));
