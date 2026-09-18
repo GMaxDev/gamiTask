@@ -29,7 +29,9 @@ import {
   type ClientToServerEvents,
   type ServerToClientEvents,
   type GuildData,
+  type Look,
 } from "./types.js";
+import { sanitizeLook } from "./look.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -62,6 +64,7 @@ interface UserRow {
   displayName: string | null;
   avatarColor: number;
   isAdmin: number;
+  look: string | null;
 }
 interface TaskRow {
   id: string;
@@ -152,6 +155,9 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN displayName TEXT`);
 } catch {}
 try {
+  db.exec(`ALTER TABLE users ADD COLUMN look TEXT`);
+} catch {}
+try {
   db.exec(
     `ALTER TABLE users ADD COLUMN avatarColor INTEGER NOT NULL DEFAULT 0`,
   );
@@ -208,8 +214,9 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin FROM users WHERE id = ?",
+    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, look FROM users WHERE id = ?",
   ),
+  setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
   saveStreak: db.prepare(
     "UPDATE users SET streak = ?, lastPomoAt = ? WHERE id = ?",
@@ -875,6 +882,14 @@ function getPlayer(socketId: string): Player | undefined {
   return getRoom(socketId)?.players.get(socketId);
 }
 
+function userLook(user: UserRow): Look {
+  let raw: unknown = null;
+  try {
+    raw = JSON.parse(user.look ?? "null");
+  } catch {}
+  return sanitizeLook(raw, user.equippedHat ?? null, user.avatarColor);
+}
+
 function pomoTick(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
   room: RoomState,
@@ -1141,6 +1156,7 @@ io.on("connection", (socket) => {
       placed: placedFurnitureList,
       positions: furniturePositionsPayload,
       pendingTaskIds,
+      look: userLook(user),
     };
     // Habbo-style : les meubles d'un joueur ne s'affichent QUE dans sa propre
     // room privée. Dans tout autre contexte (rooms publiques, room privée d'un
@@ -1186,6 +1202,7 @@ io.on("connection", (socket) => {
     socket.emit("cosmetics:state", {
       owned: ownedList,
       equippedHat: user.equippedHat ?? null,
+      look: player.look,
     });
     socket.emit("furniture:state", {
       owned: ownedFurnitureList,
@@ -1854,6 +1871,7 @@ io.on("connection", (socket) => {
     socket.emit("cosmetics:state", {
       owned: [...owned, itemId],
       equippedHat: user.equippedHat ?? null,
+      look: userLook(user),
     });
     const p = getPlayer(socket.id);
     if (p) p.coins = newCoins;
@@ -1871,6 +1889,35 @@ io.on("connection", (socket) => {
     const p = getPlayer(socket.id);
     if (p) p.hat = hatId;
     broadcastToOwnRoom(socket,"player-hat", { id: socket.id, hat: hatId });
+    // Le look embarque aussi le chapeau : le rediffuser pour rester cohérent.
+    if (p?.look) {
+      const look: Look = { ...p.look, hat: hatId };
+      p.look = look;
+      broadcastToOwnRoom(socket,"player-look", { id: socket.id, look });
+    }
+  });
+
+  // ── Mettre à jour son apparence ──────────────────────────────────────────────
+  socket.on("look:update", ({ userId, look: rawLook }) => {
+    if (!allow(socket.id, "look:update", 5, 5000)) return;
+    if (socketToUserId.get(socket.id) !== userId) return;
+    const user = sql.getUser.get(userId) as UserRow | undefined;
+    if (!user) return;
+    const look = sanitizeLook(rawLook, user.equippedHat ?? null, user.avatarColor);
+    sql.setLook.run(JSON.stringify(look), userId);
+    // La couleur du t-shirt reste la couleur d'identité côté serveur.
+    sql.setAvatarInfo.run(user.displayName, look.shirt, userId);
+    const p = getPlayer(socket.id);
+    if (p) {
+      p.look = look;
+      p.color = look.shirt;
+    }
+    broadcastToOwnRoom(socket,"player-look", { id: socket.id, look });
+    socket.emit("cosmetics:state", {
+      owned: (user.ownedItems ?? "").split(",").filter(Boolean),
+      equippedHat: user.equippedHat ?? null,
+      look,
+    });
   });
   // ── Pomodoro personnel complété ──────────────────────────────────────────
   socket.on("pomodoro:complete", ({ userId }) => {

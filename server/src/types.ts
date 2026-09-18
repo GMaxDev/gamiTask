@@ -1,6 +1,18 @@
 // Types partagés client ↔ serveur
 export type AvatarState = "idle" | "walking" | "focus" | "pause" | "collective";
 
+export interface Look {
+  skin: string;
+  head: "round" | "oval" | "square";
+  bangs: string;
+  back: string;
+  hairColor: string;
+  shirt: number;
+  trousers: string;
+  headphones: boolean;
+  hat: string | null;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -13,6 +25,7 @@ export interface Player {
   placed?: string[];
   positions?: Record<string, { col: number; row: number }>;
   pendingTaskIds?: string[];
+  look?: Look;
 }
 
 export interface ShopItem {
@@ -300,6 +313,7 @@ export interface ClientToServerEvents {
   "room:clean": (payload: { levels: number }) => void;
   "shop:buy": (payload: { userId: string; itemId: string }) => void;
   "cosmetic:equip": (payload: { userId: string; hatId: string | null }) => void;
+  "look:update": (payload: { userId: string; look: Look }) => void;
   "furniture:buy": (payload: { userId: string; itemId: string }) => void;
   "furniture:move": (payload: {
     userId: string;
@@ -441,9 +455,11 @@ export interface ServerToClientEvents {
   "cosmetics:state": (payload: {
     owned: string[];
     equippedHat: string | null;
+    look?: Look;
   }) => void;
   "shop:bought": (payload: { itemId: string; coins: number }) => void;
   "player-hat": (payload: { id: string; hat: string | null }) => void;
+  "player-look": (payload: { id: string; look: Look }) => void;
   "furniture:state": (payload: {
     owned: string[];
     placed: string[];
