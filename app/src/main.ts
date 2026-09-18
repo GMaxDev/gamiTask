@@ -6,6 +6,7 @@ import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
+import {homeDecision,myPrivateRoom} from './rooms.ts';
 import type {RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
@@ -111,8 +112,10 @@ function askIdentity():Promise<void>{
   (form.elements.namedItem('name') as HTMLInputElement).value=identity.name;
   for(const r of form.querySelectorAll<HTMLInputElement>('input[name=color]'))r.checked=Number(r.value)===identity.color;
   dialog.showModal();
-  return new Promise(resolve=>{form.onsubmit=e=>{const name=cleanName((form.elements.namedItem('name') as HTMLInputElement).value);if(!name){e.preventDefault();return;}
-    identity.name=name;identity.color=Number((form.elements.namedItem('color') as RadioNodeList).value);saveIdentity();resolve();};});
+  const input=form.elements.namedItem('name') as HTMLInputElement;
+  input.setCustomValidity('');input.oninput=()=>input.setCustomValidity('');
+  return new Promise(resolve=>{form.onsubmit=e=>{const name=cleanName(input.value);if(!name){e.preventDefault();input.setCustomValidity('Choisis un pseudo d’au moins 2 caractères.');input.reportValidity();return;}
+    input.setCustomValidity('');identity.name=name;identity.color=Number((form.elements.namedItem('color') as RadioNodeList).value);saveIdentity();resolve();};});
 }
 ($('#identity-dialog') as HTMLDialogElement).addEventListener('cancel',e=>{if(!identity.name)e.preventDefault();});// no way out of the very first hello
 renderIdentity();
@@ -124,7 +127,7 @@ let pendingHome=false,homeAsked=false;// a saved 'private' room is resolved into
 const veil=$('#net-veil') as HTMLElement,veilText=$('#net-text') as HTMLElement;
 function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.textContent=text;}
 let ready={room:false,tasks:false};
-function maybeReady(){if(ready.room&&ready.tasks)showVeil(null);}
+function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
 async function start(){
   if(fresh)await askIdentity();
   if(room==='private')pendingHome=true;
@@ -164,25 +167,25 @@ async function irisSwap(x: number,y: number,label: string,iconName: string,fn: (
 }
 // Rooms: the server owns them. The click plays the iris and remounts, then `room:info` confirms (or corrects) where we really are.
 let rooms: RoomSummary[]=[];
-const myPrivateRoom=()=>rooms.find(r=>r.isPrivate&&r.ownerId===identity.userId)??null;
 let homeTimer: ReturnType<typeof setTimeout>|undefined;
 function switchServerRoom(next:'public'|'private'){
-  if(next==='public'){pendingHome=false;clearTimeout(homeTimer);net.socket.emit('room:switch',{roomId:'ocean'});return;}
-  const mine=myPrivateRoom();
-  if(mine){pendingHome=false;clearTimeout(homeTimer);net.socket.emit('room:switch',{roomId:mine.id});}
+  if(next==='public'){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:'ocean'});return;}
+  const mine=myPrivateRoom(rooms,identity.userId);
+  if(mine){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:mine.id});}
   // a refused creation is silent (guest rule, rate limit, stale row): give up after a few seconds rather than wait forever
   else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
-    homeTimer=setTimeout(()=>{if(!myPrivateRoom())abandonHome();},4000);}
+    homeTimer=setTimeout(()=>{if(!myPrivateRoom(rooms,identity.userId))abandonHome();},4000);}
 }
 function abandonHome(){
-  clearTimeout(homeTimer);pendingHome=false;toast('Ta pièce n’a pas pu être créée.');
-  if(room==='private'&&!(rooms.find(r=>r.id===net.roomId())?.isPrivate??false)){room='public';save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}}
+  clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
+  if(room==='private'){room='public';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+  maybeReady();
 }
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching)return;switching=true;
   try{
     const r=b.getBoundingClientRect(),next=b.dataset.room as 'public'|'private',home=next==='private';
-    await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}});
+    await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}});
     switchServerRoom(next);toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');
   }finally{switching=false;}
 });
@@ -276,10 +279,10 @@ function bindServerEvents(){
   s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-left',({id})=>cafe?.removeRemote(id));
-  s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(myPrivateRoom()||!homeAsked)switchServerRoom('private');else abandonHome();});
+  s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
   s.on('room:info',({roomId})=>{if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const isHome=rooms.find(r=>r.id===roomId)?.isPrivate??false;
-    if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();}catch(error){console.error(error);}}});
+    if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:toggled',({taskId,done,coins})=>{const t=taskToggled(tasks,taskId,done);const before=progress.coins;setCoins(progress,coins);renderTasks();renderProgress();syncScene();

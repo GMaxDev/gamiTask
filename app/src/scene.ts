@@ -604,7 +604,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;
     me.step(dt);baristaThink(dt);bar?.step(dt);
     for(const r of remotes.values())r.w.step(dt);
-    {const col=Math.floor(avatar.position.x+HW),row=Math.floor(avatar.position.z+HD),k=`${col},${row}`,arrived=me.route.length===0&&!me.pendingSeat;
+    {const col=Math.min(W-1,Math.max(0,Math.floor(avatar.position.x+HW))),row=Math.min(D-1,Math.max(0,Math.floor(avatar.position.z+HD))),k=`${col},${row}`,arrived=me.route.length===0&&!me.pendingSeat;
       if(k!==lastCell||(arrived&&lastArrived!==arrived)){lastCell=k;cellListener?.(col,row,arrived);}lastArrived=arrived;}
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
     marker.material.opacity=Math.max(0,marker.material.opacity-dt*.22);

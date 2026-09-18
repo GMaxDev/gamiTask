@@ -1,0 +1,23 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import type {RoomSummary} from '@shared/types';
+import {homeDecision,myPrivateRoom} from '../src/rooms.ts';
+
+const room=(id:string,isPrivate:boolean,ownerId:string|null)=>({id,isPrivate,ownerId} as unknown as RoomSummary);
+const ocean=room('ocean',false,null),mine=room('r1',true,'me'),hers=room('r2',true,'her');
+
+test('my private room is found by owner, and only mine',()=>{
+ assert.equal(myPrivateRoom([ocean,hers,mine],'me'),mine);
+ assert.equal(myPrivateRoom([ocean,hers],'me'),null);
+ assert.equal(myPrivateRoom([],'me'),null);
+});
+test('my room present: switch, whether or not a creation was asked',()=>{
+ assert.equal(homeDecision([ocean,mine],'me',false),'switch');
+ assert.equal(homeDecision([ocean,mine],'me',true),'switch');
+});
+test('no room of mine and nothing asked yet: create',()=>{
+ assert.equal(homeDecision([ocean,hers],'me',false),'create');
+});
+test('creation in flight: wait — an unrelated rooms:list must not abandon',()=>{
+ assert.equal(homeDecision([ocean,hers],'me',true),'wait');
+});
