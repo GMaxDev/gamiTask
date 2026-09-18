@@ -177,6 +177,7 @@ const chat=createChat($('.world-left') as HTMLElement,{
   myName:()=>identity.name,
   onMention:mentionChime,
 });
+chat.open();// the room's conversation is visible from the start; the round button folds it away
 let chatRoomKnown=false;
 const roomLabel=()=>room==='private'?'CHEZ TOI':'AU CAFÉ';
 // `T` opens the chat from anywhere in the room, never while typing, editing the character or placing a piece.
