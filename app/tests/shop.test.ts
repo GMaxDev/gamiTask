@@ -1,31 +1,31 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createShop,buy,equipHat,place,unplace,takenCells,bonuses,GRID} from '../src/shop.ts';
-import {createProgress,completeTask,completePomodoro} from '../src/progress.ts';
+import {createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,GRID} from '../src/shop.ts';
 
-test('buying needs coins and cannot repeat',()=>{
- const shop=createShop(),wallet={coins:120};
- assert.equal(buy(shop,wallet,'hat-halo'),null);assert.equal(buy(shop,wallet,'plant')!.id,'plant');assert.equal(wallet.coins,40);
- assert.equal(buy(shop,wallet,'plant'),null);assert.equal(buy(shop,wallet,'nope'),null);
+test('cosmetics state sets owned hats and the worn one only if owned',()=>{
+ const s=createShop();setCosmetics(s,{owned:['hat-party','ghost'],equippedHat:'hat-crown'});
+ assert.deepEqual(s.hats,['hat-party']);assert.equal(s.hat,null);
+ setCosmetics(s,{owned:['hat-party'],equippedHat:'hat-party'});assert.equal(s.hat,'hat-party');
 });
-test('only an owned hat can be worn',()=>{
- const shop=createShop({owned:['hat-party','plant']});
- assert.equal(equipHat(shop,'plant'),false);assert.equal(equipHat(shop,'hat-crown'),false);assert.equal(equipHat(shop,'hat-party'),true);assert.equal(equipHat(shop,null),true);assert.equal(shop.hat,null);
+test('furniture state keeps placed pieces with a valid, non-overlapping cell',()=>{
+ const s=createShop();
+ setFurniture(s,{owned:['plant','lamp','bookshelf','cactus'],placed:['plant','lamp','bookshelf','cactus'],positions:{plant:{col:1,row:5},lamp:{col:1,row:5},bookshelf:{col:6,row:10},cactus:{col:3,row:7}}});
+ assert.deepEqual(s.furniture,['plant','lamp','bookshelf','cactus']);
+ assert.deepEqual(s.placed,{plant:{c:1,r:5},cactus:{c:3,r:7}});// lamp overlaps the plant, the bookshelf sticks out of the room
 });
-test('furniture goes on free cells of your own room and can be moved',()=>{
- const shop=createShop({owned:['plant','lamp','bookshelf']});
- assert.equal(place(shop,'plant',{c:2,r:3}),true);assert.equal(place(shop,'lamp',{c:2,r:3}),false);assert.equal(place(shop,'lamp',{c:GRID.cols,r:0}),false);assert.equal(place(shop,'lamp',{c:5,r:5}),true);
- assert.equal(place(shop,'bookshelf',{c:0,r:GRID.rows-1}),false);assert.equal(place(shop,'bookshelf',{c:2,r:4}),true);assert.deepEqual([...takenCells(shop,'plant')].sort(),['2,4','2,5','5,5']);
- assert.equal(place(shop,'plant',{c:2,r:4}),false);assert.equal(place(shop,'plant',{c:0,r:0}),true);assert.deepEqual(shop.placed.plant,{c:0,r:0});
- assert.equal(unplace(shop,'plant'),true);assert.equal(unplace(shop,'plant'),false);
+test('pieces not in the placed list stay stored',()=>{
+ const s=createShop();setFurniture(s,{owned:['plant'],placed:[],positions:{plant:{col:1,row:5}}});assert.deepEqual(s.placed,{});
 });
-test('a complete set pays bonuses through progress',()=>{
- const shop=createShop({owned:['plant','cactus','lamp']});const b=bonuses(shop);
- assert.deepEqual(b,{coinsTask:4,coinsPomo:0,xpPomo:0});
- const p=createProgress();completeTask(p,b);assert.equal(p.coins,14);
- const r=completePomodoro(p,1000,{coinsTask:0,coinsPomo:10,xpPomo:20});assert.equal(r.coins,35);assert.equal(r.xp,70);
+test('local placement validation mirrors the room grid',()=>{
+ const s=createShop();setFurniture(s,{owned:['plant','lamp','bookshelf'],placed:['plant'],positions:{plant:{col:2,row:3}}});
+ assert.equal(canPlace(s,'lamp',{c:2,r:3}),false);assert.equal(canPlace(s,'lamp',{c:GRID.cols,r:0}),false);assert.equal(canPlace(s,'lamp',{c:5,r:5}),true);
+ assert.equal(canPlace(s,'bookshelf',{c:0,r:GRID.rows-1}),false);assert.equal(canPlace(s,'bookshelf',{c:2,r:4}),true);
+ assert.equal(canPlace(s,'plant',{c:2,r:3}),true);// moving onto its own cell
+ assert.equal(canPlace(s,'cactus',{c:0,r:0}),false);// not owned
+ assert.deepEqual([...takenCells(s)],['2,3']);assert.deepEqual([...takenCells(s,'plant')],[]);
+ assert.deepEqual(toServerCell({c:4,r:1}),{col:4,row:1});
 });
-test('saved data is sanitised',()=>{
- const shop=createShop({owned:['plant','ghost','hat-halo','cactus'],hat:'hat-crown',placed:{plant:{c:1,r:1},lamp:{c:2,r:2},cactus:{c:1,r:1},couch:1}} as any);
- assert.deepEqual(shop,{owned:['plant','hat-halo','cactus'],hat:null,placed:{plant:{c:1,r:1}}});
+test('a set is complete when every piece is owned',()=>{
+ const s=createShop();setFurniture(s,{owned:['plant','cactus','lamp'],placed:[],positions:{}});
+ assert.deepEqual(completeSets(s).map(x=>x.id),['jardin']);
 });

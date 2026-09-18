@@ -1,9 +1,6 @@
 // Pure shop model: catalogue, purchases, the hat you wear and the furniture placed in your own room.
-export interface Cell { c: number; r: number }
 export interface CatalogueItem { id: string; name: string; price: number; emoji: string; set?: string }
 export interface SetDef { id: string; name: string; emoji: string; items: string[]; desc: string; xpPomo?: number; coinsPomo?: number; coinsTask?: number }
-export interface ShopState { owned: string[]; hat: string|null; placed: Record<string, Cell> }
-export interface Wallet { coins: number }
 export const HATS: CatalogueItem[]=[
   {id:'hat-party',name:'Chapeau de fête',price:100,emoji:'🎉'},
   {id:'hat-halo',name:'Halo',price:150,emoji:'😇'},
@@ -26,35 +23,31 @@ export const SETS: SetDef[]=[
 ];
 export const GRID={cols:12,rows:10};// your room, one cell per floor tile
 export const footprint=(id: string)=>({w:1,d:id==='bookshelf'?2:1});
-export const cellsOf=(id: string,{c,r}: Cell): string[]=>{const f=footprint(id),cells: string[]=[];for(let i=0;i<f.w;i++)for(let j=0;j<f.d;j++)cells.push(`${c+i},${r+j}`);return cells;};
-const validCell=(id: string, cell: Cell|null|undefined): boolean=>{const f=footprint(id);return Boolean(cell)&&Number.isInteger(cell!.c)&&Number.isInteger(cell!.r)&&cell!.c>=0&&cell!.r>=0&&cell!.c+f.w<=GRID.cols&&cell!.r+f.d<=GRID.rows;};
+export interface Placed{c:number;r:number}
+export type Cell=Placed;
+export const cellsOf=(id: string,{c,r}: Placed): string[]=>{const f=footprint(id),cells: string[]=[];for(let i=0;i<f.w;i++)for(let j=0;j<f.d;j++)cells.push(`${c+i},${r+j}`);return cells;};
 const CATALOGUE=[...HATS,...FURNITURE];
 export const item=(id: unknown): CatalogueItem|null=>CATALOGUE.find(i=>i.id===id)??null;
-
-export function createShop(saved: Partial<{owned: unknown[]; hat: unknown; placed: Record<string, Cell>}> = {}): ShopState {
-  const owned=((Array.isArray(saved.owned)?saved.owned:[]) as string[]).filter(id=>item(id));
-  const hat=owned.includes(saved.hat as string)&&HATS.some(h=>h.id===saved.hat)?saved.hat as string:null;
-  const placed: Record<string, Cell>={};const used=new Set<string>();
-  for(const [id,cell] of Object.entries(saved.placed??{})){
-    if(!owned.includes(id)||!FURNITURE.some(f=>f.id===id)||!validCell(id,cell))continue;
-    const cells=cellsOf(id,cell);if(cells.some(k=>used.has(k)))continue;
-    placed[id]={c:cell.c,r:cell.r};cells.forEach(k=>used.add(k));
+export interface ShopState{hats:string[];hat:string|null;furniture:string[];placed:Record<string,Placed>}
+export const toServerCell=(cell:Placed)=>({col:cell.c,row:cell.r});
+const isHat=(id:string)=>HATS.some(h=>h.id===id),isFurniture=(id:string)=>FURNITURE.some(f=>f.id===id);
+const validCell=(id:string,cell:Placed)=>{const f=footprint(id);return Number.isInteger(cell.c)&&Number.isInteger(cell.r)&&cell.c>=0&&cell.r>=0&&cell.c+f.w<=GRID.cols&&cell.r+f.d<=GRID.rows;};
+export function createShop():ShopState{return {hats:[],hat:null,furniture:[],placed:{}};}
+export function setCosmetics(s:ShopState,u:{owned:string[];equippedHat:string|null}):void{
+  s.hats=u.owned.filter(isHat);s.hat=u.equippedHat&&s.hats.includes(u.equippedHat)?u.equippedHat:null;
+}
+// The server's placed list may hold pieces with a default spot that does not fit this room; those stay stored until placed by hand.
+export function setFurniture(s:ShopState,u:{owned:string[];placed:string[];positions:Record<string,{col:number;row:number}>}):void{
+  s.furniture=u.owned.filter(isFurniture);s.placed={};const used=new Set<string>();
+  for(const id of u.placed){
+    const pos=u.positions[id];if(!s.furniture.includes(id)||!pos)continue;const cell={c:pos.col,r:pos.row};
+    if(!validCell(id,cell))continue;const cells=cellsOf(id,cell);if(cells.some(k=>used.has(k)))continue;
+    s.placed[id]=cell;cells.forEach(k=>used.add(k));
   }
-  return {owned,hat,placed};
 }
-// Spends from `wallet.coins` (the progress object). Returns the item on success, null otherwise.
-export function buy(shop: ShopState, wallet: Wallet, id: string): CatalogueItem|null{
-  const it=item(id);if(!it||shop.owned.includes(id)||wallet.coins<it.price)return null;
-  wallet.coins-=it.price;shop.owned.push(id);return it;
+export function takenCells(s:ShopState,except:string|null=null):Set<string>{const t=new Set<string>();for(const [id,cell] of Object.entries(s.placed))if(id!==except)cellsOf(id,cell).forEach(k=>t.add(k));return t;}
+export function canPlace(s:ShopState,id:string,cell:Placed):boolean{
+  if(!s.furniture.includes(id)||!isFurniture(id)||!validCell(id,cell))return false;
+  const taken=takenCells(s,id);return !cellsOf(id,cell).some(k=>taken.has(k));
 }
-export function equipHat(shop: ShopState, id: string|null): boolean{if(id!==null&&!(shop.owned.includes(id)&&HATS.some(h=>h.id===id)))return false;shop.hat=id;return true;}
-// Cells taken by every placed piece except `except` (the one being moved).
-export function takenCells(shop: ShopState, except: string|null=null): Set<string>{const t=new Set<string>();for(const [id,cell] of Object.entries(shop.placed))if(id!==except)cellsOf(id,cell).forEach(k=>t.add(k));return t;}
-export function place(shop: ShopState, id: string, cell: Cell): boolean{
-  if(!shop.owned.includes(id)||!FURNITURE.some(f=>f.id===id)||!validCell(id,cell))return false;
-  const taken=takenCells(shop,id);if(cellsOf(id,cell).some(k=>taken.has(k)))return false;
-  shop.placed[id]={c:cell.c,r:cell.r};return true;
-}
-export function unplace(shop: ShopState, id: string): boolean{if(!(id in shop.placed))return false;delete shop.placed[id];return true;}
-export const completeSets=(shop: ShopState): SetDef[]=>SETS.filter(s=>s.items.every(id=>shop.owned.includes(id)));
-export function bonuses(shop: ShopState){const b={coinsTask:0,coinsPomo:0,xpPomo:0};for(const s of completeSets(shop)){b.coinsTask+=s.coinsTask??0;b.coinsPomo+=s.coinsPomo??0;b.xpPomo+=s.xpPomo??0;}return b;}
+export const completeSets=(s:ShopState)=>SETS.filter(set=>set.items.every(id=>s.furniture.includes(id)));
