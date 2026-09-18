@@ -1,5 +1,6 @@
 import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag} from 'lucide';
 import {createCafe} from './scene.ts';
+import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {CATEGORIES,createTasks,addTask,updateTask,toggleTask,removeTask,pending,dailyReset} from './tasks.ts';
 import {createProgress,completeTask,completePomodoro,levelInfo,ACHIEVEMENTS} from './progress.ts';
@@ -115,10 +116,10 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();cafe.setTasks(pending(tasks));}catch(error){console.error(error);}});
   toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');switching=false;
 });
-function onSceneState(state: any){
+function onSceneState(state: SceneState){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
     if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
-      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.type==='daily'?' · chaque jour':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot.title}</strong><small>${state.hover.hotspot.sub}</small>`;
+      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.type==='daily'?' · chaque jour':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='tasks')openDrawer(true);
     if(state.hotspot==='timer')$('#settings').click();
