@@ -8,6 +8,7 @@ import type { Cell } from './shop.ts';
 const C={cream:'#f4e4c9',wood:'#bd8356',edge:'#905e3d',oak:'#d9aa72',sage:'#819478',dark:'#384d43',terra:'#c9764f',peach:'#e5a27a',white:'#fff4df',gold:'#d2a754',soil:'#594438'};
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean }
+export interface RemoteInfo { name: string; color: number; hat: string | null; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
 export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={} as Record<string, Cell>,hat=null as string|null}={}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
@@ -358,6 +359,23 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   let playerHat: any=null;
   function setHat(id: string|null){playerHat?.removeFromParent();playerHat=id?buildHat(id,player.head):null;}
   setHat(hat);
+  // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
+  function nameTag(text: string,color: number){
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=256;c.height=64;
+    ctx.font='600 30px Manrope, DM Sans, sans-serif';const w=Math.min(240,ctx.measureText(text).width+28);
+    ctx.fillStyle='#fffdf6e6';ctx.beginPath();ctx.roundRect((256-w)/2,8,w,48,24);ctx.fill();
+    ctx.fillStyle='#'+color.toString(16).padStart(6,'0');ctx.beginPath();ctx.arc((256-w)/2+22,32,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#4d5b43';ctx.textBaseline='middle';ctx.fillText(text,(256-w)/2+38,33,w-50);
+    const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));s.scale.set(1.6,.4,1);s.position.y=2.15;return s;
+  }
+  function stateBubble(state: string){
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=64;c.height=64;
+    ctx.font='40px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(state==='focus'?'🍅':'☕',32,34);
+    const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));s.scale.set(.45,.45,1);s.position.set(.45,1.85,0);return s;
+  }
+  function dropSprite(s: THREE.Sprite){const m=s.material as THREE.SpriteMaterial;s.removeFromParent();m.map?.dispose();m.dispose();}
   // Placement mode: the floor shows its free tiles, a ghost of the piece follows the pointer, a click picks a tile.
   let placing: any=null;const gridGroup=new THREE.Group();scene.add(gridGroup);
   const key=(c: number,r: number)=>`${c},${r}`;
@@ -507,6 +525,35 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     for(let i=0;i<6;i++)if(bar.go({x:(Math.random()-.5)*(W-2),z:(Math.random()-.5)*(D-2)}))return;
     bar.wait=1;
   }
+  // Remote players: one person + walker each, driven by the cells the server sends.
+  const cellCentreOf=(col: number,row: number)=>({x:-HW+col+.5,z:-HD+row+.5});
+  const seatNear=(p: {x: number;z: number})=>seats.find(s=>!s.taken&&Math.hypot(s.x-p.x,s.z-p.z)<.75)??null;
+  interface Remote{p: ReturnType<typeof person>;w: ReturnType<typeof walker>;hat: THREE.Group|null;tag: THREE.Sprite;bubble: THREE.Sprite|null}
+  const remotes=new Map<string, Remote>();
+  function addRemote(id: string,info: RemoteInfo){
+    removeRemote(id);const at=cellCentreOf(info.col,info.row);
+    const p=person(at.x,at.z,{shirt:'#'+info.color.toString(16).padStart(6,'0')}),w=walker(p,2.4);
+    const tag=nameTag(info.name,info.color);p.g.add(tag);
+    const r: Remote={p,w,hat:null,tag,bubble:null};remotes.set(id,r);
+    setRemoteHat(id,info.hat);setRemoteState(id,info.state);
+    const seat=seatNear(at);if(seat)w.go(seat,seat);
+  }
+  function moveRemote(id: string,col: number,row: number){const r=remotes.get(id);if(!r)return;const at=cellCentreOf(col,row),seat=seatNear(at);r.w.go(seat??at,seat);}
+  function setRemoteState(id: string,state: RemoteInfo['state']){
+    const r=remotes.get(id);if(!r)return;
+    if(r.bubble){dropSprite(r.bubble);r.bubble=null;}
+    if(state==='focus'||state==='pause'||state==='collective'){r.bubble=stateBubble(state==='pause'?'pause':'focus');r.p.g.add(r.bubble);}
+  }
+  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;r.hat?.removeFromParent();r.hat=hat?buildHat(hat,r.p.head):null;}
+  function removeRemote(id: string){
+    const r=remotes.get(id);if(!r)return;
+    r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
+    r.p.g.traverse((o: any)=>{o.geometry?.dispose?.();});
+    dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);
+    remotes.delete(id);
+  }
+  function clearRemotes(){for(const id of [...remotes.keys()])removeRemote(id);}
+  let lastCell='',lastArrived=false,cellListener: ((col: number,row: number,arrived: boolean)=>void)|null=null;
   // Slow pulse on the selected seat. Materials are shared per colour, so each mesh gets a private clone while it glows.
   function glow(object: any){
     glowing?.traverse((o: any)=>{if(o.userData.mat){o.material.dispose();o.material=o.userData.mat;delete o.userData.mat;}});
@@ -556,6 +603,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function animate(now: number){
     const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;
     me.step(dt);baristaThink(dt);bar?.step(dt);
+    for(const r of remotes.values())r.w.step(dt);
+    {const col=Math.floor(avatar.position.x+HW),row=Math.floor(avatar.position.z+HD),k=`${col},${row}`,arrived=me.route.length===0&&!me.pendingSeat;
+      if(k!==lastCell||(arrived&&lastArrived!==arrived)){lastCell=k;cellListener?.(col,row,arrived);}lastArrived=arrived;}
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
     marker.material.opacity=Math.max(0,marker.material.opacity-dt*.22);
     for(const g of tickets.values()){const b=g.userData.base;g.position.set(b.x,b.y+(reducedMotion?.06:.06+Math.sin(time*1.4+g.userData.phase)*.03),b.z);g.rotation.y=cameraYaw+(reducedMotion?0:Math.sin(time*.8+g.userData.phase)*.08);g.scale.setScalar((g===hovered?1.35:1.2)/Math.sqrt(zoom));
@@ -574,5 +624,5 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     renderer.render(scene,camera);raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setHat,startPlacing,stopPlacing,zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
+  return {setTasks,setClock,setHat,startPlacing,stopPlacing,addRemote,moveRemote,setRemoteState,setRemoteHat,removeRemote,clearRemotes,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
