@@ -196,8 +196,34 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',(e: an
 
 // Progression: coins, XP, streak and achievements — the server owns the rules, the client only renders them.
 const progress=createProgress();
-function renderShop(){/* wired to the server in Task 10 */}
+function renderShop(){
+  const home=room==='private',done=completeSets(shop);
+  $('#shop-coins').textContent=String(progress.coins);$('#shop-where').textContent=home?'— chez toi':'— à installer chez toi';
+  $('#shop-hats').innerHTML=HATS.map(h=>{const owned=shop.hats.includes(h.id),worn=shop.hat===h.id;
+    return `<li class="${owned?'owned':''}"><span class="shop-emoji">${h.emoji}</span><span class="shop-name">${h.name}<small>${owned?(worn?'Porté':'À toi'):`${h.price} pièces`}</small></span><span class="shop-actions">${owned?`<button data-hat="${h.id}">${worn?'Retirer':'Porter'}</button>`:`<button data-buy="${h.id}" ${progress.coins<h.price?'disabled':''}>Acheter</button>`}</span></li>`;}).join('');
+  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.furniture.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set)!;
+    const action=!owned?`<button data-buy-furniture="${f.id}" ${progress.coins<f.price?'disabled':''}>Acheter</button>`:!home?'<small>chez toi</small>':placed?`<button data-move="${f.id}">Déplacer</button><button data-unplace="${f.id}" class="quiet">Ranger</button>`:`<button data-place="${f.id}">Placer</button>`;
+    return `<li class="${owned?'owned':''}"><span class="shop-emoji">${f.emoji}</span><span class="shop-name">${f.name}<small>${owned?(placed?'Installé':'Rangé'):`${f.price} pièces`} · set ${set.emoji}</small></span><span class="shop-actions">${action}</span></li>`;}).join('');
+  $('#shop-sets').innerHTML=SETS.map(s=>{const have=s.items.filter(id=>shop.furniture.includes(id)).length,full=done.includes(s);
+    return `<li class="${full?'owned':''}"><span class="shop-emoji">${s.emoji}</span><span class="shop-name">${s.name}<small>${s.desc} · ${have}/${s.items.length}</small></span></li>`;}).join('');
+}
+$('#tab-shop').addEventListener('click',(e: Event)=>{
+  const b=(e.target as HTMLElement).closest('button');if(!b)return;const d=b.dataset;
+  if(d.buy)net.socket.emit('shop:buy',{userId:identity.userId,itemId:d.buy});
+  else if(d.buyFurniture)net.socket.emit('furniture:buy',{userId:identity.userId,itemId:d.buyFurniture});
+  else if(d.hat){const hatId=shop.hat===d.hat?null:d.hat;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId});
+    shop.hat=hatId;cafe?.setHat(shop.hat);renderShop();}// the server answers `player-hat` to the others only, so we apply it here
+  else if(d.place||d.move)startPlacing(d.place||d.move!);
+  else if(d.unplace)net.socket.emit('furniture:toggle-place',{userId:identity.userId,itemId:d.unplace});
+});
 // Placement: the room shows its free tiles, you click one, then confirm. Moving a piece starts from where it stands.
+function startPlacing(id:string){
+  if(room!=='private'||!cafe)return;placingId=id;placingCell=null;openDrawer(false);
+  $('#place-text').innerHTML=`Clique une case pour ${shop.placed[id]?'déplacer':'poser'} <strong>${shopItem(id)!.emoji} ${shopItem(id)!.name}</strong>`;($('#place-ok') as HTMLButtonElement).disabled=true;($('#place-bar') as HTMLElement).hidden=false;drawIcons();
+  cafe.startPlacing(id,shop.placed[id]??null,takenCells(shop,id));
+}
+$('#place-ok').onclick=()=>{if(!placingId||!placingCell||!canPlace(shop,placingId,placingCell))return;
+  net.socket.emit(shop.placed[placingId]?'furniture:move':'furniture:place',{userId:identity.userId,itemId:placingId,...toServerCell(placingCell)});endPlacing();};
 function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#place-bar').hidden=true;}
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
@@ -231,7 +257,11 @@ function bindServerEvents(){
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
   s.on('room:full',()=>{showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
-  // cosmetics, furniture and presence handlers are added in Tasks 10 and 12
+  s.on('cosmetics:state',u=>{setCosmetics(shop,u);cafe?.setHat(shop.hat);renderShop();});
+  s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:itemId});shop.hat=itemId;cafe?.setHat(itemId);});
+  s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
+  s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();if(room==='private'&&JSON.stringify(shop.placed)!==before)rearrange('C’est posé.');});
+  // presence handlers are added in Task 12
 }
 
 function persistTimer(){save('gamitask.timer',timer);}
