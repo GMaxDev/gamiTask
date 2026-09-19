@@ -715,7 +715,8 @@ app.get("/twitch/chatters", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const chatters = await getChatters(row.twitchId, accessToken);
+    // The broadcaster shows up in their own chatters list, but they already have a player avatar in the room — skip that duplicate.
+    const chatters = (await getChatters(row.twitchId, accessToken)).filter((c) => c.id !== row.twitchId);
     res.json({ chatters });
   } catch (err) {
     console.error("[twitch/chatters]", err);

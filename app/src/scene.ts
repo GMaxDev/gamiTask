@@ -506,7 +506,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function chatBubble(name: string,color: number,text: string,y: number){
     const t=text.length>60?text.slice(0,59)+'…':text;
-    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=512;c.height=128;
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;
     const REG='500 34px "DM Sans", Manrope, sans-serif',BOLD='700 34px "DM Sans", Manrope, sans-serif',PAD=12;
     // tokens: the speaker's name on a pill in their colour, then the words; wrapped over two lines at most
     const tokens=[{s:name,b:true},...t.split(/\s+/).map(s=>({s,b:false}))];
@@ -516,14 +516,16 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     for(const tok of tokens){const w=width(tok),add=lines.at(-1)!.length?space+w:w;
       if(lines.at(-1)!.length&&lw+add>440){if(lines.length===2)break;lines.push([tok]);lw=w;}else{lines.at(-1)!.push(tok);lw+=add;}}
     const lineW=(l: {s: string;b: boolean}[])=>l.reduce((a,tok,i)=>a+width(tok)+(i?space:0),0);
-    const w=Math.min(500,Math.max(...lines.map(lineW))+40),h=lines.length>1?100:62;
-    ctx.fillStyle='#fffdf6f2';ctx.beginPath();ctx.roundRect((512-w)/2,(128-h)/2,w,h,20);ctx.fill();
+    const w=Math.min(500,Math.max(...lines.map(lineW))+40),pillH=lines.length>1?100:62;
+    // Canvas fits the pill snugly (a few px of edge margin only) so stacked bubbles don't inherit a fat transparent band.
+    const cw=512,ch=pillH+10;c.width=cw;c.height=ch;
+    ctx.fillStyle='#fffdf6f2';ctx.beginPath();ctx.roundRect((cw-w)/2,(ch-pillH)/2,w,pillH,20);ctx.fill();
     ctx.textAlign='left';ctx.textBaseline='middle';
-    lines.forEach((l,i)=>{let x=256-lineW(l)/2;const yy=64+(i-(lines.length-1)/2)*40;for(const tok of l){const tw=width(tok);ctx.font=tok.b?BOLD:REG;
+    lines.forEach((l,i)=>{let x=cw/2-lineW(l)/2;const yy=ch/2+(i-(lines.length-1)/2)*40;for(const tok of l){const tw=width(tok);ctx.font=tok.b?BOLD:REG;
       if(tok.b){ctx.fillStyle=hexOf(color);ctx.beginPath();ctx.roundRect(x,yy-21,tw,42,12);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(tok.s,x+PAD,yy+1);}
       else{ctx.fillStyle='#000';ctx.fillText(tok.s,x,yy);}
       x+=tw+space;}});
-    const k=BUBBLE_TEXT_PX/34;return sprite(c,3.2,.8,0,y,512*k,128*k);// 34px font on the canvas → BUBBLE_TEXT_PX on screen
+    const k=BUBBLE_TEXT_PX/34;return sprite(c,cw*k/128,ch*k/128,0,y,cw*k,ch*k);// 34px font on the canvas → BUBBLE_TEXT_PX on screen
   }
   function emoteBubble(emoji: string,y: number){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=128;c.height=128;
@@ -537,9 +539,19 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const pixelsPerUnit=()=>height*camera.zoom/(camera.top-camera.bottom);
   // `lift` stacks an emote above a chat bubble of the same avatar instead of overlapping it.
   function fitBubble(b: Bubble,lift=0){const ppu=pixelsPerUnit(),w=b.px.w/ppu,h=b.px.h/ppu;b.s.scale.set(w,h,1);b.s.position.y=Math.max(b.bottom,lift)+h/2+(b.float&&!reducedMotion?Math.sin(time*3)*.15:0);return b.s.position.y+h/2;}
-  function dropBubbles(id: string){for(const key of [`${id}:chat`,`${id}:emote`]){const b=bubbles.get(key);if(b){dropSprite(b.s);bubbles.delete(key);}}}
-  function say(id: string,name: string,color: number,text: string){const r=remotes.get(id);if(r)showBubble(`${id}:chat`,r.p.g,chatBubble(name,color,text,2.6),5,false);}
-  function sayMe(name: string,color: number,text: string){showBubble(':chat',avatar,chatBubble(name,color,text,2.5),5,false);}
+  function dropBubbles(id: string){const key=`${id}:emote`,b=bubbles.get(key);if(b){dropSprite(b.s);bubbles.delete(key);}dropChatStack(id);}
+  // Chat messages queue instead of replacing one another: several in a row each get their own bubble, newest closest to
+  // the head and older ones pushed up above it, each fading on its own 5s-then-1s-fade clock regardless of the others.
+  interface ChatEntry{s: THREE.Sprite;until: number;px: {w: number;h: number}}
+  const chatStacks=new Map<string, {anchorY: number;items: ChatEntry[]}>();// key: id, '' for the player
+  const CHAT_LIFE=5,CHAT_FADE=1,CHAT_GAP=.04;
+  function pushChat(key: string,group: THREE.Object3D,anchorY: number,build: (y: number)=>THREE.Sprite){
+    let stack=chatStacks.get(key);if(!stack){stack={anchorY,items:[]};chatStacks.set(key,stack);}
+    const s=build(anchorY);group.add(s);stack.items.push({s,until:time+CHAT_LIFE,px:s.userData.px});
+  }
+  function dropChatStack(id: string){const stack=chatStacks.get(id);if(!stack)return;for(const b of stack.items)dropSprite(b.s);chatStacks.delete(id);}
+  function say(id: string,name: string,color: number,text: string){const r=remotes.get(id);if(r)pushChat(id,r.p.g,2.6,y=>chatBubble(name,color,text,y));}
+  function sayMe(name: string,color: number,text: string){pushChat('',avatar,2.5,y=>chatBubble(name,color,text,y));}
   function emote(id: string,emoji: string){const r=remotes.get(id);if(r)showBubble(`${id}:emote`,r.p.g,emoteBubble(emoji,2.5),3,true);}
   function emoteMe(emoji: string){showBubble(':emote',avatar,emoteBubble(emoji,2.5),3,true);}
   // Public feedback above an avatar: a word that rises and fades (+10, a level, a badge), and a small "n à faire" pill under a remote's name tag.
@@ -739,9 +751,21 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       if(k!==lastCell||(arrived&&lastArrived!==arrived)){lastCell=k;cellListener?.(col,row,arrived);}lastArrived=arrived;}
     if(!reducedMotion)steam.forEach(({puff,baseY,phase,x,z,drift})=>{const p=(time*.32+phase)%1;puff.position.set(x+Math.sin(p*4+drift)*.06*p,baseY+p*.7,z+Math.cos(p*3+drift)*.04*p);puff.scale.set(.6+p*1.1,1.4+p*1.2,.6+p*1.1);puff.material.opacity=Math.sin(p*Math.PI)*.42;});
     marker.material.opacity=Math.max(0,marker.material.opacity-dt*.22);
-    for(const [k,b] of bubbles){if(time>b.until){dropSprite(b.s);bubbles.delete(k);}}
-    const tops=new Map<string, number>();// chat bubbles first, so emotes can sit on top of them
-    for(const [k,b] of bubbles)if(k.endsWith(':chat'))tops.set(k.slice(0,-5),fitBubble(b)+.05);
+    for(const [k,b] of bubbles){if(k.endsWith(':emote')&&time>b.until){dropSprite(b.s);bubbles.delete(k);}}
+    const tops=new Map<string, number>();// chat bubbles first, so emotes can sit on top of the stack
+    const ppu=pixelsPerUnit();
+    for(const [id,stack] of chatStacks){
+      for(let i=stack.items.length-1;i>=0;i--)if(time>stack.items[i].until+CHAT_FADE){dropSprite(stack.items[i].s);stack.items.splice(i,1);}
+      if(!stack.items.length){chatStacks.delete(id);continue;}
+      let y=stack.anchorY;
+      for(let i=stack.items.length-1;i>=0;i--){// newest (pushed last) sits at the anchor; older ones stack above it
+        const b=stack.items[i],h=b.px.h/ppu,w=b.px.w/ppu,sp=b.s as THREE.Sprite;
+        sp.scale.set(w,h,1);sp.position.y=y+h/2;
+        (sp.material as THREE.SpriteMaterial).opacity=time<=b.until?1:Math.max(0,1-(time-b.until)/CHAT_FADE);
+        y+=h+CHAT_GAP;
+      }
+      tops.set(id,y+.05);
+    }
     for(const [k,b] of bubbles)if(k.endsWith(':emote'))fitBubble(b,tops.get(k.slice(0,-6))??0);
     fitFeedback();
     for(const g of tickets.values()){const b=g.userData.base;g.position.set(b.x,b.y+(reducedMotion?.06:.06+Math.sin(time*1.4+g.userData.phase)*.03),b.z);g.rotation.y=cameraYaw+(reducedMotion?0:Math.sin(time*.8+g.userData.phase)*.08);g.scale.setScalar((g===hovered?1.35:1.2)/Math.sqrt(zoom));
@@ -771,7 +795,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
+  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
