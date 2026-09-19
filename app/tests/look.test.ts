@@ -74,7 +74,6 @@ test('loadLook validates v2 fields: enums fall back, sliders clamp',()=>{
 
 test('randomLook is deterministic under an injected rng and respects the catalogues',()=>{
  const seq=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.05,0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85,0.95,0.5,0.5,0.5,0.5];
- let i=0;const rng=()=>seq[i++%seq.length];
  const shirtPalette=PALETTE.map(p=>p.hex);
  const a=randomLook(shirtPalette,(()=>{let j=0;return()=>seq[j++%seq.length];})());
  const b=randomLook(shirtPalette,(()=>{let j=0;return()=>seq[j++%seq.length];})());

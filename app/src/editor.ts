@@ -1,6 +1,6 @@
 // The character editor: a sheet that slides up over the café, with thumbnails rendered from the real low-poly avatar.
 import * as THREE from 'three';
-import {type Look,SKINS,HEADS,BANGS,BACKS,HAIR_COLORS,TROUSERS,EYES,BROWS,NOSES,MOUTHS,BODIES,PATTERNS,SLEEVES,BOTTOMS,SHOES,HAIR_SETS,withChange,createHistory,type History,defaultLook,randomLook} from './look.ts';
+import {type Look,SKINS,HEADS,BANGS,BACKS,HAIR_COLORS,TROUSERS,EYES,BROWS,NOSES,MOUTHS,BODIES,PATTERNS,SLEEVES,BOTTOMS,SHOES,HAIR_SETS,withChange,equalLook,createHistory,type History,defaultLook,randomLook} from './look.ts';
 import {PALETTE,cleanName} from './identity.ts';
 import {HATS} from './shop.ts';
 import {createPrimitives} from './primitives.ts';
@@ -29,24 +29,27 @@ const SLIDERS:Partial<Record<Sub,{key:keyof Look;label:string}[]>>={
   mouth:[{key:'mouthY',label:'Hauteur'},{key:'mouthSize',label:'Taille'}],
 };
 
-interface Item{id:string;label:string;patch:Partial<Look>;kind:'head'|'body'}
+type Kind='head'|'face'|'body';
+interface Item{id:string;label:string;patch:Partial<Look>;kind:Kind;group?:string}
 interface Swatch{id:string;label:string;hex:string;patch:Partial<Look>}
-const heads=(list:{id:string;label:string}[],key:keyof Look):Item[]=>list.map(e=>({id:e.id,label:e.label,patch:{[key]:e.id} as Partial<Look>,kind:'head'}));
-const bodies=(list:{id:string;label:string}[],key:keyof Look):Item[]=>list.map(e=>({id:e.id,label:e.label,patch:{[key]:e.id} as Partial<Look>,kind:'body'}));
+const tiles=(list:{id:string;label:string}[],key:keyof Look,kind:Kind):Item[]=>list.map(e=>({id:e.id,label:e.label,patch:{[key]:e.id} as Partial<Look>,kind}));
+const heads=(list:{id:string;label:string}[],key:keyof Look):Item[]=>tiles(list,key,'head');
+const bodies=(list:{id:string;label:string}[],key:keyof Look):Item[]=>tiles(list,key,'body');
+const faces=(list:{id:string;label:string}[],key:keyof Look):Item[]=>tiles(list,key,'face');
 
 function items(sub:Sub,ownedHats:string[]):Item[]{
   switch(sub){
     case 'skin':return heads(SKINS,'skin');
     case 'head':return heads(HEADS,'head');
-    case 'eyes':return heads(EYES,'eyes');
-    case 'brows':return heads(BROWS,'brows');
-    case 'nose':return heads(NOSES,'nose');
-    case 'mouth':return heads(MOUTHS,'mouth');
+    case 'eyes':return faces(EYES,'eyes');
+    case 'brows':return faces(BROWS,'brows');
+    case 'nose':return faces(NOSES,'nose');
+    case 'mouth':return faces(MOUTHS,'mouth');
     case 'sets':return HAIR_SETS.map(s=>({id:s.id,label:s.label,patch:{bangs:s.bangs,back:s.back,hairColor:s.hairColor},kind:'head'} as Item));
     case 'bangs':return heads(BANGS,'bangs');
     case 'back':return heads(BACKS,'back');
     case 'top':return PALETTE.map(c=>({id:hexOf(c.hex),label:c.label,patch:{shirt:c.hex},kind:'body'} as Item));
-    case 'pattern':return [...bodies(PATTERNS,'topPattern'),...bodies(SLEEVES,'sleeves')];
+    case 'pattern':return [...bodies(PATTERNS,'topPattern'),...bodies(SLEEVES,'sleeves').map((it,i)=>i?it:{...it,group:'Manches'})];
     case 'bottom':return bodies(BOTTOMS,'bottom');
     case 'shoes':return bodies(SHOES,'shoes');
     case 'shape':return bodies(BODIES,'body');
@@ -77,15 +80,17 @@ function createThumbs(){
   const materials=new Map<string,any>(),root=new THREE.Group();scene.add(root);
   const P=createPrimitives(()=>root,materials);
   const cache=new Map<string,string>();
-  function draw(kind:'head'|'body',look:Look):string{
-    // A head shows the face, the hair and what sits on it; a body shows the whole avatar, so it keys on the whole look.
-    const k=kind+JSON.stringify(kind==='head'?[look.skin,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat,look.eyes,look.brows,look.nose,look.mouth,look.eyesY,look.eyesGap,look.eyesSize,look.browsY,look.noseY,look.noseSize,look.mouthY,look.mouthSize]:look);
+  function draw(kind:Kind,look:Look):string{
+    // A head and a face show the same fields from two distances; a body ignores the face, which it is far too small to show.
+    const k=kind+JSON.stringify(kind==='body'?[look.skin,look.shirt,look.trousers,look.shoes,look.topPattern,look.sleeves,look.bottom,look.body,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat]
+      :[look.skin,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat,look.eyes,look.brows,look.nose,look.mouth,look.eyesY,look.eyesGap,look.eyesSize,look.browsY,look.noseY,look.noseSize,look.mouthY,look.mouthSize]);
     const hit=cache.get(k);if(hit)return hit;
     root.clear();const rig=buildAvatar(P,0,0,look);
-    if(kind==='head'){cam.zoom=2.1;cam.position.set(2.2,3.6,3.2);cam.lookAt(0,1.28,0);}
+    if(kind==='face'){cam.zoom=3.4;cam.position.set(.3,1.5,3);cam.lookAt(0,1.3,0);}
+    else if(kind==='head'){cam.zoom=2.1;cam.position.set(2.2,3.6,3.2);cam.lookAt(0,1.28,0);}
     else{cam.zoom=1.05;cam.position.set(2.2,2.9,3.2);cam.lookAt(0,.8,0);}
-    cam.updateProjectionMatrix();rig.g.rotation.y=-.35;renderer.render(scene,cam);
-    const url=renderer.domElement.toDataURL('image/png');cache.set(k,url);
+    cam.updateProjectionMatrix();rig.g.rotation.y=kind==='face'?-.08:-.35;renderer.render(scene,cam);
+    const url=renderer.domElement.toDataURL('image/png');if(cache.size>300)cache.clear();cache.set(k,url);
     root.traverse((o:any)=>o.geometry?.dispose?.());
     return url;
   }
@@ -125,16 +130,18 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
     if(focused>=list.length)focused=0;
     const keepFocus=grid.contains(document.activeElement);
     const imgs:HTMLImageElement[]=[];
-    grid.replaceChildren(...list.map((it,i)=>{
+    grid.replaceChildren(...list.flatMap((it,i)=>{
       const b=document.createElement('button');b.className='editor-tile';b.role='option';b.setAttribute('aria-label',it.label);b.title=it.label;
       b.setAttribute('aria-selected',String(applied(look,it.patch)));b.tabIndex=i===focused?0:-1;
       const img=document.createElement('img');img.alt='';b.appendChild(img);imgs.push(img);
       b.onclick=()=>{focused=i;select(it.patch);};
       b.onfocus=()=>{focused=i;};
-      return b;
+      if(!it.group)return [b];
+      // A group heading breaks the row: it spans the grid so what follows reads as its own list.
+      const h=document.createElement('span');h.className='sub-group';h.textContent=it.group;return [h,b];
     }));
     // replaceChildren dropped the focused tile: keyboard selection has to land back on its replacement.
-    if(keepFocus)(grid.children[focused] as HTMLElement|undefined)?.focus();
+    if(keepFocus)(grid.querySelectorAll<HTMLElement>('.editor-tile')[focused])?.focus();
     // A cold tab costs ~40 ms per thumbnail, so the grid paints first and fills in two frames.
     const token=++pass,half=Math.ceil(list.length/2);
     const fill=(from:number,to:number)=>{for(let i=from;i<to;i++)imgs[i].src=thumbs!.draw(list[i].kind,withChange(look,list[i].patch));};
@@ -161,7 +168,8 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
     if(heldSlider){const i=defs.findIndex(d=>d.key===heldSlider);heldSlider=null;if(i>=0)(sliders.children[i]?.querySelector('input') as HTMLElement|null)?.focus();}
     undoBtn.disabled=!history.canUndo();
   }
-  function select(patch:Partial<Look>){history.push(withChange(history.current(),patch));deps.onPreview(history.current());render();}
+  // Reselecting what is already worn must not cost an Undo step.
+  function select(patch:Partial<Look>){const next=withChange(history.current(),patch);if(equalLook(next,history.current()))return;history.push(next);deps.onPreview(next);render();}
   function exit(){deps.onPreview(history.reset());deps.onExit();}
 
   q('#ed-reset').onclick=()=>deps.resetView();

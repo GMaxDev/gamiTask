@@ -28,7 +28,7 @@ function buildFace(p:Primitives,g:any,look:Look){
   const ex=.11+look.eyesGap*.012,ey=.20+look.eyesY*.012,es=1+look.eyesSize*.12;
   for(const side of [-1,1])buildEye(p,g,look,side,ex,ey,es);
   const by=.30+look.browsY*.012,bh=look.brows==='thick'?.03:look.brows==='thin'?.012:.018;
-  for(const side of [-1,1]){const b=p.box(.09,bh,.012,hairHex(look.hairColor),side*ex,by,faceZ(look,by,side*ex),0,g);if(look.brows==='arched')b.rotation.z=side*.35;}
+  for(const side of [-1,1]){const b=p.box(.09,bh,.012,hairHex(look.hairColor),side*ex,by,faceZ(look,by,side*ex),0,g);b.rotation.y=-side*.25;if(look.brows==='arched')b.rotation.z=side*.35;}
   const ny=.12+look.noseY*.012,nose=new THREE.Group();nose.position.set(0,ny,faceZ(look,ny));nose.scale.setScalar(1+look.noseSize*.12);g.add(nose);
   const nc=shade(skinHex(look.skin),-.12);
   if(look.nose==='straight')p.box(.03,.07,.03,nc,0,0,.004,.008,nose);
