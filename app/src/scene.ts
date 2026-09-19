@@ -281,10 +281,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
   function nameTag(text: string,color: number){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=256;c.height=64;
-    ctx.font='600 30px Manrope, DM Sans, sans-serif';const w=Math.min(240,ctx.measureText(text).width+28);
+    ctx.font='600 30px Manrope, DM Sans, sans-serif';
+    // Layout budget: left pad + dot + gap + text + right pad. Only the rare very-long name gets squeezed (240 cap) — everyone else renders at their natural width.
+    const LEFT=16,DOT=16,GAP=10,RIGHT=16,textWidth=ctx.measureText(text).width;
+    const w=Math.min(240,LEFT+DOT+GAP+textWidth+RIGHT);
     ctx.fillStyle='#fffdf6e6';ctx.beginPath();ctx.roundRect((256-w)/2,8,w,48,24);ctx.fill();
-    ctx.fillStyle='#'+color.toString(16).padStart(6,'0');ctx.beginPath();ctx.arc((256-w)/2+22,32,8,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#4d5b43';ctx.textBaseline='middle';ctx.fillText(text,(256-w)/2+38,33,w-50);
+    ctx.fillStyle='#'+color.toString(16).padStart(6,'0');ctx.beginPath();ctx.arc((256-w)/2+LEFT+DOT/2,32,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';ctx.textBaseline='middle';ctx.fillText(text,(256-w)/2+LEFT+DOT+GAP,33,w-LEFT-DOT-GAP-RIGHT);
     const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
     const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));s.scale.set(1.6,.4,1);s.position.y=2.15;return s;
   }
