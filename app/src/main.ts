@@ -395,6 +395,16 @@ start();// the room is built behind the veil, then the server fills it
     });
   }
 };
+// Dev-only: spawn made-up names to check the name tag/look rendering without needing a live channel to test against.
+(window as any).spawnFakeChatters=(names:string[])=>{
+  const {w,d}=DIMS[room];
+  for(const name of names){
+    cafe.addRemote(`fake-chatter-${name}`,{
+      name,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
+    });
+  }
+};
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
 $('#light').onclick=()=>{if(!cafe)return;const evening=cafe.toggleLight();$('#light').innerHTML=icon(evening?'moon':'sun')+`<span>${evening?'Douce soirée':'Lumière du jour'}</span>`;$('.world').classList.toggle('evening',evening);drawIcons();};
 $('#help').onclick=()=>$('#help-dialog').showModal();
