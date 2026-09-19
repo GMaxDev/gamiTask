@@ -128,4 +128,4 @@ Comportement :
 
 ## 9. Suite (hors itération)
 
-Sets de coiffure · curseurs yeux / nez / bouche (Miitopia) · tenues avec motifs · éditeur à la première visite · accès (grades) si certaines options deviennent payantes.
+Éditeur à la première visite · accès (grades) si certaines options deviennent payantes. (Livrés depuis : sets de coiffure, curseurs yeux / sourcils / nez / bouche, tenues avec motifs, gabarits de corps, « Au hasard ».)
