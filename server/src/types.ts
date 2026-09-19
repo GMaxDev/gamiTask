@@ -11,6 +11,23 @@ export interface Look {
   trousers: string;
   headphones: boolean;
   hat: string | null;
+  eyes: string;
+  brows: string;
+  nose: string;
+  mouth: string;
+  eyesY: number;
+  eyesGap: number;
+  eyesSize: number;
+  browsY: number;
+  noseY: number;
+  noseSize: number;
+  mouthY: number;
+  mouthSize: number;
+  body: "slim" | "regular" | "round";
+  topPattern: string;
+  sleeves: "short" | "long";
+  bottom: "trousers" | "shorts" | "skirt";
+  shoes: string;
 }
 
 export interface Player {
