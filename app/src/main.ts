@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -17,9 +17,10 @@ import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
+import {verifyToken,loginWithGoogle,renderGoogleButton} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -45,6 +46,7 @@ $('#app').innerHTML=`
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
         </button>
         <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
+        <button id="logout-button" class="icon-button" aria-label="Se déconnecter" title="Se déconnecter">${icon('log-out')}</button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
       <div class="world-bottom"><div class="world-left"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
@@ -119,11 +121,22 @@ $('#app').innerHTML=`
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
   </form></dialog>
   <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
+  <div id="login-screen" class="login-screen" role="dialog" aria-modal="true" aria-label="Connexion" hidden>
+    <div class="login-card">
+      <span class="brand-mark">${icon('coffee')}</span>
+      <h2>Bienvenue au café.</h2>
+      <p>Connecte-toi avec Google pour retrouver ton personnage sur n’importe quel appareil, ou entre directement en invité.</p>
+      <div id="google-btn" class="google-btn-slot"></div>
+      <div class="login-sep"><span>ou</span></div>
+      <button id="login-guest" class="secondary" type="button">Continuer en invité</button>
+    </div>
+  </div>
 `;
 drawIcons();
 // Who you are: kept locally, sent to the server at every `join`.
 const uuid=()=>crypto.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-const {identity,fresh}=loadIdentity(load('gamitask.identity',null),uuid);
+const {identity,fresh:initialFresh}=loadIdentity(load('gamitask.identity',null),uuid);
+let fresh=initialFresh;
 function saveIdentity(){save('gamitask.identity',identity);renderIdentity();}
 function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);}
 function askIdentity():Promise<void>{
@@ -138,6 +151,7 @@ function askIdentity():Promise<void>{
 }
 ($('#identity-dialog') as HTMLDialogElement).addEventListener('cancel',e=>{if(!identity.name)e.preventDefault();});// no way out of the very first hello
 renderIdentity();
+($('#logout-button') as HTMLButtonElement).onclick=()=>{save('gamitask.token',null);save('gamitask.guest',null);save('gamitask.identity',null);location.reload();};// forget who we are and land back on the login screen
 
 // Connection: the café is unreachable until the server answers, so a veil covers the room in the meantime.
 const API_URL=(import.meta.env.VITE_API_URL as string|undefined)??'http://localhost:3001';
@@ -147,7 +161,31 @@ const veil=$('#net-veil') as HTMLElement,veilText=$('#net-text') as HTMLElement;
 function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.textContent=text;}
 let ready={room:false,tasks:false};
 function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
+const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined)??'';
+function applyAuthUser(u:{userId:string;token:string;name:string;color:number}){
+  identity.userId=u.userId;
+  if(u.name)identity.name=u.name;
+  if(PALETTE.some(p=>p.hex===u.color))identity.color=u.color;
+  saveIdentity();save('gamitask.token',u.token);fresh=!identity.name;
+}
+async function resolveAuth(){
+  const savedToken=load('gamitask.token',null);
+  if(savedToken){const user=await verifyToken(API_URL,savedToken);if(user){applyAuthUser(user);return;}save('gamitask.token',null);}
+  if(load('gamitask.guest',false))return;// chose « invité » before: walk straight back in, like the identity dialog does for a returning guest
+  const screen=$('#login-screen') as HTMLElement;
+  screen.hidden=false;
+  await new Promise<void>(resolve=>{
+    ($('#login-guest') as HTMLButtonElement).onclick=()=>{save('gamitask.guest',true);screen.hidden=true;resolve();};
+    if(!GOOGLE_CLIENT_ID){($('#google-btn') as HTMLElement).hidden=true;return;}
+    renderGoogleButton(GOOGLE_CLIENT_ID,$('#google-btn'),async credential=>{
+      const user=await loginWithGoogle(API_URL,credential);
+      if(!user){toast('La connexion Google a échoué, réessaie ou continue en invité.');return;}
+      applyAuthUser(user);screen.hidden=true;resolve();
+    }).catch(()=>{($('#google-btn') as HTMLElement).hidden=true;});
+  });
+}
 async function start(){
+  await resolveAuth();
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
   if(room==='private')pendingHome=true;
   net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved
