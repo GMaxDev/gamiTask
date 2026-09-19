@@ -50,7 +50,13 @@ export function buildAuthorizeUrl(redirectUri: string, state: string): string {
   return `https://id.twitch.tv/oauth2/authorize?${params}`;
 }
 
-export async function exchangeCodeForToken(code: string, redirectUri: string): Promise<string> {
+export interface TwitchTokens { accessToken: string; refreshToken: string; expiresAt: number }
+
+function toTokens(data: { access_token: string; refresh_token: string; expires_in: number }): TwitchTokens {
+  return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: Date.now() + data.expires_in * 1000 };
+}
+
+export async function exchangeCodeForToken(code: string, redirectUri: string): Promise<TwitchTokens> {
   const res = await fetch("https://id.twitch.tv/oauth2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -63,8 +69,23 @@ export async function exchangeCodeForToken(code: string, redirectUri: string): P
     }),
   });
   if (!res.ok) throw new Error(`twitch code exchange: ${res.status}`);
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
+  return toTokens(await res.json());
+}
+
+/** Twitch user access tokens expire (~4h); a stored refresh token gets a fresh one without re-consent. */
+export async function refreshUserToken(refreshToken: string): Promise<TwitchTokens> {
+  const res = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: TWITCH_CLIENT_ID,
+      client_secret: TWITCH_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) throw new Error(`twitch token refresh: ${res.status}`);
+  return toTokens(await res.json());
 }
 
 export interface TwitchUser { id: string; login: string; display_name: string }
@@ -78,4 +99,21 @@ export async function getTwitchUser(userAccessToken: string): Promise<TwitchUser
   const user = data.data[0];
   if (!user) throw new Error("twitch users: empty response");
   return user;
+}
+
+export interface Chatter { id: string; login: string; name: string }
+
+/**
+ * Who's actually in a channel's chat right now. Twitch only allows a broadcaster (or one of
+ * their mods) to read this about their own channel, using that person's own user access token —
+ * there's no way to read another streamer's chatters without them linking their own account.
+ */
+export async function getChatters(broadcasterId: string, userAccessToken: string): Promise<Chatter[]> {
+  const params = new URLSearchParams({ broadcaster_id: broadcasterId, moderator_id: broadcasterId, first: "1000" });
+  const res = await fetch(`https://api.twitch.tv/helix/chat/chatters?${params}`, {
+    headers: { "Client-Id": TWITCH_CLIENT_ID, Authorization: `Bearer ${userAccessToken}` },
+  });
+  if (!res.ok) throw new Error(`twitch chatters: ${res.status}`);
+  const data = (await res.json()) as { data: { user_id: string; user_login: string; user_name: string }[] };
+  return data.data.map((c) => ({ id: c.user_id, login: c.user_login, name: c.user_name }));
 }

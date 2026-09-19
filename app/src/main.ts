@@ -17,7 +17,7 @@ import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
-import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch} from './auth.ts';
+import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
 const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink};
@@ -375,6 +375,22 @@ start();// the room is built behind the veil, then the server fills it
   for(let i=0;i<viewerCount;i++){
     cafe.addRemote(`twitch-${channel}-${i}`,{
       name:`viewer${i+1}`,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
+    });
+  }
+};
+// Prototype: spawn the real chatters of MY OWN linked Twitch channel — Twitch only lets a broadcaster read their own chat list.
+// Still random-looking (a chatter's real gamitask look only exists once they link their own account too), but tagged with their real name.
+(window as any).spawnMyChatters=async()=>{
+  const token=load('gamitask.token',null);
+  if(!token){console.log('[twitch] connecte-toi avec Google et lie ton compte Twitch d’abord.');return;}
+  const chatters=await getMyChatters(API_URL,token);
+  if(!chatters){console.error('[twitch] lookup failed — compte Twitch lié ?');return;}
+  const {w,d}=DIMS[room];
+  console.log(`[twitch] ${chatters.length} chatters, spawning…`);
+  for(const c of chatters){
+    cafe.addRemote(`twitch-chatter-${c.id}`,{
+      name:c.name||c.login,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
       look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
     });
   }

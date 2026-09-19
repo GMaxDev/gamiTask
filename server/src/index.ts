@@ -32,7 +32,7 @@ import {
   type Look,
 } from "./types.js";
 import { sanitizeLook } from "./look.js";
-import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, getTwitchUser } from "./twitch.js";
+import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -69,6 +69,9 @@ interface UserRow {
   twitchId: string | null;
   twitchLogin: string | null;
   twitchDisplayName: string | null;
+  twitchAccessToken: string | null;
+  twitchRefreshToken: string | null;
+  twitchTokenExpiresAt: number;
 }
 interface TaskRow {
   id: string;
@@ -186,6 +189,15 @@ try {
 try {
   db.exec(`ALTER TABLE users ADD COLUMN twitchDisplayName TEXT`);
 } catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchAccessToken TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchRefreshToken TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchTokenExpiresAt INTEGER NOT NULL DEFAULT 0`);
+} catch {}
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`,
 );
@@ -294,10 +306,19 @@ const sql = {
   ),
   getUserByTwitchId: db.prepare("SELECT * FROM users WHERE twitchId = ?"),
   linkTwitch: db.prepare(
-    "UPDATE users SET twitchId = ?, twitchLogin = ?, twitchDisplayName = ? WHERE id = ?",
+    "UPDATE users SET twitchId = ?, twitchLogin = ?, twitchDisplayName = ?, twitchAccessToken = ?, twitchRefreshToken = ?, twitchTokenExpiresAt = ? WHERE id = ?",
   ),
   unlinkTwitch: db.prepare(
-    "UPDATE users SET twitchId = NULL, twitchLogin = NULL, twitchDisplayName = NULL WHERE id = ?",
+    "UPDATE users SET twitchId = NULL, twitchLogin = NULL, twitchDisplayName = NULL, twitchAccessToken = NULL, twitchRefreshToken = NULL, twitchTokenExpiresAt = 0 WHERE id = ?",
+  ),
+  getTwitchTokens: db.prepare(
+    "SELECT twitchId, twitchAccessToken, twitchRefreshToken, twitchTokenExpiresAt FROM users WHERE id = ?",
+  ),
+  saveTwitchTokens: db.prepare(
+    "UPDATE users SET twitchAccessToken = ?, twitchRefreshToken = ?, twitchTokenExpiresAt = ? WHERE id = ?",
+  ),
+  clearTwitchTokens: db.prepare(
+    "UPDATE users SET twitchAccessToken = NULL, twitchRefreshToken = NULL, twitchTokenExpiresAt = 0 WHERE id = ?",
   ),
   setAdminFlag: db.prepare("UPDATE users SET isAdmin = ? WHERE id = ?"),
   saveDailyReset: db.prepare(
@@ -634,14 +655,17 @@ app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const accessToken = await exchangeCodeForToken(code, TWITCH_REDIRECT_URI);
-    const twitchUser = await getTwitchUser(accessToken);
+    const tokens = await exchangeCodeForToken(code, TWITCH_REDIRECT_URI);
+    const twitchUser = await getTwitchUser(tokens.accessToken);
     const existing = sql.getUserByTwitchId.get(twitchUser.id) as UserRow | undefined;
     if (existing && existing.id !== userId) {
       res.redirect(`${APP_URL}/?twitch=taken`);
       return;
     }
-    sql.linkTwitch.run(twitchUser.id, twitchUser.login, twitchUser.display_name, userId);
+    sql.linkTwitch.run(
+      twitchUser.id, twitchUser.login, twitchUser.display_name,
+      tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId,
+    );
     res.redirect(`${APP_URL}/?twitch=linked`);
   } catch (err) {
     console.error("[auth/twitch/callback]", err);
@@ -654,6 +678,47 @@ app.post("/auth/twitch/unlink", (req, res): void => {
   if (!userId) return;
   sql.unlinkTwitch.run(userId);
   res.json({ ok: true });
+});
+
+/** A valid (refreshing if needed) Twitch user access token for this gamiTask user, or null if not linked / revoked. */
+async function getValidTwitchAccessToken(userId: string): Promise<string | null> {
+  const row = sql.getTwitchTokens.get(userId) as
+    | { twitchId: string | null; twitchAccessToken: string | null; twitchRefreshToken: string | null; twitchTokenExpiresAt: number }
+    | undefined;
+  if (!row?.twitchId || !row.twitchRefreshToken) return null;
+  if (row.twitchAccessToken && Date.now() < row.twitchTokenExpiresAt - 60_000) return row.twitchAccessToken;
+  try {
+    const tokens = await refreshUserToken(row.twitchRefreshToken);
+    sql.saveTwitchTokens.run(tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId);
+    return tokens.accessToken;
+  } catch {
+    sql.clearTwitchTokens.run(userId);
+    return null;
+  }
+}
+
+// Real chatters: only ever the caller's own linked channel — Twitch itself refuses to let anyone
+// read another broadcaster's chat list without that broadcaster's own token.
+app.get("/twitch/chatters", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const row = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
+  if (!row?.twitchId) {
+    res.status(400).json({ error: "Compte Twitch non lié" });
+    return;
+  }
+  const accessToken = await getValidTwitchAccessToken(userId);
+  if (!accessToken) {
+    res.status(401).json({ error: "Reconnecte ton compte Twitch" });
+    return;
+  }
+  try {
+    const chatters = await getChatters(row.twitchId, accessToken);
+    res.json({ chatters });
+  } catch (err) {
+    console.error("[twitch/chatters]", err);
+    res.status(502).json({ error: "Twitch lookup failed" });
+  }
 });
 
 /**
