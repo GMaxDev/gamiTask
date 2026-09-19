@@ -1,33 +1,55 @@
 // The character editor: a sheet that slides up over the café, with thumbnails rendered from the real low-poly avatar.
 import * as THREE from 'three';
-import {type Look,SKINS,HEADS,BANGS,BACKS,HAIR_COLORS,TROUSERS,withChange,createHistory,type History,defaultLook} from './look.ts';
+import {type Look,SKINS,HEADS,BANGS,BACKS,HAIR_COLORS,TROUSERS,EYES,BROWS,NOSES,MOUTHS,BODIES,PATTERNS,SLEEVES,BOTTOMS,SHOES,HAIR_SETS,withChange,createHistory,type History,defaultLook,randomLook} from './look.ts';
 import {PALETTE,cleanName} from './identity.ts';
 import {HATS} from './shop.ts';
 import {createPrimitives} from './primitives.ts';
 import {buildAvatar,hexOf} from './avatar.ts';
-import {Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt} from 'lucide';
+import {Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt,PersonStanding,Dices} from 'lucide';
 
 export interface EditorDeps{onPreview(look:Look):void;onDone(look:Look,name:string):void;onExit():void;resetView():void}
 export interface Editor{open(initial:Look,name:string,ownedHats:string[]):void;close():void;isOpen():boolean;dispose():void}
-export const EDITOR_ICONS={Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt};// the sheet's markup, registered by whoever calls lucide's createIcons
+export const EDITOR_ICONS={Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt,PersonStanding,Dices};// the sheet's markup, registered by whoever calls lucide's createIcons
 
-type Cat='face'|'hair'|'outfit';
-type Sub='skin'|'head'|'bangs'|'back'|'top'|'bottom'|'acc';
-const SUBS:Record<Cat,{id:Sub;label:string}[]>={face:[{id:'skin',label:'Peau'},{id:'head',label:'Tête'}],hair:[{id:'bangs',label:'Frange'},{id:'back',label:'Arrière'}],outfit:[{id:'top',label:'Haut'},{id:'bottom',label:'Bas'},{id:'acc',label:'Accessoires'}]};
-const TITLES:Record<Cat,string>={face:'Visage',hair:'Cheveux',outfit:'Tenue'};
+type Cat='face'|'hair'|'outfit'|'body';
+type Sub='skin'|'head'|'eyes'|'brows'|'nose'|'mouth'|'sets'|'bangs'|'back'|'top'|'pattern'|'bottom'|'shoes'|'acc'|'shape';
+const SUBS:Record<Cat,{id:Sub;label:string}[]>={
+  face:[{id:'skin',label:'Peau'},{id:'head',label:'Tête'},{id:'eyes',label:'Yeux'},{id:'brows',label:'Sourcils'},{id:'nose',label:'Nez'},{id:'mouth',label:'Bouche'}],
+  hair:[{id:'sets',label:'Sets'},{id:'bangs',label:'Frange'},{id:'back',label:'Arrière'}],
+  outfit:[{id:'top',label:'Haut'},{id:'pattern',label:'Motif'},{id:'bottom',label:'Bas'},{id:'shoes',label:'Chaussures'},{id:'acc',label:'Accessoires'}],
+  body:[{id:'shape',label:'Gabarit'}],
+};
+const TITLES:Record<Cat,string>={face:'Visage',hair:'Cheveux',outfit:'Tenue',body:'Corps'};
 const COLS=5;
+// Sliders sit under the grid; each one nudges a -3..3 field of the sub-tab it belongs to.
+const SLIDERS:Partial<Record<Sub,{key:keyof Look;label:string}[]>>={
+  eyes:[{key:'eyesY',label:'Hauteur'},{key:'eyesGap',label:'Écartement'},{key:'eyesSize',label:'Taille'}],
+  brows:[{key:'browsY',label:'Hauteur'}],
+  nose:[{key:'noseY',label:'Hauteur'},{key:'noseSize',label:'Taille'}],
+  mouth:[{key:'mouthY',label:'Hauteur'},{key:'mouthSize',label:'Taille'}],
+};
 
 interface Item{id:string;label:string;patch:Partial<Look>;kind:'head'|'body'}
 interface Swatch{id:string;label:string;hex:string;patch:Partial<Look>}
+const heads=(list:{id:string;label:string}[],key:keyof Look):Item[]=>list.map(e=>({id:e.id,label:e.label,patch:{[key]:e.id} as Partial<Look>,kind:'head'}));
+const bodies=(list:{id:string;label:string}[],key:keyof Look):Item[]=>list.map(e=>({id:e.id,label:e.label,patch:{[key]:e.id} as Partial<Look>,kind:'body'}));
 
 function items(sub:Sub,ownedHats:string[]):Item[]{
   switch(sub){
-    case 'skin':return SKINS.map(s=>({id:s.id,label:s.label,patch:{skin:s.id},kind:'head'} as Item));
-    case 'head':return HEADS.map(h=>({id:h.id,label:h.label,patch:{head:h.id},kind:'head'} as Item));
-    case 'bangs':return BANGS.map(b=>({id:b.id,label:b.label,patch:{bangs:b.id},kind:'head'} as Item));
-    case 'back':return BACKS.map(b=>({id:b.id,label:b.label,patch:{back:b.id},kind:'head'} as Item));
+    case 'skin':return heads(SKINS,'skin');
+    case 'head':return heads(HEADS,'head');
+    case 'eyes':return heads(EYES,'eyes');
+    case 'brows':return heads(BROWS,'brows');
+    case 'nose':return heads(NOSES,'nose');
+    case 'mouth':return heads(MOUTHS,'mouth');
+    case 'sets':return HAIR_SETS.map(s=>({id:s.id,label:s.label,patch:{bangs:s.bangs,back:s.back,hairColor:s.hairColor},kind:'head'} as Item));
+    case 'bangs':return heads(BANGS,'bangs');
+    case 'back':return heads(BACKS,'back');
     case 'top':return PALETTE.map(c=>({id:hexOf(c.hex),label:c.label,patch:{shirt:c.hex},kind:'body'} as Item));
-    case 'bottom':return TROUSERS.map(t=>({id:t.id,label:t.label,patch:{trousers:t.id},kind:'body'} as Item));
+    case 'pattern':return [...bodies(PATTERNS,'topPattern'),...bodies(SLEEVES,'sleeves')];
+    case 'bottom':return bodies(BOTTOMS,'bottom');
+    case 'shoes':return bodies(SHOES,'shoes');
+    case 'shape':return bodies(BODIES,'body');
     case 'acc':return [
       {id:'headphones-on',label:'Casque',patch:{headphones:true},kind:'head'} as Item,
       {id:'headphones-off',label:'Sans casque',patch:{headphones:false},kind:'head'} as Item,
@@ -37,9 +59,10 @@ function items(sub:Sub,ownedHats:string[]):Item[]{
   }
 }
 function palette(sub:Sub):Swatch[]{
-  if(sub==='bangs'||sub==='back')return HAIR_COLORS.map(c=>({id:c.id,label:c.label,hex:c.hex,patch:{hairColor:c.id}}));
+  if(sub==='bangs'||sub==='back'||sub==='sets')return HAIR_COLORS.map(c=>({id:c.id,label:c.label,hex:c.hex,patch:{hairColor:c.id}}));
   if(sub==='top')return PALETTE.map(c=>({id:hexOf(c.hex),label:c.label,hex:hexOf(c.hex),patch:{shirt:c.hex}}));
   if(sub==='bottom')return TROUSERS.map(t=>({id:t.id,label:t.label,hex:t.hex,patch:{trousers:t.id}}));
+  if(sub==='shoes')return SHOES.map(s=>({id:s.id,label:s.label,hex:s.hex,patch:{shoes:s.id}}));
   return [];
 }
 const applied=(look:Look,patch:Partial<Look>)=>(Object.keys(patch) as (keyof Look)[]).every(k=>look[k]===patch[k]);
@@ -55,7 +78,8 @@ function createThumbs(){
   const P=createPrimitives(()=>root,materials);
   const cache=new Map<string,string>();
   function draw(kind:'head'|'body',look:Look):string{
-    const k=kind+JSON.stringify(kind==='head'?[look.skin,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat]:[look.skin,look.shirt,look.trousers,look.headphones,look.hat,look.head,look.bangs,look.back,look.hairColor]);
+    // A head shows the face, the hair and what sits on it; a body shows the whole avatar, so it keys on the whole look.
+    const k=kind+JSON.stringify(kind==='head'?[look.skin,look.head,look.bangs,look.back,look.hairColor,look.headphones,look.hat,look.eyes,look.brows,look.nose,look.mouth,look.eyesY,look.eyesGap,look.eyesSize,look.browsY,look.noseY,look.noseSize,look.mouthY,look.mouthSize]:look);
     const hit=cache.get(k);if(hit)return hit;
     root.clear();const rig=buildAvatar(P,0,0,look);
     if(kind==='head'){cam.zoom=2.1;cam.position.set(2.2,3.6,3.2);cam.lookAt(0,1.28,0);}
@@ -69,14 +93,15 @@ function createThumbs(){
 }
 
 const MARKUP=`<div class="editor-topbar">
-  <div class="editor-tools"><span class="tool"><i data-lucide="rotate-3d"></i>Tourner : glisser</span><button id="ed-reset" class="tool-btn"><i data-lucide="locate-fixed"></i>Vue par défaut</button><button id="ed-undo" class="tool-btn" disabled><i data-lucide="undo-2"></i>Annuler</button></div>
+  <div class="editor-tools"><span class="tool"><i data-lucide="rotate-3d"></i>Tourner : glisser</span><button id="ed-reset" class="tool-btn"><i data-lucide="locate-fixed"></i>Vue par défaut</button><button id="ed-random" class="tool-btn"><i data-lucide="dices"></i>Au hasard</button><button id="ed-undo" class="tool-btn" disabled><i data-lucide="undo-2"></i>Annuler</button></div>
   <div class="editor-actions"><button id="ed-exit" class="ghost-btn"><i data-lucide="x"></i>Quitter</button><button id="ed-done" class="primary"><i data-lucide="check"></i>Valider</button></div>
 </div>
 <section class="editor-sheet" aria-label="Mon personnage">
-  <nav class="editor-rail" role="tablist" aria-label="Catégories"><button role="tab" data-cat="face" aria-selected="true" title="Visage"><i data-lucide="smile"></i></button><button role="tab" data-cat="hair" aria-selected="false" title="Cheveux"><i data-lucide="scissors"></i></button><button role="tab" data-cat="outfit" aria-selected="false" title="Tenue"><i data-lucide="shirt"></i></button></nav>
+  <nav class="editor-rail" role="tablist" aria-label="Catégories"><button role="tab" data-cat="face" aria-selected="true" title="Visage"><i data-lucide="smile"></i></button><button role="tab" data-cat="hair" aria-selected="false" title="Cheveux"><i data-lucide="scissors"></i></button><button role="tab" data-cat="outfit" aria-selected="false" title="Tenue"><i data-lucide="shirt"></i></button><button role="tab" data-cat="body" aria-selected="false" title="Corps"><i data-lucide="person-standing"></i></button></nav>
   <div class="editor-body">
     <header class="editor-head"><h2 id="ed-title">Visage</h2><div class="subtabs" id="ed-subtabs" role="tablist"></div></header>
     <div class="editor-main"><div class="editor-grid" id="ed-grid" role="listbox"></div><div class="editor-palette" id="ed-palette" role="listbox" aria-label="Couleur"></div></div>
+    <div class="ed-sliders" id="ed-sliders"></div>
     <label class="editor-name">Pseudo<input id="ed-name" maxlength="20" minlength="2" autocomplete="nickname"/></label>
   </div>
 </section>`;
@@ -84,8 +109,8 @@ const MARKUP=`<div class="editor-topbar">
 export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
   const el=document.createElement('div');el.id='editor';el.className='editor';el.setAttribute('aria-hidden','true');el.innerHTML=MARKUP;host.appendChild(el);
   const q=(s:string):any=>el.querySelector(s);
-  const sheet:HTMLElement=q('.editor-sheet'),grid:HTMLElement=q('#ed-grid'),pal:HTMLElement=q('#ed-palette'),subtabs:HTMLElement=q('#ed-subtabs'),title:HTMLElement=q('#ed-title'),name:HTMLInputElement=q('#ed-name'),undoBtn:HTMLButtonElement=q('#ed-undo');
-  let cat:Cat='face',sub:Sub='skin',hats:string[]=[],opened=false,focused=0,closeTimer=0,pass=0;
+  const sheet:HTMLElement=q('.editor-sheet'),grid:HTMLElement=q('#ed-grid'),pal:HTMLElement=q('#ed-palette'),sliders:HTMLElement=q('#ed-sliders'),subtabs:HTMLElement=q('#ed-subtabs'),title:HTMLElement=q('#ed-title'),name:HTMLInputElement=q('#ed-name'),undoBtn:HTMLButtonElement=q('#ed-undo');
+  let cat:Cat='face',sub:Sub='skin',hats:string[]=[],opened=false,focused=0,closeTimer=0,pass=0,heldSlider:keyof Look|null=null;
   let history:History=createHistory(defaultLook(PALETTE[0].hex));
   let thumbs:ReturnType<typeof createThumbs>|null=null;
 
@@ -120,12 +145,28 @@ export function createEditor(host:HTMLElement,deps:EditorDeps):Editor{
       const b=document.createElement('button');b.role='option';b.style.background=s.hex;b.title=s.label;b.setAttribute('aria-label',s.label);
       b.setAttribute('aria-selected',String(applied(look,s.patch)));b.onclick=()=>select(s.patch);return b;
     }));
+    const defs=SLIDERS[sub]??[];
+    sliders.style.display=defs.length?'':'none';grid.classList.toggle('compact',defs.length>0);
+    sliders.replaceChildren(...defs.map(d=>{
+      const l=document.createElement('label');l.className='ed-slider';
+      const span=document.createElement('span');span.textContent=d.label;
+      const input=document.createElement('input');input.type='range';input.min='-3';input.max='3';input.step='1';input.value=String(look[d.key]);
+      const out=document.createElement('output');out.textContent=input.value;
+      // Dragging previews live; only the release (change) lands one entry in the history.
+      input.oninput=()=>{out.textContent=input.value;deps.onPreview(withChange(history.current(),{[d.key]:+input.value} as Partial<Look>));};
+      input.onchange=()=>{heldSlider=d.key;select({[d.key]:+input.value} as Partial<Look>);};
+      l.append(span,input,out);return l;
+    }));
+    // The rerender that follows a slider's change threw its input away: arrow keys need it back.
+    if(heldSlider){const i=defs.findIndex(d=>d.key===heldSlider);heldSlider=null;if(i>=0)(sliders.children[i]?.querySelector('input') as HTMLElement|null)?.focus();}
     undoBtn.disabled=!history.canUndo();
   }
   function select(patch:Partial<Look>){history.push(withChange(history.current(),patch));deps.onPreview(history.current());render();}
   function exit(){deps.onPreview(history.reset());deps.onExit();}
 
   q('#ed-reset').onclick=()=>deps.resetView();
+  // One roll, one history entry: the hat stays put (it is owned, not drawn) and the nickname is not part of the look.
+  q('#ed-random').onclick=()=>select({...randomLook(PALETTE.map(p=>p.hex)),hat:history.current().hat});
   undoBtn.onclick=()=>{const l=history.undo();if(l){deps.onPreview(l);render();}};
   q('#ed-exit').onclick=exit;
   q('#ed-done').onclick=()=>{
