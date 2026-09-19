@@ -40,7 +40,7 @@ export function createThread(){
 export const EMOTES=['👋','😄','❤️','👍','☕','🍅','🎉','😴'];
 const hex=(c: number)=>'#'+(c>>>0).toString(16).padStart(6,'0').slice(-6);
 const hhmm=(ts: number)=>new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-const SEPARATORS: Record<string,string>={'CHEZ TOI':'Tu es chez toi'};
+const SEPARATORS: Record<string,string>={'CHEZ TOI':'Tu es chez toi','AU JARDIN':'Tu es au jardin'};
 
 export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
   const root=document.createElement('section');root.id='chat';root.className='chat';root.setAttribute('aria-label','Chat de la pièce');

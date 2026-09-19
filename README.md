@@ -24,6 +24,12 @@ Variables utiles :
 cd app && npm test && npm run typecheck
 ```
 
+## Pièces
+
+- **Le café Petit Jour** (salle `ocean`) : la salle publique d’origine, comptoir et ardoises de tâches.
+- **Le café-jardin** (salle `forest`) : la seconde salle publique, verrière, plantes suspendues et bar à plantes.
+- **Chez moi** : ta pièce privée, meublée avec la boutique. Les boutons du HUD affichent le nombre d’autres personnes présentes dans chaque salle publique.
+
 ## Personnage
 
 L'éditeur s'ouvre depuis le chip « Mon personnage » de la barre du haut ou en cliquant sur le miroir dans « Chez moi ». Le look choisi est envoyé au serveur à la validation (`look:update`), qui le range en base et le diffuse aux autres joueurs (`player-look`) : ils voient le nouveau visage, la coiffure et la tenue immédiatement, et le retrouvent à leur prochaine arrivée dans la salle. Le serveur le renvoie à la connexion (`cosmetics:state`), donc `localStorage` (clé `gamitask.look`) n'est qu'un cache pour afficher le bon personnage avant la réponse. Le chapeau porté reste piloté par la boutique (`cosmetic:equip`).

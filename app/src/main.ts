@@ -9,7 +9,7 @@ import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import type {RoomKind} from './coords.ts';
-import {homeDecision,myPrivateRoom} from './rooms.ts';
+import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
@@ -38,7 +38,7 @@ $('#app').innerHTML=`
       <div class="scene" id="scene"><div class="loading">Le café ouvre ses portes…</div></div>
       <div class="hud-top">
         <a class="brand" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span><small>LE CAFÉ PETIT JOUR</small></span></a>
-        <div class="room-switch" role="group" aria-label="Changer de salle"><button data-room="public" aria-pressed="true">${icon('coffee')}<span>Le café</span></button><button data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
+        <div class="room-switch" role="group" aria-label="Changer de salle"><button data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
         <button id="progress-chip" class="progress-chip" aria-label="Ma progression" title="Ma progression">
           <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
@@ -149,7 +149,7 @@ function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
 async function start(){
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
   if(room==='private')pendingHome=true;
-  net=connect(API_URL,identity,'ocean');
+  net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved
   net.onStatus(s=>{
     if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
     // le serveur retire le participant à la déconnexion : on ne garde ni « Quitter », ni l'état collectif, ni l'horloge de la salle
@@ -161,9 +161,14 @@ async function start(){
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
-// Task 3 renames the HUD buttons; until then the café button still says data-room="public".
-const btnRoom=(b: any): RoomKind=>b.dataset.room==='private'?'private':'cafe';
-let cafe: any,room=load('gamitask.room','cafe');if(room!=='private')room='cafe';// a saved 'public' from before the garden means the café
+// Everything the HUD, the iris, the chat and the hint say about a room, in one place.
+const ROOM_UI: Record<RoomKind,{label: string; icon: string; toast: string; hint: string; chat: string}>={
+  cafe:{label:'Le café Petit Jour',icon:'coffee',toast:'Retour au café.',hint:'Comptoir : passer commande',chat:'AU CAFÉ'},
+  garden:{label:'Le café-jardin',icon:'leaf',toast:'Bienvenue au jardin.',hint:'Bar à plantes : passer commande',chat:'AU JARDIN'},
+  private:{label:'Chez moi',icon:'home',toast:'Bienvenue chez toi. Installe-toi.',hint:'Bureau : boutique et aménagement',chat:'CHEZ TOI'},
+};
+const roomKind=(v: string): RoomKind=>v in ROOM_UI?v as RoomKind:'cafe';// a saved 'public' from before the garden, or anything unknown, means the café
+let cafe: any,room=roomKind(load('gamitask.room','cafe'));
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 function saveLook(){save('gamitask.look',look);}
 // Character editor: a sheet over the scene, the café avatar itself is the preview.
@@ -197,7 +202,7 @@ const chat=createChat($('.world-left') as HTMLElement,{
 });
 chat.open();// the room's conversation is visible from the start; the round button folds it away
 let chatRoomKnown=false;
-const roomLabel=()=>room==='private'?'CHEZ TOI':'AU CAFÉ';
+const roomLabel=()=>ROOM_UI[room].chat;
 // `T` opens the chat from anywhere in the room, never while typing, editing the character or placing a piece.
 document.addEventListener('keydown',e=>{
   if((e.key!=='t'&&e.key!=='T')||e.ctrlKey||e.metaKey||e.altKey||editing||placingId)return;
@@ -222,11 +227,11 @@ $('#identity-chip').onclick=openEditor;($('#identity-chip') as HTMLElement).setA
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
-  document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(btnRoom(b)===room)));
+  document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(roomKind(b.dataset.room)===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
   if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
-  drawIcons();$('#move-hint-room').textContent=room==='private'?'Bureau : boutique et aménagement':'Comptoir : passer commande';
+  drawIcons();$('#move-hint-room').textContent=ROOM_UI[room].hint;renderCounts();
 }
 // Iris wipe: a neutral veil grows from the button, the new room is built behind it, then the veil shrinks away.
 let switching=false;
@@ -243,11 +248,15 @@ async function irisSwap(x: number,y: number,label: string,iconName: string,fn: (
   fn();await Promise.race([new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r as any))),new Promise(r=>setTimeout(r,120))]);// let the new room draw its first frame
   rim(false);await settle(veil.animate([{clipPath:open},{clipPath:shut}],timing));veil.classList.remove('cover');for(const a of edge.getAnimations())a.cancel();edge.style.width=edge.style.height='0px';
 }
+// The badge counts the others: in the room you are in, you are not one of them.
+function renderCounts(){for(const kind of ['cafe','garden'] as const){
+  const badge=$(`#count-${kind}`),n=Math.max(0,((rooms.find(r=>r.id===PUBLIC_IDS[kind])?.count)??0)-(room===kind?1:0));
+  badge.hidden=n===0;badge.textContent=String(n);}}
 // Rooms: the server owns them. The click plays the iris and remounts, then `room:info` confirms (or corrects) where we really are.
 let rooms: RoomSummary[]=[];
 let homeTimer: ReturnType<typeof setTimeout>|undefined;
 function switchServerRoom(next:RoomKind){
-  if(next!=='private'){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:'ocean'});return;}
+  if(next!=='private'){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:PUBLIC_IDS[next]});return;}
   const mine=myPrivateRoom(rooms,identity.userId);
   if(mine){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:mine.id});}
   // a refused creation is silent (guest rule, rate limit, stale row): give up after a few seconds rather than wait forever
@@ -262,9 +271,9 @@ function abandonHome(){
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching||editing)return;switching=true;
   try{
-    const r=b.getBoundingClientRect(),next=btnRoom(b),home=next==='private';
-    await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}});
-    switchServerRoom(next);toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');
+    const r=b.getBoundingClientRect(),next=roomKind(b.dataset.room),ui=ROOM_UI[next];
+    await irisSwap(r.left+r.width/2,r.top+r.height/2,ui.label,ui.icon,()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}});
+    switchServerRoom(next);toast(ui.toast);
   }finally{switching=false;}
 });
 function onSceneState(state: SceneState){
@@ -365,7 +374,7 @@ function bindServerEvents(){
   s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(msg.name,msg.color,text);else cafe?.say(msg.id,msg.name,msg.color,text);});
   s.on('chat:typing',({id,name})=>chat.typing(id,name));
   s.on('chat:emote',({id,emoji})=>{if(id===s.id)cafe?.emoteMe(emoji);else cafe?.emote(id,emoji);});
-  s.on('rooms:list',({rooms:list})=>{rooms=list;if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
+  s.on('rooms:list',({rooms:list})=>{rooms=list;renderCounts();if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
   s.on('pomo:state',st=>{applyState(roomPomo,st,Date.now());renderRoomPomo();});
   s.on('pomo:tick',t=>{applyTick(roomPomo,t,Date.now());renderRoomPomo();});
   s.on('pomo:phase',({phase,remaining,session})=>{const was=roomPomo.phase;
@@ -374,8 +383,8 @@ function bindServerEvents(){
     renderRoomPomo();});
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
-    const isHome=rooms.find(r=>r.id===roomId)?.isPrivate??false;
-    if(isHome!==(room==='private')){room=isHome?'private':'cafe';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+    const here=kindOfRoomId(roomId,rooms,identity.userId);
+    if(here!==room){room=here;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
     chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
