@@ -33,6 +33,7 @@ import {
 } from "./types.js";
 import { sanitizeLook } from "./look.js";
 import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
+import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -677,6 +678,7 @@ app.post("/auth/twitch/unlink", (req, res): void => {
   const userId = requireAuth(req, res);
   if (!userId) return;
   sql.unlinkTwitch.run(userId);
+  disconnectTwitchChat(userId);
   res.json({ ok: true });
 });
 
@@ -1246,6 +1248,20 @@ function emitToOwnRoom<E extends keyof ServerToClientEvents>(
   (io.to(rid).emit as (e: E, ...a: Parameters<ServerToClientEvents[E]>) => boolean)(event, ...args);
 }
 
+/** Emit to whichever room a user's single active session currently sits in (a Twitch chat message arrives with no socket of its own). */
+function emitToUsersRoom<E extends keyof ServerToClientEvents>(
+  userId: string,
+  event: E,
+  ...args: Parameters<ServerToClientEvents[E]>
+): void {
+  for (const [sid, uid] of socketToUserId.entries()) {
+    if (uid === userId) {
+      emitToOwnRoom(io, sid, event, ...args);
+      return;
+    }
+  }
+}
+
 function buildRoomSummaries(): RoomSummary[] {
   const out: RoomSummary[] = [];
   for (const r of rooms.values()) {
@@ -1382,6 +1398,19 @@ io.on("connection", (socket) => {
     socketToRoom.set(socket.id, targetRoomId);
     socketToUserId.set(socket.id, userId);
     socket.join(targetRoomId);
+    {
+      const twitchRow = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
+      if (twitchRow?.twitchId) {
+        connectTwitchChat(userId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), (msg) => {
+          const color = msg.color ? parseInt(msg.color.slice(1), 16) : 0x9146ff; // Twitch purple when the chatter has none set
+          emitToUsersRoom(userId, "chat-message", {
+            id: `twitch-chatter-${msg.chatterId}`, // matches the id spawnMyChatters gives that NPC, so the message also floats above them if they're in the room
+            name: msg.chatterName || msg.chatterLogin,
+            color, text: sanitize(msg.text), ts: Date.now(),
+          });
+        });
+      }
+    }
     sql.setAvatarInfo.run(name, color, userId);
 
     // Announce assigned room to the client first (so client can correct UI)
@@ -2307,7 +2336,9 @@ io.on("connection", (socket) => {
       broadcastRoomsList(io);
     }
     socketToRoom.delete(socket.id);
+    const disconnectedUserId = socketToUserId.get(socket.id);
     socketToUserId.delete(socket.id);
+    if (disconnectedUserId) disconnectTwitchChat(disconnectedUserId);
     console.log(`[-] disconnected: ${socket.id}`);
   });
 

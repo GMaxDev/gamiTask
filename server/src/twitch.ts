@@ -37,7 +37,7 @@ export async function getViewerCount(channel: string): Promise<number | null> {
 
 // Account linking: standard OAuth authorization-code flow, so a gamiTask user can prove
 // which Twitch account is theirs (and later let a streamer read their own channel's chatters).
-const SCOPE = "user:read:email moderator:read:chatters";
+const SCOPE = "user:read:email moderator:read:chatters user:read:chat";
 
 export function buildAuthorizeUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
