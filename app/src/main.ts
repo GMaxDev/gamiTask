@@ -375,7 +375,7 @@ start();// the room is built behind the veil, then the server fills it
   for(let i=0;i<viewerCount;i++){
     cafe.addRemote(`twitch-${channel}-${i}`,{
       name:`viewer${i+1}`,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
-      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
     });
   }
 };
@@ -391,7 +391,7 @@ start();// the room is built behind the veil, then the server fills it
   for(const c of chatters){
     cafe.addRemote(`twitch-chatter-${c.id}`,{
       name:c.name||c.login,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
-      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
     });
   }
 };
@@ -401,7 +401,7 @@ start();// the room is built behind the veil, then the server fills it
   for(const name of names){
     cafe.addRemote(`fake-chatter-${name}`,{
       name,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
-      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
     });
   }
 };

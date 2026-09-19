@@ -14,7 +14,7 @@ import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
-export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
+export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective'; wander?: boolean }
 interface LightSet { hemi: [string,string,number]; sun: [string,number]; fill: number; lamps: number }
 // Daylight and evening per room, read both when the lights are created and every time `toggleLight` flips them.
 const CAFE_LIGHT: {day: LightSet; evening: LightSet}={
@@ -455,15 +455,28 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Remote players: one person + walker each, driven by the cells the server sends.
   const cellCentreOf=(col: number,row: number)=>({x:-HW+col+.5,z:-HD+row+.5});
   const seatNear=(p: {x: number;z: number})=>seats.find(s=>!s.taken&&Math.hypot(s.x-p.x,s.z-p.z)<.75)??null;
-  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null;todo: THREE.Sprite|null}
+  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null;todo: THREE.Sprite|null;wander:boolean;wait:number}
   const remotes=new Map<string, Remote>();
   function addRemote(id: string,info: RemoteInfo){
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
     const p=buildAvatar(P,at.x,at.z,info.look??lookFor(info.color,info.hat)),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
-    const r: Remote={p,w,tag,bubble:null,todo:null};remotes.set(id,r);restage();
+    // Local decorative NPCs (a Twitch crowd) wander on their own; real players are driven by moveRemote instead — never both.
+    const r: Remote={p,w,tag,bubble:null,todo:null,wander:!!info.wander,wait:1+Math.random()*3};remotes.set(id,r);restage();
     setRemoteState(id,info.state);
     const seat=seatNear(at);if(seat)w.go(seat,seat);
+  }
+  // Same wander/rest/sit rhythm as the café host, just without its counter-work spots.
+  function remoteThink(dt: number){
+    for(const r of remotes.values()){
+      if(!r.wander)continue;
+      r.wait-=dt;if(r.w.route.length||r.wait>0)continue;
+      if(Math.random()<.4){const free=seats.filter(s=>!s.taken);const seat=free[Math.floor(Math.random()*free.length)];
+        if(seat&&r.w.go(seat,seat)){r.wait=8+Math.random()*12;continue;}}
+      let moved=false;
+      for(let i=0;i<6;i++)if(r.w.go({x:(Math.random()-.5)*(W-2),z:(Math.random()-.5)*(D-2)})){moved=true;break;}
+      r.wait=moved?1+Math.random()*4:1;
+    }
   }
   function moveRemote(id: string,col: number,row: number){const r=remotes.get(id);if(!r)return;const at=cellCentreOf(col,row),seat=seatNear(at);r.w.go(seat??at,seat);}
   function setRemoteState(id: string,state: RemoteInfo['state']){
@@ -703,7 +716,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // A walker only counts as stirring while it is on a route or still sliding onto a cushion; idle breathing moves it by less than a shadow texel.
   const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1)||w.working;// working: the host swings its arms at the counter
   function simulate(dt: number){
-    me.step(dt);npcThink(dt);bar?.step(dt);
+    me.step(dt);npcThink(dt);bar?.step(dt);remoteThink(dt);
     let moving=stirring(me)||!!(bar&&stirring(bar));
     for(const r of remotes.values()){r.w.step(dt);moving||=stirring(r.w);}
     if(moving)stir=2;
