@@ -587,7 +587,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const editZoom=()=>2*camera.top/EDIT_H;// the framing is a fixed world height, so it survives a resize
   const editTarget=()=>avatar.position.clone().setY(.95).add(camRight.clone().multiplyScalar(.28*EDIT_H*width/height));
   const hideWhileEditing=()=>[cursor,ring,marker];
-  const spring=(t: number)=>{const u=t-1,s=1.1;return 1+u*u*((s+1)*u+s);};
+  const spring=(t: number)=>1-Math.pow(1-t,4);// strong ease-out: settles smoothly, never overshoots
   function enterEditor(){
     if(mode==='edit')return;if(mode==='place')stopPlacing();mode='edit';
     savedView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};me.cancel();me.standUp();hoverTicket(null);dragging=false;

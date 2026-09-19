@@ -22,7 +22,8 @@ function buildEye(p:Primitives,g:any,look:Look,side:number,x:number,y:number,s:n
   const w=p.ball(.045,C.white,0,0,0,e,1,.9,.55);
   if(look.eyes==='almond')w.scale.set(1.3,.72,.55);else if(look.eyes==='wide')w.scale.set(1.25,1.12,.55);
   p.ball(.024,C.dark,0,0,.022,e,1,1,.7);
-  if(look.eyes==='sleepy')p.box(.095,.03,.02,skinHex(look.skin),0,.022,.014,0,e);
+  if(look.eyes==='sleepy'){// a skin-coloured cap hugging the top half of the white, slightly bigger so no white peeks out
+    const lid=p.mesh(new THREE.SphereGeometry(.049,12,8,0,Math.PI*2,0,Math.PI*.5),skinHex(look.skin),0,-.004,0,e);lid.scale.set(w.scale.x*1.06,w.scale.y*1.08,w.scale.z*1.1);lid.castShadow=false;}
 }
 function buildFace(p:Primitives,g:any,look:Look){
   const ex=.11+look.eyesGap*.012,ey=.20+look.eyesY*.012,es=1+look.eyesSize*.12;
