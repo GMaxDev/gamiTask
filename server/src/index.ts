@@ -32,7 +32,7 @@ import {
   type Look,
 } from "./types.js";
 import { sanitizeLook } from "./look.js";
-import { getViewerCount } from "./twitch.js";
+import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, getTwitchUser } from "./twitch.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -66,6 +66,9 @@ interface UserRow {
   avatarColor: number;
   isAdmin: number;
   look: string | null;
+  twitchId: string | null;
+  twitchLogin: string | null;
+  twitchDisplayName: string | null;
 }
 interface TaskRow {
   id: string;
@@ -174,8 +177,20 @@ try {
     `UPDATE users SET placedFurniture = ownedFurniture WHERE placedFurniture = '' AND ownedFurniture != ''`,
   );
 } catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchId TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchLogin TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchDisplayName TEXT`);
+} catch {}
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`,
+);
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_twitchId ON users(twitchId) WHERE twitchId IS NOT NULL`,
 );
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`,
@@ -215,7 +230,7 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, look FROM users WHERE id = ?",
+    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, look, email, googleId, twitchId, twitchLogin, twitchDisplayName FROM users WHERE id = ?",
   ),
   setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
@@ -276,6 +291,13 @@ const sql = {
   ),
   updateGoogleAuth: db.prepare(
     "UPDATE users SET email = ?, displayName = COALESCE(NULLIF(displayName, ''), ?) WHERE id = ?",
+  ),
+  getUserByTwitchId: db.prepare("SELECT * FROM users WHERE twitchId = ?"),
+  linkTwitch: db.prepare(
+    "UPDATE users SET twitchId = ?, twitchLogin = ?, twitchDisplayName = ? WHERE id = ?",
+  ),
+  unlinkTwitch: db.prepare(
+    "UPDATE users SET twitchId = NULL, twitchLogin = NULL, twitchDisplayName = NULL WHERE id = ?",
   ),
   setAdminFlag: db.prepare("UPDATE users SET isAdmin = ? WHERE id = ?"),
   saveDailyReset: db.prepare(
@@ -507,6 +529,8 @@ app.post("/auth/google", async (req, res): Promise<void> => {
       color: user.avatarColor ?? 0,
       isAdmin: isAdminLogin || !!user.isAdmin,
       isGoogleUser: true,
+      twitchLogin: user.twitchLogin,
+      twitchDisplayName: user.twitchDisplayName,
     });
   } catch (err) {
     console.error("[auth/google]", err);
@@ -556,10 +580,80 @@ app.post("/auth/token", (req, res): void => {
       color: user.avatarColor ?? 0,
       isAdmin,
       isGoogleUser: !!user.googleId,
+      twitchLogin: user.twitchLogin,
+      twitchDisplayName: user.twitchDisplayName,
     });
   } catch {
     res.status(401).json({ error: "Token invalide ou expiré" });
   }
+});
+
+// ── Twitch account linking ──────────────────────────────────────────────
+const TWITCH_REDIRECT_URI = process.env.TWITCH_REDIRECT_URI ?? "http://localhost:3001/auth/twitch/callback";
+const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
+
+function requireAuth(req: express.Request, res: express.Response): string | null {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ error: "Missing token" });
+    return null;
+  }
+  try {
+    return (jwt.verify(token, JWT_SECRET) as { userId: string }).userId;
+  } catch {
+    res.status(401).json({ error: "Token invalide ou expiré" });
+    return null;
+  }
+}
+
+app.get("/auth/twitch/start", (req, res): void => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  if (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET) {
+    res.status(500).json({ error: "Server misconfigured: TWITCH_CLIENT_ID/TWITCH_CLIENT_SECRET not set" });
+    return;
+  }
+  const state = jwt.sign({ userId, purpose: "twitch-link" }, JWT_SECRET, { expiresIn: "10m" });
+  res.json({ url: buildAuthorizeUrl(TWITCH_REDIRECT_URI, state) });
+});
+
+app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
+  const { code, state, error } = req.query as { code?: string; state?: string; error?: string };
+  if (error || !code || !state) {
+    res.redirect(`${APP_URL}/?twitch=denied`);
+    return;
+  }
+  let userId: string;
+  try {
+    const decoded = jwt.verify(state, JWT_SECRET) as { userId: string; purpose: string };
+    if (decoded.purpose !== "twitch-link") throw new Error("wrong purpose");
+    userId = decoded.userId;
+  } catch {
+    res.redirect(`${APP_URL}/?twitch=expired`);
+    return;
+  }
+  try {
+    const accessToken = await exchangeCodeForToken(code, TWITCH_REDIRECT_URI);
+    const twitchUser = await getTwitchUser(accessToken);
+    const existing = sql.getUserByTwitchId.get(twitchUser.id) as UserRow | undefined;
+    if (existing && existing.id !== userId) {
+      res.redirect(`${APP_URL}/?twitch=taken`);
+      return;
+    }
+    sql.linkTwitch.run(twitchUser.id, twitchUser.login, twitchUser.display_name, userId);
+    res.redirect(`${APP_URL}/?twitch=linked`);
+  } catch (err) {
+    console.error("[auth/twitch/callback]", err);
+    res.redirect(`${APP_URL}/?twitch=error`);
+  }
+});
+
+app.post("/auth/twitch/unlink", (req, res): void => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  sql.unlinkTwitch.run(userId);
+  res.json({ ok: true });
 });
 
 /**

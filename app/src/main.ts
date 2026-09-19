@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -17,10 +17,10 @@ import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
-import {verifyToken,loginWithGoogle,renderGoogleButton} from './auth.ts';
+import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -46,6 +46,7 @@ $('#app').innerHTML=`
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
         </button>
         <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
+        <button id="account-button" class="icon-button" aria-label="Mon compte" title="Mon compte" hidden>${icon('user-cog')}</button>
         <button id="logout-button" class="icon-button" aria-label="Se déconnecter" title="Se déconnecter">${icon('log-out')}</button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
@@ -120,6 +121,12 @@ $('#app').innerHTML=`
     <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
   </form></dialog>
+  <dialog id="account-dialog"><div class="dialog-heading"><h2>Mon compte.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
+    <div class="account-row"><span class="account-label">${icon('twitch')}<span>Twitch</span></span><span class="account-value" id="account-twitch-status">Non lié</span></div>
+    <p>Lie ta chaîne pour faire apparaître tes viewers dans ta salle, plus tard.</p>
+    <button id="twitch-link" class="primary">${icon('link-2')}<span>Lier mon compte Twitch</span></button>
+    <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button>
+  </dialog>
   <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
   <div id="login-screen" class="login-screen" role="dialog" aria-modal="true" aria-label="Connexion" hidden>
     <div class="login-card">
@@ -162,12 +169,31 @@ function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.tex
 let ready={room:false,tasks:false};
 function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
 const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined)??'';
-function applyAuthUser(u:{userId:string;token:string;name:string;color:number}){
+let twitch:{login:string|null;displayName:string|null}={login:null,displayName:null};
+function renderAccount(){
+  const linked=!!twitch.login;
+  ($('#account-twitch-status') as HTMLElement).textContent=linked?`Lié : ${twitch.displayName||twitch.login}`:'Non lié';
+  ($('#twitch-link') as HTMLElement).hidden=linked;($('#twitch-unlink') as HTMLElement).hidden=!linked;
+}
+function applyAuthUser(u:{userId:string;token:string;name:string;color:number;twitchLogin?:string|null;twitchDisplayName?:string|null}){
   identity.userId=u.userId;
   if(u.name)identity.name=u.name;
   if(PALETTE.some(p=>p.hex===u.color))identity.color=u.color;
   saveIdentity();save('gamitask.token',u.token);fresh=!identity.name;
+  twitch={login:u.twitchLogin??null,displayName:u.twitchDisplayName??null};renderAccount();
+  ($('#account-button') as HTMLElement).hidden=false;
 }
+($('#account-button') as HTMLButtonElement).onclick=()=>{renderAccount();($('#account-dialog') as HTMLDialogElement).showModal();};
+($('#twitch-link') as HTMLButtonElement).onclick=async()=>{
+  const token=load('gamitask.token',null);if(!token)return;
+  const url=await startTwitchLink(API_URL,token);
+  if(url)location.href=url;else toast('Impossible de lancer la connexion Twitch.');
+};
+($('#twitch-unlink') as HTMLButtonElement).onclick=async()=>{
+  const token=load('gamitask.token',null);if(!token)return;
+  if(await unlinkTwitch(API_URL,token)){twitch={login:null,displayName:null};renderAccount();toast('Compte Twitch délié.');}
+  else toast('La déconnexion Twitch a échoué.');
+};
 async function resolveAuth(){
   const savedToken=load('gamitask.token',null);
   if(savedToken){const user=await verifyToken(API_URL,savedToken);if(user){applyAuthUser(user);return;}save('gamitask.token',null);}
@@ -184,8 +210,11 @@ async function resolveAuth(){
     }).catch(()=>{($('#google-btn') as HTMLElement).hidden=true;});
   });
 }
+const TWITCH_LINK_MESSAGES:Record<string,string>={linked:'Compte Twitch lié !',denied:'Connexion Twitch annulée.',expired:'Le lien a expiré, réessaie.',taken:'Ce compte Twitch est déjà lié à un autre profil.',error:'La connexion Twitch a échoué.'};
 async function start(){
   await resolveAuth();
+  const twitchParam=new URLSearchParams(location.search).get('twitch');
+  if(twitchParam){history.replaceState(null,'',location.pathname);if(TWITCH_LINK_MESSAGES[twitchParam])toast(TWITCH_LINK_MESSAGES[twitchParam]);}
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
   if(room==='private')pendingHome=true;
   net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved

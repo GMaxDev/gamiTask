@@ -1,5 +1,5 @@
 // Google sign-in: ties identity.userId to a stable account instead of a per-browser uuid, so the look/tasks/coins follow the person across devices.
-export interface AuthUser{userId:string;token:string;name:string;color:number;isAdmin:boolean;isGoogleUser:boolean}
+export interface AuthUser{userId:string;token:string;name:string;color:number;isAdmin:boolean;isGoogleUser:boolean;twitchLogin:string|null;twitchDisplayName:string|null}
 
 async function post(apiUrl:string,path:string,body:unknown):Promise<AuthUser|null>{
   try{
@@ -9,6 +9,22 @@ async function post(apiUrl:string,path:string,body:unknown):Promise<AuthUser|nul
 }
 export const verifyToken=(apiUrl:string,token:string)=>post(apiUrl,'/auth/token',{token});
 export const loginWithGoogle=(apiUrl:string,credential:string)=>post(apiUrl,'/auth/google',{credential});
+
+// Twitch account link: a full-page redirect (Twitch requires a real navigation, not a fetch), so the server
+// only hands back the authorize URL here — the caller does `location.href = url` to leave the SPA.
+export async function startTwitchLink(apiUrl:string,token:string):Promise<string|null>{
+  try{
+    const res=await fetch(`${apiUrl}/auth/twitch/start`,{headers:{Authorization:`Bearer ${token}`}});
+    if(!res.ok)return null;
+    return (await res.json()).url as string;
+  }catch{return null;}
+}
+export async function unlinkTwitch(apiUrl:string,token:string):Promise<boolean>{
+  try{
+    const res=await fetch(`${apiUrl}/auth/twitch/unlink`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});
+    return res.ok;
+  }catch{return false;}
+}
 
 let gsi: Promise<void>|null=null;
 function loadGsi():Promise<void>{

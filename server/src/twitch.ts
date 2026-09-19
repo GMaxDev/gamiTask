@@ -34,3 +34,48 @@ export async function getViewerCount(channel: string): Promise<number | null> {
   const data = (await res.json()) as { data: { viewer_count: number }[] };
   return data.data[0]?.viewer_count ?? null;
 }
+
+// Account linking: standard OAuth authorization-code flow, so a gamiTask user can prove
+// which Twitch account is theirs (and later let a streamer read their own channel's chatters).
+const SCOPE = "user:read:email moderator:read:chatters";
+
+export function buildAuthorizeUrl(redirectUri: string, state: string): string {
+  const params = new URLSearchParams({
+    client_id: TWITCH_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: SCOPE,
+    state,
+  });
+  return `https://id.twitch.tv/oauth2/authorize?${params}`;
+}
+
+export async function exchangeCodeForToken(code: string, redirectUri: string): Promise<string> {
+  const res = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: TWITCH_CLIENT_ID,
+      client_secret: TWITCH_CLIENT_SECRET,
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri,
+    }),
+  });
+  if (!res.ok) throw new Error(`twitch code exchange: ${res.status}`);
+  const data = (await res.json()) as { access_token: string };
+  return data.access_token;
+}
+
+export interface TwitchUser { id: string; login: string; display_name: string }
+
+export async function getTwitchUser(userAccessToken: string): Promise<TwitchUser> {
+  const res = await fetch("https://api.twitch.tv/helix/users", {
+    headers: { "Client-Id": TWITCH_CLIENT_ID, Authorization: `Bearer ${userAccessToken}` },
+  });
+  if (!res.ok) throw new Error(`twitch users: ${res.status}`);
+  const data = (await res.json()) as { data: TwitchUser[] };
+  const user = data.data[0];
+  if (!user) throw new Error("twitch users: empty response");
+  return user;
+}
