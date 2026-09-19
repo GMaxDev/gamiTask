@@ -43,8 +43,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const AVATAR_LAYER=1;// the editor renders the avatar alone on this layer, sharp, over the blurred backdrop
   const {w:W,d:D}=DIMS[room],HW=W/2,HD=D/2;// the public rooms are 24x20; your own is a cosy 12x10
   let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
-  const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
-  const P=createPrimitives(()=>root,materials);const {mat,mesh,box,cyl,ball,group}=P;
+  const materials=new Map<string, any>(), extras: any[]=[], obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
+  const P=createPrimitives(()=>root,materials,extras);const {mat,mesh,box,cyl,ball,group}=P;
   function hotspot(object: any,id: string,title: string,sub: string){object.userData.keep=true;object.userData.hotspot={id,title,sub};hotspots.push(object);return object;}
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const rootOrigin=()=>{root.updateWorldMatrix(true,false);return new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);};
@@ -54,9 +54,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function taskSpot(x: number,y: number,z: number){if(previewing)return;const o=rootOrigin();taskSpots.push(new THREE.Vector3(x+o.x,y,z+o.z));}
   function seat(x: number,z: number,y: number,rot: number,object: any){if(previewing)return;object.userData.keep=true;const o=rootOrigin();seats.push({x:x+o.x,z:z+o.z,y,rot,object});}
   function shadow(x: number,z: number,sx: number,sz: number,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
-  const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HW,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots};
+  const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots};
   const D_=createDecor(dctx);
-  const {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,windowGlow}=D_;
+  const {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow}=D_;
   // Your room is a grid of floor tiles; a piece sits centred on its footprint.
   const cellCentre=(id: string,{c,r}: Cell): [number,number]=>{const f=footprint(id);return [-HW+c+f.w/2,-HD+r+f.d/2];};
   const furnitureObstacles: Record<string, number[]>={};// obstacle indices per placed piece, so a piece being moved does not block itself
@@ -192,7 +192,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   for(const x of [-1.3,3.7]){
     cyl(.014,.014,.9,C.edge,x,3.45,.2);
     cyl(.18,.43,.32,SHADE,x,2.92,.2,root,24);
-    cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,.2);
+    cyl(.39,.39,.025,BULB,x,2.765,.2);
     pool(x,2.6,.2,root,true);// the two lamps over the tables are the only ones in the café that drop a shadow
   }
 
@@ -225,7 +225,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Little welcome mat at the open entrance.
   box(1.5,.022,.68,C.sage,7.0,.061,9.5,.08);
   for(const [x,z] of [[6.2,-6.5],[5.6,2.6],[-10.2,5.2],[1.0,6.6]]){
-    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
+    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,BULB,x,2.765,z);
     pool(x,2.6,z,scene);
   }
   } else if(room==='garden'){
@@ -250,7 +250,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   box(1.5,.022,.68,C.sage,3.0,.061,4.5,.08);// welcome mat
   for(const [id,slot] of Object.entries(furniture))placeFurniture(id,slot);// what you bought and put here
   for(const [x,z] of [[-3.6,-1.4],[2.6,1.2]]){
-    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
+    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,BULB,x,2.765,z);
     pool(x,2.6,z,scene,true);// both pendants at home are over the sofa and the desk, so both cast
   }
   }
@@ -394,7 +394,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const ring=mesh(new THREE.RingGeometry(.39,.43,40),new THREE.MeshBasicMaterial({color:C.white,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}),0,.004,0,avatar);ring.rotation.x=-Math.PI/2;
   const marker=mesh(new THREE.RingGeometry(.13,.19,32),new THREE.MeshBasicMaterial({color:'#fff5dc',transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}),0,.085,0);marker.rotation.x=-Math.PI/2;marker.castShadow=false;
 
-  const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5})
+  const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5});
   let time=0,zoom=1,follow=true,dragging=false,dragStart: any=null,moved=false,glowing: any=null,glowTime=0;
   // Walking, sitting and limb animation shared by the player and the barista.
   function walker(p: any,speed: number,hooks: any={}){
@@ -711,7 +711,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());
+  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

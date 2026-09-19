@@ -167,7 +167,7 @@ const ROOM_UI: Record<RoomKind,{label: string; icon: string; toast: string; hint
   garden:{label:'Le café-jardin',icon:'leaf',toast:'Bienvenue au jardin.',hint:'Bar à plantes : passer commande',chat:'AU JARDIN'},
   private:{label:'Chez moi',icon:'home',toast:'Bienvenue chez toi. Installe-toi.',hint:'Bureau : boutique et aménagement',chat:'CHEZ TOI'},
 };
-const roomKind=(v: string): RoomKind=>v in ROOM_UI?v as RoomKind:'cafe';// a saved 'public' from before the garden, or anything unknown, means the café
+const roomKind=(v: string): RoomKind=>Object.hasOwn(ROOM_UI,v)?v as RoomKind:'cafe';// a saved 'public' from before the garden, or anything unknown, means the café
 let cafe: any,room=roomKind(load('gamitask.room','cafe'));
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 function saveLook(){save('gamitask.look',look);}
@@ -234,7 +234,7 @@ function mountRoom(){
   drawIcons();$('#move-hint-room').textContent=ROOM_UI[room].hint;renderCounts();
 }
 // Iris wipe: a neutral veil grows from the button, the new room is built behind it, then the veil shrinks away.
-let switching=false;
+let switching=false,prevRoom: RoomKind='cafe';// where a refused switch puts us back
 async function irisSwap(x: number,y: number,label: string,iconName: string,fn: () => void){
   const veil=$('#veil'),r=Math.hypot(innerWidth,innerHeight)*1.05,shut=`circle(0px at ${x}px ${y}px)`,open=`circle(${r}px at ${x}px ${y}px)`;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,timing={duration:reduced?0:650,easing:'cubic-bezier(.45,0,.2,1)',fill:'forwards'};
@@ -263,16 +263,17 @@ function switchServerRoom(next:RoomKind){
   else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
     homeTimer=setTimeout(()=>{if(!myPrivateRoom(rooms,identity.userId))abandonHome();},4000);}
 }
+function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
 function abandonHome(){
   clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
-  if(room==='private'){room='cafe';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+  if(room==='private')enterRoom('cafe');
   maybeReady();
 }
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching||editing)return;switching=true;
   try{
     const r=b.getBoundingClientRect(),next=roomKind(b.dataset.room),ui=ROOM_UI[next];
-    await irisSwap(r.left+r.width/2,r.top+r.height/2,ui.label,ui.icon,()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}});
+    prevRoom=room;await irisSwap(r.left+r.width/2,r.top+r.height/2,ui.label,ui.icon,()=>enterRoom(next));
     switchServerRoom(next);toast(ui.toast);
   }finally{switching=false;}
 });
@@ -384,7 +385,7 @@ function bindServerEvents(){
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const here=kindOfRoomId(roomId,rooms,identity.userId);
-    if(here!==room){room=here;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+    if(here!==room)enterRoom(here);// an unchanged kind (an unknown public id already reads as the café) never remounts
     chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
@@ -397,7 +398,8 @@ function bindServerEvents(){
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
-  s.on('room:full',()=>{if(ready.room){toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil
+  s.on('room:full',()=>{if(ready.room){if(room!==prevRoom)enterRoom(prevRoom);// the iris already moved us: the server kept us where we were
+      toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil
     showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);

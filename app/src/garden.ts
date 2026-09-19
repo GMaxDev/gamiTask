@@ -5,7 +5,7 @@ const GLASS='#dbe7d8',NEAR='#7a9a68',FAR='#5f7f52',WOOD='#d9c7a3';
 // The Café-jardin: a bright veranda. Glazing on the back and left walls, hanging pots, sage benches
 // and a plant bar. Returns the hook `toggleLight` calls so the glass and the garden behind it go dark at dusk.
 export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,{W,D,HW,HD}: {W: number;D: number;HW: number;HD: number}){
-  const {mat,box,cyl,ball}=ctx.p;
+  const {mat,box,cyl,ball,group}=ctx.p;
   const {label,plant,mug,book,chair,squareTable,roundTable,pool,windowLight}=d;
   const {obstacle,seat,taskSpot,hotspot,shadow}=ctx;
   const root=()=>ctx.root();
@@ -48,12 +48,12 @@ export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,
 
   // --- Sage benches along the left glazing, each with its own table and a chair opposite. ---
   function bench(z: number){
-    const x=-HW+.9;
-    box(1.0,.46,2.7,C.edge,x,.23,z,.06);const cushion=box(.96,.2,2.6,C.sage,x,.6,z,.09);
-    box(.22,.8,2.6,C.sage,x-.45,1.03,z,.1);
-    for(const dz of [-1.29,1.29])box(1.0,.58,.2,C.sage,x,.86,z+dz,.08);
-    for(const dz of [-.7,.7]){const p=box(.2,.5,.55,dz<0?C.cream:'#e7d3ad',x-.31,1.0,z+dz,.09);p.rotation.z=-.16;}
-    obstacle(x,z,1.05,2.8);shadow(x,z,.6,1.5);for(const dz of [-.68,.68])seat(x,z+dz,.72,Math.PI/2,cushion);
+    const x=-HW+.9,g=group(0,0,0);// one group per bench, so the whole seat glows on hover like a chair
+    box(1.0,.46,2.7,C.edge,x,.23,z,.06,g);box(.96,.2,2.6,C.sage,x,.6,z,.09,g);
+    box(.22,.8,2.6,C.sage,x-.45,1.03,z,.1,g);
+    for(const dz of [-1.29,1.29])box(1.0,.58,.2,C.sage,x,.86,z+dz,.08,g);
+    for(const dz of [-.7,.7]){const p=box(.2,.5,.55,dz<0?C.cream:'#e7d3ad',x-.31,1.0,z+dz,.09,g);p.rotation.z=-.16;}
+    obstacle(x,z,1.05,2.8);shadow(x,z,.6,1.5);for(const dz of [-.68,.68])seat(x,z+dz,.72,Math.PI/2,g);
   }
   for(const z of [-6.5,0,6.5]){bench(z);squareTable(-9.9,z);chair(-8.85,z,-Math.PI/2,z===0?C.cream:C.sage);
     mug(-10.05,1.05,z-.2,C.white,root(),z===0);book(-9.75,1.05,z+.22,.34,C.sage);}
@@ -93,9 +93,10 @@ export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,
   // --- Potted plants, the welcome mat and four hanging lanterns. ---
   for(const [x,z,s] of [[-7.6,-9,1.3],[2.5,-9,1.15],[11,8.5,1.35],[-11.3,-9.2,1.1]]){plant(x,z,s);obstacle(x,z,.75,.75);shadow(x,z,.5,.45);}
   box(1.5,.022,.68,C.sage,8.5,.061,9.4,.08);
+  const shade=mat('#e2c9a4',{roughness:.5}),bulb=mat('#ffeac0',{emissive:'#ffd9a0',emissiveIntensity:.8});// the four lanterns share their two materials: two bake buckets instead of eight
   for(const [x,z,cast] of [[-9.9,0,0],[-5.5,-6,1],[-5.5,4,0],[6.5,2.5,1]]){
-    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.2,.38,.4,mat('#e2c9a4',{roughness:.5}),x,2.9,z,root(),8);
-    cyl(.34,.34,.025,mat('#ffeac0',{emissive:'#ffd9a0',emissiveIntensity:.8}),x,2.72,z);pool(x,2.6,z,root(),!!cast);}
+    cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.2,.38,.4,shade,x,2.9,z,root(),8);
+    cyl(.34,.34,.025,bulb,x,2.72,z);pool(x,2.6,z,root(),!!cast);}
 
   return (evening: boolean)=>{// dusk: the glazing tints and the garden behind it falls into shade
     glass.opacity=evening?.35:.55;glass.color.set(evening?'#1f2a2e':GLASS);glass.emissive.set(evening?'#1f2a2e':GLASS);glass.emissiveIntensity=evening?.05:.12;

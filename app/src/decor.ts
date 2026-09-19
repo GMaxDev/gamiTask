@@ -5,7 +5,7 @@ import type { Primitives } from './primitives.ts';
 // Everything a decor helper needs from the room that hosts it. `root` and `previewing` are getters
 // because the scene swaps its root group and flips the preview flag while a ghost piece is built.
 export interface DecorContext {
-  p: Primitives; scene: THREE.Scene; root(): any; previewing(): boolean; HW: number; HD: number;
+  p: Primitives; scene: THREE.Scene; root(): any; previewing(): boolean; HD: number;
   obstacle(x: number,z: number,w: number,d: number): void;
   seat(x: number,z: number,y: number,rot: number,object: any): void;
   taskSpot(x: number,y: number,z: number): void;
@@ -22,6 +22,7 @@ export function createDecor(ctx: DecorContext){
   // Finishes shared by every piece of a kind, so baking still merges them into one mesh each.
   const OAK=mat(C.oak,{roughness:.6}),TRIM=mat(C.edge,{roughness:.6}),FABRIC=mat(C.sage,{roughness:.9}),PEACH=mat(C.peach,{roughness:.9}),CREAM=mat(C.cream,{roughness:.9}),SHADE=mat(C.terra,{roughness:.45,metalness:.2});
   const windowGlow=mat('#cdd9ba',{emissive:'#b7c797',emissiveIntensity:.19});
+  const BULB=mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),LAMPGLOW=mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.6});
   function label(text: string,w: number,h: number,x: number,y: number,z: number,opts: any={}){
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.round(1024*h/w);
     const c2d=canvas.getContext('2d') as CanvasRenderingContext2D;c2d.fillStyle=opts.bg||C.dark;c2d.fillRect(0,0,canvas.width,canvas.height);
@@ -89,7 +90,7 @@ export function createDecor(ctx: DecorContext){
     for(let i=0;i<3;i++)box(.065,2.17,.1,C.cream,x-1.6+i*1.6,2.08,-HD+.29,.008);box(3.25,.065,.1,C.cream,x,2.12,-HD+.30,.008);box(3.65,.13,.42,C.oak,x,.94,-HD+.28,.04);
     windowLight(x,2.1,-HD+.36,3.12,1.9,[x,1.1,-HD+4]);
   }
-  function lamp(x: number,z: number){cyl(.22,.26,.03,C.dark,x,.02,z);cyl(.02,.02,1.7,C.edge,x,.87,z);cyl(.32,.42,.42,SHADE,x,1.75,z,root(),24);cyl(.3,.3,.02,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.6}),x,1.55,z);if(!previewing())pool(x,1.5,z,root());obstacle(x,z,.5,.5);}
+  function lamp(x: number,z: number){cyl(.22,.26,.03,C.dark,x,.02,z);cyl(.02,.02,1.7,C.edge,x,.87,z);cyl(.32,.42,.42,SHADE,x,1.75,z,root(),24);cyl(.3,.3,.02,LAMPGLOW,x,1.55,z);if(!previewing())pool(x,1.5,z,root());obstacle(x,z,.5,.5);}
   function squareTable(x: number,z: number){box(.9,.08,.9,OAK,x,1.0,z,.03);cyl(.07,.1,.95,TRIM,x,.5,z);cyl(.32,.36,.06,TRIM,x,.04,z);obstacle(x,z,.95,.95);shadow(x,z,.55,.5);taskSpot(x+.2,1.06,z-.22);}
   function armchair(x: number,z: number,rot: number){
     const g=group(x,0,z,rot);box(.95,.36,.95,C.edge,0,.24,0,.06,g);box(.9,.22,.85,C.terra,0,.5,0,.1,g);box(.95,.7,.24,C.terra,0,.78,-.36,.1,g);
@@ -122,5 +123,5 @@ export function createDecor(ctx: DecorContext){
   function windowLight(x: number,y: number,z: number,w: number,h: number,lookAt: [number,number,number]){
     const l=new THREE.RectAreaLight('#eaf1ff',3.6,w,h);l.position.set(x,y,z);l.lookAt(...lookAt);scene.add(l);windows.push(l);
   }
-  return {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,FABRIC,PEACH,CREAM,SHADE,windowGlow};
+  return {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow};
 }
