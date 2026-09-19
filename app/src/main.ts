@@ -60,9 +60,10 @@ $('#app').innerHTML=`
           <div id="pane-room" role="tabpanel" aria-labelledby="tab-room" hidden>
             <div class="timer-tabs phase-tabs" aria-label="Phase de la salle"><span data-phase="focus">Focus</span><span data-phase="short-break">Pause</span><span data-phase="long-break">Longue</span></div>
             <div class="timer-main">
-              <span class="dial-mini"><svg viewBox="0 0 220 220" aria-hidden="true"><circle class="dial-track" cx="110" cy="110" r="97"/><circle id="room-dial-progress" cx="110" cy="110" r="97"/></svg><button id="room-join" class="primary" aria-label="Rejoindre la session">${icon('users')}<span>Rejoindre</span></button></span>
+              <span class="dial-mini"><svg viewBox="0 0 220 220" aria-hidden="true"><circle class="dial-track" cx="110" cy="110" r="97"/><circle id="room-dial-progress" cx="110" cy="110" r="97"/></svg><span class="dial-core" aria-hidden="true">${icon('users')}</span></span>
               <span class="timer-readout"><output id="room-value" aria-label="Temps restant dans la salle">25:00</output><span id="room-subtitle">Personne pour l’instant. Lance la session ?</span><span id="room-kicker">25 / 5 / 15 · SESSION 1</span></span>
             </div>
+            <button id="room-join" class="primary pill" aria-label="Rejoindre la session">${icon('users')}<span>Rejoindre</span></button>
           </div>
         </section>
       </div>
