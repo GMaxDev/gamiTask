@@ -34,6 +34,7 @@ import {
 import { sanitizeLook } from "./look.js";
 import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
 import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
+import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot } from "./twitchNpcs.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -679,6 +680,7 @@ app.post("/auth/twitch/unlink", (req, res): void => {
   if (!userId) return;
   sql.unlinkTwitch.run(userId);
   disconnectTwitchChat(userId);
+  stopTwitchNpcs(io, userId);
   res.json({ ok: true });
 });
 
@@ -1410,6 +1412,7 @@ io.on("connection", (socket) => {
             color, text: sanitize(msg.text), ts: Date.now(),
           });
         });
+        startTwitchNpcs(io, userId, targetRoomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId));
       }
     }
     sql.setAvatarInfo.run(name, color, userId);
@@ -1423,6 +1426,7 @@ io.on("connection", (socket) => {
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
+    socket.emit("npc:state", roomNpcSnapshot(targetRoomId));
     socket.emit("pomo:state", pomoState(targetRoom));
     console.log(`[join] ${name} → room:${targetRoomId} @ (${spawnCol},${spawnRow})`);
 
@@ -1529,6 +1533,10 @@ io.on("connection", (socket) => {
     targetRoom.players.set(socket.id, rePlayer);
     socketToRoom.set(socket.id, roomId);
     socket.join(roomId);
+    if (userId) {
+      const twitchRow = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
+      if (twitchRow?.twitchId) startTwitchNpcs(io, userId, roomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId));
+    }
 
     socket.emit("room:info", { roomId });
     socket.to(roomId).emit("player-joined", rePlayer);
@@ -1536,6 +1544,7 @@ io.on("connection", (socket) => {
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
+    socket.emit("npc:state", roomNpcSnapshot(roomId));
     socket.emit("pomo:state", pomoState(targetRoom));
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
@@ -2339,7 +2348,10 @@ io.on("connection", (socket) => {
     socketToRoom.delete(socket.id);
     const disconnectedUserId = socketToUserId.get(socket.id);
     socketToUserId.delete(socket.id);
-    if (disconnectedUserId) disconnectTwitchChat(disconnectedUserId);
+    if (disconnectedUserId) {
+      disconnectTwitchChat(disconnectedUserId);
+      stopTwitchNpcs(io, disconnectedUserId);
+    }
     console.log(`[-] disconnected: ${socket.id}`);
   });
 

@@ -483,6 +483,12 @@ function bindServerEvents(){
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
   s.on('player-left',({id})=>{members.delete(id);cafe?.removeRemote(id);});
+  // Twitch NPCs: a linked streamer's live chatters, shared with everyone in the room by the server — never in `members`, they're not real accounts to @-mention.
+  const npc=(n: {name: string;color: number;look: Look;col: number;row: number})=>({name:n.name,color:n.color,hat:null,look:loadLook(n.look,n.color,[]),col:n.col,row:n.row,state:'idle' as const});
+  s.on('npc:state',npcs=>{for(const n of npcs)cafe?.addRemote(n.id,npc(n));});
+  s.on('npc:joined',n=>cafe?.addRemote(n.id,npc(n)));
+  s.on('npc:moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
+  s.on('npc:left',({id})=>cafe?.removeRemote(id));
   s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(msg.name,msg.color,text);else cafe?.say(msg.id,msg.name,msg.color,text);});
   s.on('leaderboard-update',entries=>{board.update(entries);drawIcons();});
   s.on('tasks:public-update',({socketId,taskIds})=>cafe?.setTodo(socketId,taskIds.length));

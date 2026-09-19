@@ -212,6 +212,16 @@ export const PUBLIC_ROOM_IDS = ["ocean", "forest", "sunset"] as const;
 export type PublicRoomId = (typeof PUBLIC_ROOM_IDS)[number];
 export const DEFAULT_ROOM_ID: PublicRoomId = "ocean";
 
+// A Twitch chatter rendered as a wandering NPC — no real account, just a name and a random look.
+export interface TwitchNpc {
+  id: string;
+  name: string;
+  color: number;
+  look: Look;
+  col: number;
+  row: number;
+}
+
 export const MAX_PUBLIC_ROOM = 20;
 export const MAX_PRIVATE_ROOM = 10;
 
@@ -382,6 +392,12 @@ export interface ServerToClientEvents {
   "player-moved": (payload: { id: string; col: number; row: number }) => void;
   "player-state": (payload: { id: string; state: AvatarState }) => void;
   "player-left": (payload: { id: string }) => void;
+  // A linked streamer's live Twitch chatters, rendered as decorative wandering characters —
+  // shared with everyone in the room, unlike the player-* events' real accounts.
+  "npc:state": (npcs: TwitchNpc[]) => void;
+  "npc:joined": (npc: TwitchNpc) => void;
+  "npc:moved": (payload: { id: string; col: number; row: number }) => void;
+  "npc:left": (payload: { id: string }) => void;
   "chat-message": (msg: {
     id: string;
     name: string;

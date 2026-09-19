@@ -1,0 +1,110 @@
+// Server-owned roster of a linked streamer's live Twitch chatters, rendered as wandering NPCs
+// visible to EVERYONE in the room — not a client-local illusion like the earlier prototypes.
+// One owner (a gamiTask user) drives a set of NPCs in whichever room they currently occupy;
+// a periodic tick re-fetches their chat roster (diffing joins/leaves) and nudges each NPC to a
+// new spot, reusing the exact player-moved/joined/left plumbing the client already renders with.
+import type { Server } from "socket.io";
+import type { ClientToServerEvents, RoomId, ServerToClientEvents, TwitchNpc } from "./types.js";
+import { getChatters } from "./twitch.js";
+import { randomNpcLook } from "./npcLook.js";
+
+const TICK_MS = 8000;
+const MOVE_CHANCE = 0.6;
+// A conservative interior band that fits inside even the smallest room (the 12x10 private one),
+// so NPCs never wander into a wall — at the cost of not roaming a big public room's full floor.
+const safeSpot = () => ({ col: 2 + Math.floor(Math.random() * 8), row: 2 + Math.floor(Math.random() * 6) });
+
+interface Owner {
+  roomId: RoomId;
+  broadcasterId: string;
+  getAccessToken: () => Promise<string | null>;
+  timer: ReturnType<typeof setInterval>;
+  npcIds: Set<string>;
+}
+
+const roomNpcs = new Map<RoomId, Map<string, TwitchNpc>>();
+const owners = new Map<string, Owner>(); // key: gamiTask userId
+
+function roomMap(roomId: RoomId): Map<string, TwitchNpc> {
+  let m = roomNpcs.get(roomId);
+  if (!m) {
+    m = new Map();
+    roomNpcs.set(roomId, m);
+  }
+  return m;
+}
+
+async function tick(io: Server<ClientToServerEvents, ServerToClientEvents>, userId: string): Promise<void> {
+  const owner = owners.get(userId);
+  if (!owner) return;
+  const token = await owner.getAccessToken();
+  if (!token) return;
+  let chatters;
+  try {
+    chatters = await getChatters(owner.broadcasterId, token);
+  } catch (err) {
+    console.error("[twitchNpcs] chatters lookup failed", err);
+    return;
+  }
+  if (!owners.has(userId)) return; // torn down while the fetch was in flight
+  const npcs = roomMap(owner.roomId);
+  const seen = new Set<string>();
+  for (const c of chatters) {
+    const id = `twitch-chatter-${c.id}`;
+    seen.add(id);
+    if (npcs.has(id)) continue;
+    const { look, color } = randomNpcLook();
+    const spot = safeSpot();
+    const npc: TwitchNpc = { id, name: c.name || c.login, color, look, col: spot.col, row: spot.row };
+    npcs.set(id, npc);
+    owner.npcIds.add(id);
+    io.to(owner.roomId).emit("npc:joined", npc);
+  }
+  for (const id of [...owner.npcIds]) {
+    if (seen.has(id)) continue;
+    npcs.delete(id);
+    owner.npcIds.delete(id);
+    io.to(owner.roomId).emit("npc:left", { id });
+  }
+  for (const id of owner.npcIds) {
+    if (Math.random() >= MOVE_CHANCE) continue;
+    const npc = npcs.get(id);
+    if (!npc) continue;
+    const spot = safeSpot();
+    npc.col = spot.col;
+    npc.row = spot.row;
+    io.to(owner.roomId).emit("npc:moved", { id, col: spot.col, row: spot.row });
+  }
+}
+
+export function startTwitchNpcs(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  userId: string,
+  roomId: RoomId,
+  broadcasterId: string,
+  getAccessToken: () => Promise<string | null>,
+): void {
+  stopTwitchNpcs(io, userId);
+  const timer = setInterval(() => {
+    tick(io, userId);
+  }, TICK_MS);
+  owners.set(userId, { roomId, broadcasterId, getAccessToken, timer, npcIds: new Set() });
+  tick(io, userId);
+}
+
+export function stopTwitchNpcs(io: Server<ClientToServerEvents, ServerToClientEvents>, userId: string): void {
+  const owner = owners.get(userId);
+  if (!owner) return;
+  clearInterval(owner.timer);
+  owners.delete(userId);
+  const npcs = roomNpcs.get(owner.roomId);
+  if (!npcs) return;
+  for (const id of owner.npcIds) {
+    npcs.delete(id);
+    io.to(owner.roomId).emit("npc:left", { id });
+  }
+}
+
+export function roomNpcSnapshot(roomId: RoomId): TwitchNpc[] {
+  return [...(roomNpcs.get(roomId)?.values() ?? [])];
+}
