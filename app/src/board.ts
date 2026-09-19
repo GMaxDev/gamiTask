@@ -1,10 +1,8 @@
 // The room leaderboard: who earns coins here, live. The server sorts and sends the whole room, we only pick what fits the card.
-import {Trophy,Flame,Coffee,X} from 'lucide';
 
 export interface Entry{id: string; name: string; color: number; coins: number; state: string}
 export interface BoardDeps{meId(): string}
 export interface Board{update(entries: Entry[]): void; open(): void; close(): void; toggle(): void; isOpen(): boolean; dispose(): void}
-export const BOARD_ICONS={Trophy,Flame,Coffee,X};// the chip and card markup, registered by whoever calls lucide's createIcons
 
 /** 1-based place in the board the server already sorted, null when that id is not in the room. */
 export function rankOf(entries: Entry[],id: string): number|null{

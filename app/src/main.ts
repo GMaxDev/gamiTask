@@ -6,7 +6,7 @@ import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
-import {createBoard,BOARD_ICONS} from './board.ts';
+import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import type {RoomKind} from './coords.ts';
@@ -19,7 +19,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...BOARD_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -218,7 +218,7 @@ const HUD_BEHIND_SHEET='.hud-top,.view-controls,.world-bottom,.timer-dock,#open-
 function hudInert(on: boolean){document.querySelectorAll(HUD_BEHIND_SHEET).forEach((e: any)=>{e.inert=on;});}
 function openEditor(){
   if(editing||!cafe||switching||placingId)return;editing=true;
-  openDrawer(false);($('.world') as HTMLElement).classList.add('editing');hudInert(true);
+  openDrawer(false);board.close();($('.world') as HTMLElement).classList.add('editing');hudInert(true);
   editor.open(look,identity.name,shop.hats);cafe.enterEditor();
 }
 function closeEditor(){
