@@ -4,11 +4,11 @@ import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
-import {loadLook,type Look} from './look.ts';
+import {loadLook,randomLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
-import {toCell} from './coords.ts';
+import {toCell,DIMS} from './coords.ts';
 import type {RoomKind} from './coords.ts';
 import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
@@ -334,6 +334,22 @@ try{
   mountRoom();$('.loading')?.remove();
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
 start();// the room is built behind the veil, then the server fills it
+
+// Prototype: spawn as many random-looking characters as a Twitch channel's live viewers, purely local (not synced to other clients).
+(window as any).spawnTwitchViewers=async(channel: string)=>{
+  const res=await fetch(`${API_URL}/twitch/viewers?channel=${encodeURIComponent(channel)}`);
+  if(!res.ok){console.error('[twitch] lookup failed',await res.text());return;}
+  const {live,viewerCount}=await res.json();
+  if(!live){console.log(`[twitch] ${channel} is offline`);return;}
+  const {w,d}=DIMS[room];
+  console.log(`[twitch] ${channel}: ${viewerCount} viewers, spawning…`);
+  for(let i=0;i<viewerCount;i++){
+    cafe.addRemote(`twitch-${channel}-${i}`,{
+      name:`viewer${i+1}`,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',
+    });
+  }
+};
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
 $('#light').onclick=()=>{if(!cafe)return;const evening=cafe.toggleLight();$('#light').innerHTML=icon(evening?'moon':'sun')+`<span>${evening?'Douce soirée':'Lumière du jour'}</span>`;$('.world').classList.toggle('evening',evening);drawIcons();};
 $('#help').onclick=()=>$('#help-dialog').showModal();

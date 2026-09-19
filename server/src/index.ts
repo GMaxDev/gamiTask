@@ -32,6 +32,7 @@ import {
   type Look,
 } from "./types.js";
 import { sanitizeLook } from "./look.js";
+import { getViewerCount } from "./twitch.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -515,6 +516,22 @@ app.post("/auth/google", async (req, res): Promise<void> => {
 
 app.get("/api/rooms", (_req, res): void => {
   res.json({ rooms: buildRoomSummaries() });
+});
+
+// Prototype: how many people are watching a live Twitch channel right now, to test spawning that many characters.
+app.get("/twitch/viewers", async (req, res): Promise<void> => {
+  const channel = (req.query.channel as string | undefined)?.trim();
+  if (!channel) {
+    res.status(400).json({ error: "Missing channel" });
+    return;
+  }
+  try {
+    const viewerCount = await getViewerCount(channel);
+    res.json({ channel, live: viewerCount !== null, viewerCount: viewerCount ?? 0 });
+  } catch (err) {
+    console.error("[twitch/viewers]", err);
+    res.status(502).json({ error: "Twitch lookup failed" });
+  }
 });
 
 app.post("/auth/token", (req, res): void => {
