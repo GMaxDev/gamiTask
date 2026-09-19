@@ -106,3 +106,24 @@
 .dial-core{width:42px;height:42px;border-radius:50%;background:#e8eedf;color:#657956;display:grid;place-items:center}.dial-core svg{width:18px;height:18px}#room-join.pill{width:auto;height:auto;padding:10px 14px;border-radius:99px;font-size:13px;white-space:nowrap;gap:7px;margin-left:2px}#room-join.pill svg{width:15px;height:15px}#room-join.leaving{background:#c9764f}#room-join.leaving:hover{background:#b8683f}
 @media(max-width:800px){.timer-dock{left:12px;right:12px;bottom:14px;transform:none;align-items:stretch}.timer-hud{justify-content:space-between}.phase-tabs{display:none}}
 @media(prefers-reduced-motion:reduce){#pane-solo,#pane-room,#room-dial-progress{transition:none}}
+
+/* The room leaderboard: a pill in the HUD, and its card hanging right under it. */
+.board-anchor{position:relative;display:flex}
+.board-chip{display:flex;align-items:center;gap:7px;padding:8px 13px;background:#fbfcf3d9;border:1px solid #fff9;backdrop-filter:blur(12px);border-radius:14px;font-size:13px;color:#66735c}
+.board-chip:hover{background:#fbfcf3}.board-chip svg{width:14px;height:14px;color:#a98a3e}
+#board-rank{font-family:Manrope,sans-serif;font-weight:600;font-variant-numeric:tabular-nums}
+.board-chip.bump{animation:bump .4s ease-out}
+@keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.12)}100%{transform:scale(1)}}
+.board-card{position:absolute;top:calc(100% + 8px);right:0;width:280px;background:#faf9f2;border:1px solid #e4e6d8;border-radius:16px;box-shadow:0 14px 40px #2e382a1f;padding:14px 16px;z-index:5}
+.board-card[hidden]{display:none}
+.board-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.board-list{list-style:none;margin:8px 0 0;padding:0}
+.board-list li{display:flex;align-items:center;gap:10px;padding:7px 4px;font-size:14px;color:#55624a}
+.board-pos{width:20px;color:#a1a58f;font-family:Manrope,sans-serif;font-weight:600;font-variant-numeric:tabular-nums}
+.board-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board-list li.me{background:#c9764f12;border-radius:10px}
+.board-coins{margin-left:auto;font-family:Manrope,sans-serif;font-weight:600;color:#a98a3e;font-variant-numeric:tabular-nums}
+.board-state{display:flex;align-items:center}.board-state svg{width:14px;height:14px;color:#c9764f}
+.board-note{font-size:12px;color:#a1a58f;margin:10px 0 0}
+.chat-list li.chat-system{display:block;font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:4px}
+@media(prefers-reduced-motion:reduce){.board-chip.bump{animation:none}}

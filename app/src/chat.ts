@@ -3,7 +3,7 @@
 export interface ChatMsg{id: string; name: string; color: number; text: string; ts: number; mine: boolean}
 export interface Member{id: string; name: string; color: number}
 export interface ChatDeps{send(text: string): boolean; typing(): void; emote(emoji: string): void; members(): Member[]; myName(): string; onMention?(): void}
-export interface Chat{open(): void; close(): void; toggle(): void; focus(): void; isOpen(): boolean; add(msg: ChatMsg): void; typing(id: string,name: string): void; setRoom(label: string): void; clear(): void; emotes: string[]; dispose(): void}
+export interface Chat{open(): void; close(): void; toggle(): void; focus(): void; isOpen(): boolean; add(msg: ChatMsg): void; system(text: string): void; typing(id: string,name: string): void; setRoom(label: string): void; clear(): void; emotes: string[]; dispose(): void}
 
 const ENTITIES: Record<string,string>={'&lt;':'<','&gt;':'>','&amp;':'&','&quot;':'"','&#39;':'\'','&#x27;':'\''};
 export const decodeEntities=(s: string): string=>s.replace(/&(?:lt|gt|amp|quot|#39|#x27);/g,m=>ENTITIES[m]??m);
@@ -85,11 +85,17 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
   function add(msg: ChatMsg){
     const stick=atBottom(),text=decodeEntities(msg.text),mentioned=!msg.mine&&mentionsMe(text,deps.myName());
     thread.push(msg);
-    const rows=list.querySelectorAll('li:not(.chat-sep)');if(rows.length>=thread.MAX)rows[0].remove();// the separator stays, only messages scroll out
+    const rows=list.querySelectorAll('li:not(.chat-sep):not(.chat-system)');if(rows.length>=thread.MAX)rows[0].remove();// the separator and system lines stay, only messages scroll out
     list.append(renderMsg(msg,text,mentioned));if(stick)list.scrollTop=list.scrollHeight;
     if(typers.delete(msg.id))renderTyping();
     if(mentioned)deps.onMention?.();
     if(!open&&!msg.mine){unreadCount++;unread.textContent=String(Math.min(99,unreadCount));unread.hidden=false;}
+  }
+  // A discreet line in the thread: no pseudo, no bubble, never an unread.
+  function system(text: string){
+    const stick=atBottom(),li=document.createElement('li');li.className='chat-system';li.textContent=text;
+    const rows=list.querySelectorAll('li.chat-system');if(rows.length>=20)rows[0].remove();// bounded like the thread, without eating a message
+    list.append(li);if(stick)list.scrollTop=list.scrollHeight;
   }
   function renderTyping(){
     const now=Date.now();
@@ -152,7 +158,7 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
 
   return {
     open:()=>setOpen(true),close:()=>setOpen(false),toggle:()=>setOpen(!open),focus:()=>input.focus(),isOpen:()=>open,
-    add,typing(id: string,name: string){typers.set(id,{name,at:Date.now()});renderTyping();},
+    add,system,typing(id: string,name: string){typers.set(id,{name,at:Date.now()});renderTyping();},
     setRoom(label: string){
       thread.clear();list.replaceChildren();typers.clear();renderTyping();
       eyebrow.textContent=label;

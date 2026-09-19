@@ -6,6 +6,7 @@ import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
+import {createBoard,BOARD_ICONS} from './board.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
 import type {RoomKind} from './coords.ts';
@@ -18,7 +19,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users};
+const icons={...EDITOR_ICONS,...BOARD_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -200,6 +201,7 @@ const chat=createChat($('.world-left') as HTMLElement,{
   myName:()=>identity.name,
   onMention:mentionChime,
 });
+const board=createBoard($('.hud-top') as HTMLElement,{meId:()=>net?.socket.id??''});drawIcons();
 chat.open();// the room's conversation is visible from the start; the round button folds it away
 let chatRoomKnown=false;
 const roomLabel=()=>ROOM_UI[room].chat;
@@ -362,17 +364,23 @@ function bindServerEvents(){
   const s=net.socket;
   // a remote's own hat counts as owned, so validation never strips what the server already accepted
   const remote=(p: Player)=>({name:p.name,color:p.color,hat:p.hat??null,look:p.look?loadLook(p.look,p.color,p.hat?[p.hat]:[]):undefined,col:p.col,row:p.row,state:p.state});
-  s.on('room-state',players=>{cafe?.clearRemotes();members.clear();for(const p of players){members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));}
+  s.on('room-state',players=>{cafe?.clearRemotes();members.clear();for(const p of players){members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));cafe?.setTodo(p.id,p.pendingTaskIds?.length??0);}
     if(!chatRoomKnown){chatRoomKnown=true;chat.setRoom(roomLabel());}ready.room=true;maybeReady();
     // the server spawns us at a fixed tile and resets our state: tell everyone where we really stand, and what we're doing
     const at=cafe?.playerPosition()??{x:0,z:0};s.emit('move',toCell(at.x,at.z,room));s.emit('avatar-state',{state:avatarState()});});
-  s.on('player-joined',p=>{members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));});
+  s.on('player-joined',p=>{members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));cafe?.setTodo(p.id,p.pendingTaskIds?.length??0);});
   s.on('player-moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
   s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
   s.on('player-left',({id})=>{members.delete(id);cafe?.removeRemote(id);});
   s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(msg.name,msg.color,text);else cafe?.say(msg.id,msg.name,msg.color,text);});
+  s.on('leaderboard-update',entries=>{board.update(entries);drawIcons();});
+  s.on('tasks:public-update',({socketId,taskIds})=>cafe?.setTodo(socketId,taskIds.length));
+  // the server sends a completion to the rest of the room only: our own +10 already shows up as a toast
+  s.on('task:completed-public',({socketId})=>{if(socketId!==s.id)cafe?.float(socketId,'+10');});
+  s.on('level-up:public',({socketId,name,level})=>{cafe?.float(socketId,`Niveau ${level}`,'#647557');chat.system(`${name} passe au niveau ${level}`);});
+  s.on('achievement:public',({socketId,label,icon:badge})=>{cafe?.float(socketId,`${badge} ${label}`);chat.system(`${members.get(socketId)?.name??'Quelqu’un'} débloque « ${label} »`);});
   s.on('chat:typing',({id,name})=>chat.typing(id,name));
   s.on('chat:emote',({id,emoji})=>{if(id===s.id)cafe?.emoteMe(emoji);else cafe?.emote(id,emoji);});
   s.on('rooms:list',({rooms:list})=>{rooms=list;renderCounts();if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
@@ -394,9 +402,9 @@ function bindServerEvents(){
   s.on('task:updated',({taskId,text,category})=>{taskUpdated(tasks,taskId,text,category);renderTasks();syncScene();});
   s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
   s.on('coins:update',({coins})=>{setCoins(progress,coins);renderProgress();renderShop();});
-  s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before)later(()=>toast(`✨ Niveau ${u.level} ! Le café te va de mieux en mieux.`),2600);});
+  s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Le café te va de mieux en mieux.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
-  s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
+  s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
   s.on('room:full',()=>{if(ready.room){if(room!==prevRoom)enterRoom(prevRoom);// the iris already moved us: the server kept us where we were
       toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil

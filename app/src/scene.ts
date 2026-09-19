@@ -452,13 +452,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Remote players: one person + walker each, driven by the cells the server sends.
   const cellCentreOf=(col: number,row: number)=>({x:-HW+col+.5,z:-HD+row+.5});
   const seatNear=(p: {x: number;z: number})=>seats.find(s=>!s.taken&&Math.hypot(s.x-p.x,s.z-p.z)<.75)??null;
-  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null}
+  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null;todo: THREE.Sprite|null}
   const remotes=new Map<string, Remote>();
   function addRemote(id: string,info: RemoteInfo){
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
     const p=buildAvatar(P,at.x,at.z,info.look??lookFor(info.color,info.hat)),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
-    const r: Remote={p,w,tag,bubble:null};remotes.set(id,r);restage();
+    const r: Remote={p,w,tag,bubble:null,todo:null};remotes.set(id,r);restage();
     setRemoteState(id,info.state);
     const seat=seatNear(at);if(seat)w.go(seat,seat);
   }
@@ -474,7 +474,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const r=remotes.get(id);if(!r)return;
     r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
     r.p.g.traverse((o: any)=>{o.geometry?.dispose?.();});
-    dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);dropBubbles(id);
+    dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);if(r.todo)dropSprite(r.todo);dropBubbles(id);dropFloats(id);
     remotes.delete(id);restage();
   }
   function clearRemotes(){for(const id of [...remotes.keys()])removeRemote(id);}
@@ -526,6 +526,49 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function sayMe(name: string,color: number,text: string){showBubble(':chat',avatar,chatBubble(name,color,text,2.5),5,false);}
   function emote(id: string,emoji: string){const r=remotes.get(id);if(r)showBubble(`${id}:emote`,r.p.g,emoteBubble(emoji,2.5),3,true);}
   function emoteMe(emoji: string){showBubble(':emote',avatar,emoteBubble(emoji,2.5),3,true);}
+  // Public feedback above an avatar: a word that rises and fades (+10, a level, a badge), and a small "n à faire" pill under a remote's name tag.
+  interface Float{id: string;s: THREE.Sprite;born: number;base: number;px: {w: number;h: number}}
+  const floats: Float[]=[],FLOAT_LIFE=1.6,FLOAT_RISE=.6;
+  function floatSprite(text: string,color: string){
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=512;c.height=96;
+    ctx.font='700 34px Manrope, "DM Sans", sans-serif';
+    const w=Math.min(500,ctx.measureText(text).width+40),h=56;
+    ctx.fillStyle='#fffdf6f2';ctx.beginPath();ctx.roundRect((512-w)/2,(96-h)/2,w,h,18);ctx.fill();
+    ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,256,49,w-30);
+    const k=BUBBLE_TEXT_PX/34;return sprite(c,2,.5,0,0,512*k,96*k);// 34px on the canvas → 16px on screen, whatever the zoom
+  }
+  function float(id: string,text: string,color='#c9764f'){
+    const group=id?remotes.get(id)?.p.g:avatar;if(!group)return;// a float for someone who just left is simply dropped
+    const s=floatSprite(text,color);group.add(s);
+    // above the chat slot, so neither bubble is covered; a second float at the same instant sits on top of the first
+    floats.push({id,s,born:time,base:(id?2.6:2.5)+.3+.42*floats.filter(f=>f.id===id).length,px:s.userData.px});
+  }
+  function dropFloats(id: string){for(let i=floats.length-1;i>=0;i--)if(floats[i].id===id){dropSprite(floats[i].s);floats.splice(i,1);}}
+  function todoSprite(n: number){
+    const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=256;c.height=64;
+    const label=`${n} à faire`;ctx.font='600 26px Manrope, "DM Sans", sans-serif';
+    const w=Math.min(244,ctx.measureText(label).width+28),h=40;
+    ctx.fillStyle='#e8eedf';ctx.beginPath();ctx.roundRect((256-w)/2,12,w,h,20);ctx.fill();
+    ctx.fillStyle='#647557';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,128,33,w-20);
+    const k=12/26;return sprite(c,1,.25,0,1.9,256*k,64*k);// 12px on screen, just under the name tag
+  }
+  function setTodo(id: string,n: number){
+    const r=remotes.get(id);if(!r)return;// never for the player: their own drawer already lists it
+    if(r.todo){dropSprite(r.todo);r.todo=null;}
+    if(n>0){r.todo=todoSprite(n);r.p.g.add(r.todo);}
+  }
+  // Both keep a fixed size on screen, so their world scale is recomputed every frame like the bubbles'.
+  function fitFeedback(){
+    const ppu=pixelsPerUnit();
+    for(let i=floats.length-1;i>=0;i--){
+      const f=floats[i],t=(time-f.born)/FLOAT_LIFE;
+      if(t>=1){dropSprite(f.s);floats.splice(i,1);continue;}
+      const h=f.px.h/ppu;f.s.scale.set(f.px.w/ppu,h,1);f.s.position.y=f.base+h/2+t*FLOAT_RISE;
+      (f.s.material as THREE.SpriteMaterial).opacity=t<.5?1:2-2*t;
+    }
+    for(const r of remotes.values()){if(!r.todo)continue;const h=r.todo.userData.px.h/ppu;
+      r.todo.scale.set(r.todo.userData.px.w/ppu,h,1);r.todo.position.y=1.95-h/2;}
+  }
   let lastCell='',lastArrived=false,cellListener: ((col: number,row: number,arrived: boolean)=>void)|null=null;
   // Slow pulse on the selected seat. Materials are shared per colour, so each mesh gets a private clone while it glows.
   function glow(object: any){
@@ -550,7 +593,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     savedView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};me.cancel();me.standUp();hoverTicket(null);dragging=false;
     editYaw=cameraYaw;
     editAnim={t:0,z0:camera.zoom,z1:editZoom(),p0:camTarget.clone(),p1:editTarget()};
-    dropBubbles('');// a live chat or emote sprite would inherit the avatar layer and float in the sharp pass
+    dropBubbles('');dropFloats('');// a live chat, emote or float sprite would inherit the avatar layer and float in the sharp pass
     avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=false;
     studio=new THREE.SpotLight('#fff3d8',26,9,.5,.6,1.4);studio.position.copy(avatar.position).add(new THREE.Vector3(2.2,4.2,2.6));studio.target=avatar;studio.layers.enable(AVATAR_LAYER);scene.add(studio);restage();
     onState?.({editing:true});
@@ -684,6 +727,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const tops=new Map<string, number>();// chat bubbles first, so emotes can sit on top of them
     for(const [k,b] of bubbles)if(k.endsWith(':chat'))tops.set(k.slice(0,-5),fitBubble(b)+.05);
     for(const [k,b] of bubbles)if(k.endsWith(':emote'))fitBubble(b,tops.get(k.slice(0,-6))??0);
+    fitFeedback();
     for(const g of tickets.values()){const b=g.userData.base;g.position.set(b.x,b.y+(reducedMotion?.06:.06+Math.sin(time*1.4+g.userData.phase)*.03),b.z);g.rotation.y=cameraYaw+(reducedMotion?0:Math.sin(time*.8+g.userData.phase)*.08);g.scale.setScalar((g===hovered?1.35:1.2)/Math.sqrt(zoom));
       const {sparks,seeds}=g.userData,pos=sparks.geometry.attributes.position;sparks.material.size=4.5*Math.sqrt(zoom)*Math.min(devicePixelRatio,1.5);
       for(let k=0;k<pos.count;k++){const life=reducedMotion?seeds[k*3+2]:(time*.35+seeds[k*3+2])%1,a=seeds[k*3]*6.28+life*2;pos.setXYZ(k,Math.cos(a)*(.34+seeds[k*3+1]*.2),.05+life*.75,Math.sin(a)*(.28+seeds[k*3+1]*.2));}
@@ -711,7 +755,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
-  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
+  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }
