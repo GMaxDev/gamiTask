@@ -8,6 +8,7 @@ import {loadLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
+import type {RoomKind} from './coords.ts';
 import {homeDecision,myPrivateRoom} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
@@ -160,7 +161,9 @@ async function start(){
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
-let cafe: any,room=load('gamitask.room','public');if(room!=='private')room='public';
+// Task 3 renames the HUD buttons; until then the café button still says data-room="public".
+const btnRoom=(b: any): RoomKind=>b.dataset.room==='private'?'private':'cafe';
+let cafe: any,room=load('gamitask.room','cafe');if(room!=='private')room='cafe';// a saved 'public' from before the garden means the café
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 function saveLook(){save('gamitask.look',look);}
 // Character editor: a sheet over the scene, the café avatar itself is the preview.
@@ -219,7 +222,7 @@ $('#identity-chip').onclick=openEditor;($('#identity-chip') as HTMLElement).setA
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
-  document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.room===room)));
+  document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(btnRoom(b)===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
   if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
@@ -243,8 +246,8 @@ async function irisSwap(x: number,y: number,label: string,iconName: string,fn: (
 // Rooms: the server owns them. The click plays the iris and remounts, then `room:info` confirms (or corrects) where we really are.
 let rooms: RoomSummary[]=[];
 let homeTimer: ReturnType<typeof setTimeout>|undefined;
-function switchServerRoom(next:'public'|'private'){
-  if(next==='public'){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:'ocean'});return;}
+function switchServerRoom(next:RoomKind){
+  if(next!=='private'){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:'ocean'});return;}
   const mine=myPrivateRoom(rooms,identity.userId);
   if(mine){pendingHome=false;clearTimeout(homeTimer);maybeReady();net.socket.emit('room:switch',{roomId:mine.id});}
   // a refused creation is silent (guest rule, rate limit, stale row): give up after a few seconds rather than wait forever
@@ -253,13 +256,13 @@ function switchServerRoom(next:'public'|'private'){
 }
 function abandonHome(){
   clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
-  if(room==='private'){room='public';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+  if(room==='private'){room='cafe';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
   maybeReady();
 }
 document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   if(b.dataset.room===room||switching||editing)return;switching=true;
   try{
-    const r=b.getBoundingClientRect(),next=b.dataset.room as 'public'|'private',home=next==='private';
+    const r=b.getBoundingClientRect(),next=btnRoom(b),home=next==='private';
     await irisSwap(r.left+r.width/2,r.top+r.height/2,home?'Chez moi':'Le café Petit Jour',home?'home':'coffee',()=>{room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}});
     switchServerRoom(next);toast(home?'Bienvenue chez toi. Installe-toi.':'Retour au café.');
   }finally{switching=false;}
@@ -372,7 +375,7 @@ function bindServerEvents(){
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const isHome=rooms.find(r=>r.id===roomId)?.isPrivate??false;
-    if(isHome!==(room==='private')){room=isHome?'private':'public';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+    if(isHome!==(room==='private')){room=isHome?'private':'cafe';save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
     chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});

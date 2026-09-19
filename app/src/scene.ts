@@ -6,12 +6,27 @@ import { GRID, footprint, cellsOf } from './shop.ts';
 import type { Cell } from './shop.ts';
 import { C, createPrimitives } from './primitives.ts';
 import { createDecor } from './decor.ts';
+import type { DecorContext } from './decor.ts';
+import { buildGarden } from './garden.ts';
+import { DIMS } from './coords.ts';
+import type { RoomKind } from './coords.ts';
 import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
-export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='public',furniture={},look}: {room?: 'public'|'private'; furniture?: Record<string, Cell>; look: Look}) {
+interface LightSet { hemi: [string,string,number]; sun: [string,number]; fill: number; lamps: number }
+// Daylight and evening per room, read both when the lights are created and every time `toggleLight` flips them.
+const CAFE_LIGHT: {day: LightSet; evening: LightSet}={
+  day:{hemi:['#fff5dc','#a8b294',1.2],sun:['#ffd08f',2.2],fill:.5,lamps:1},
+  evening:{hemi:['#8ea2cc','#a8b294',.35],sun:['#ff8c4c',.35],fill:.15,lamps:3},
+};
+const LIGHT: Record<RoomKind,{day: LightSet; evening: LightSet}>={
+  cafe:CAFE_LIGHT,private:CAFE_LIGHT,
+  garden:{day:{hemi:['#f4f8ff','#c8d2bc',1.5],sun:['#fff0d0',2.4],fill:.6,lamps:1},
+    evening:{hemi:['#9fb0c8','#3f4a44',.35],sun:['#ffa26e',.3],fill:.15,lamps:3}},
+};
+export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='cafe',furniture={},look}: {room?: RoomKind; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
   const BASE_PR=Math.min(window.devicePixelRatio,1.25);let pixelRatio=BASE_PR;// adaptive: never above the base, never below .75
@@ -26,7 +41,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   renderer.domElement.tabIndex=0;container.append(renderer.domElement);
   const camera=new THREE.OrthographicCamera(-10,10,10,-10,.1,100);
   const AVATAR_LAYER=1;// the editor renders the avatar alone on this layer, sharp, over the blurred backdrop
-  const W=room==='private'?12:24,D=room==='private'?10:20,HW=W/2,HD=D/2;// the public café is 24x20; your own room is a cosy 12x10
+  const {w:W,d:D}=DIMS[room],HW=W/2,HD=D/2;// the public rooms are 24x20; your own is a cosy 12x10
   let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
   const materials=new Map<string, any>(), obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
   const P=createPrimitives(()=>root,materials);const {mat,mesh,box,cyl,ball,group}=P;
@@ -39,7 +54,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function taskSpot(x: number,y: number,z: number){if(previewing)return;const o=rootOrigin();taskSpots.push(new THREE.Vector3(x+o.x,y,z+o.z));}
   function seat(x: number,z: number,y: number,rot: number,object: any){if(previewing)return;object.userData.keep=true;const o=rootOrigin();seats.push({x:x+o.x,z:z+o.z,y,rot,object});}
   function shadow(x: number,z: number,sx: number,sz: number,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
-  const D_=createDecor({p:P,scene,root:()=>root,previewing:()=>previewing,HW,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots});
+  const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HW,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots};
+  const D_=createDecor(dctx);
   const {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,windowGlow}=D_;
   // Your room is a grid of floor tiles; a piece sits centred on its footprint.
   const cellCentre=(id: string,{c,r}: Cell): [number,number]=>{const f=footprint(id);return [-HW+c+f.w/2,-HD+r+f.d/2];};
@@ -53,8 +69,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
 
   RectAreaLightUniformsLib.init();// RectAreaLight is unlit garbage without its LTC tables
-  const hemi=new THREE.HemisphereLight('#fff5dc','#a8b294',1.2);scene.add(hemi);
-  const sun=new THREE.DirectionalLight('#ffd08f',2.2);sun.position.set(-3,10,5);sun.castShadow=true;
+  const daylight=LIGHT[room].day;
+  const hemi=new THREE.HemisphereLight(...daylight.hemi);scene.add(hemi);
+  const sun=new THREE.DirectionalLight(...daylight.sun);sun.position.set(-3,10,5);sun.castShadow=true;
   sun.shadow.mapSize.set(1024,1024);sun.shadow.normalBias=.035;sun.shadow.bias=-.00015;sun.shadow.radius=4;scene.add(sun);
   // Fit the shadow frustum to this room's box in the sun's own axes, so a 1024 map is never spent on empty space — the small room gets a sharper one for free.
   function fitSun(){
@@ -64,21 +81,24 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     Object.assign(cam,{left:b.min.x,right:b.max.x,top:b.max.y,bottom:b.min.y,near:-b.max.z-.5,far:-b.min.z+.5});cam.updateProjectionMatrix();
   }
   fitSun();
-  const fill=new THREE.DirectionalLight('#dfe8f4',.5);fill.position.set(9,6,-3);scene.add(fill);
-  const FLOOR=['#d7b48d','#d9b892','#d4ae87','#debc97'].map(c=>mat(c,{roughness:.95}));
+  const fill=new THREE.DirectionalLight('#dfe8f4',daylight.fill);fill.position.set(9,6,-3);scene.add(fill);
+  const FLOOR=(room==='garden'?['#e8e2cf','#e1dbc6','#e8e2cf','#e1dbc6']:['#d7b48d','#d9b892','#d4ae87','#debc97']).map(c=>mat(c,{roughness:.95}));
   // A freestanding diorama; the front and right sides remain open.
   box(W+.35,.38,D+.35,C.edge,0,-.24,0,.12);
   box(W+.25,.20,D+.25,C.oak,0,-.05,0,.08);
   for(let iz=0;iz<D;iz++)for(let ix=0;ix<W;ix++) {
     box(.98,.045,.98,FLOOR[(ix*3+iz*7)%4],ix-HW+.5,.025,iz-HD+.5,.015);
   }
-  box(W+.28,3.85,.20,C.cream,0,1.93,-HD-.07,.035);
-  box(.20,3.85,D+.28,'#ecd8b8',-HW-.07,1.93,0,.035);
+  if(room!=='garden'){// the veranda glazes both walls itself, and a solid wall would hide the garden behind it
+    box(W+.28,3.85,.20,C.cream,0,1.93,-HD-.07,.035);
+    box(.20,3.85,D+.28,'#ecd8b8',-HW-.07,1.93,0,.035);
+  }
   box(W+.42,.18,.34,C.oak,0,3.91,-HD-.07,.035);
   box(.34,.18,D+.45,C.oak,-HW-.07,3.91,0,.035);
-  box(W-.1,.15,.08,C.edge,0,.17,-HD+.06,.01);
-  box(.08,.15,D-.1,C.edge,-HW+.06,.17,0,.01);
-  if(room==='public'){
+  box(W-.1,.15,.08,room==='garden'?C.sage:C.edge,0,.17,-HD+.06,.01);
+  box(.08,.15,D-.1,room==='garden'?C.sage:C.edge,-HW+.06,.17,0,.01);
+  let dusk: ((evening: boolean)=>void)|null=null;// the garden tints its glazing at nightfall
+  if(room==='cafe'){
   // The original café, untouched, tucked into the back-left corner of the bigger room.
   root=group(-HW+6,0,-HD+5);
   // Terracotta backsplash made from actual staggered brick geometry.
@@ -208,6 +228,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,mat('#ffeac0',{emissive:'#ffd595',emissiveIntensity:.8}),x,2.765,z);
     pool(x,2.6,z,scene);
   }
+  } else if(room==='garden'){
+  dusk=buildGarden(D_,dctx,{W,D,HW,HD});
   } else {
   // --- Your own room: a quiet corner with a desk, a small sofa and space left for the furniture you will buy. ---
   backWindow(-1.2);
@@ -305,7 +327,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     placing=null;renderer.domElement.style.cursor='';restage();if(mode==='place')mode='walk';
   }
   const cellAt=(e: any)=>{const p=point(e);if(!p)return null;const f=footprint(placing.id);return {c:Math.floor(p.x+HW-(f.w-1)/2),r:Math.floor(p.z+HD-(f.d-1)/2),at:[p.x,p.z] as [number,number]};};
-  const barista=room==='public'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'}):null;
+  // One host per public room: a barista behind the café counter, a gardener at the plant bar.
+  const npc=room==='cafe'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'})
+    :room==='garden'?buildAvatar(P,7.2,-9.3,{...lookFor(0xf4e4c9,null),skin:'caramel',hairColor:'ginger',trousers:'olive',headphones:false,bangs:'curly',back:'bob'},{apron:'#5f7f52'}):null;
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
   // Nearest tables to where the player starts get the first notes, so a new task is visible right away.
   taskSpots.sort((a,b)=>a.distanceTo(avatar.position)-b.distanceTo(avatar.position));
@@ -357,7 +381,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     let i=0;for(const g of tickets.values()){const n=taskSpots.length,spot=taskSpots[i%n],round=Math.floor(i/n);g.userData.base=spot.clone().add(new THREE.Vector3(round*.12,round*.34,round*.12));i++;}
   }
   // A wall clock whose single hand sweeps through the current pomodoro.
-  const clock=new THREE.Group();clock.position.set(room==='private'?-4.2:-1.5,3.15,-HD+.03);scene.add(clock);
+  const clock=new THREE.Group();clock.position.set(room==='private'?-4.2:-1.5,3.15,-HD+(room==='garden'?.38:.03));scene.add(clock);
   const clockBody=cyl(.56,.56,.07,C.oak,0,0,0,clock,32);clockBody.rotation.x=Math.PI/2;
   const clockFace=cyl(.49,.49,.02,mat('#fff6e4',{emissive:'#fff1d6',emissiveIntensity:.18}),0,0,.04,clock,32);clockFace.rotation.x=Math.PI/2;
   for(let i=0;i<12;i++){const a=i*Math.PI/6,tick=box(i%3?.025:.05,i%3?.06:.1,.015,C.dark,Math.sin(a)*.41,Math.cos(a)*.41,.06,0,clock);tick.rotation.z=-a;}
@@ -370,7 +394,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const ring=mesh(new THREE.RingGeometry(.39,.43,40),new THREE.MeshBasicMaterial({color:C.white,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}),0,.004,0,avatar);ring.rotation.x=-Math.PI/2;
   const marker=mesh(new THREE.RingGeometry(.13,.19,32),new THREE.MeshBasicMaterial({color:'#fff5dc',transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}),0,.085,0);marker.rotation.x=-Math.PI/2;marker.castShadow=false;
 
-  const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5});let time=0,zoom=1,follow=true,dragging=false,dragStart: any=null,moved=false,glowing: any=null,glowTime=0;
+  const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5})
+  let time=0,zoom=1,follow=true,dragging=false,dragStart: any=null,moved=false,glowing: any=null,glowTime=0;
   // Walking, sitting and limb animation shared by the player and the barista.
   function walker(p: any,speed: number,hooks: any={}){
     const w: any={route:[],pendingSeat:null,seated:null,standPoint:null,sitBlend:0,
@@ -412,10 +437,10 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     return w;
   }
   const me=walker(player,2.4,{onArrive(seat: any){glow(null);onState?.({walking:false});if(seat)onState?.({seated:true});},onStand(){onState?.({seated:false});}});
-  // The barista wanders between the counter, free seats and random spots, pausing in between.
-  const bar: any=barista&&walker(barista,1.9,{onArrive(){bar.working=bar.atWork;bar.wait=bar.seated?8+Math.random()*12:bar.working?6+Math.random()*10:1+Math.random()*4;}});if(bar)bar.wait=2;
-  const workSpots=[{x:-7.5,z:-9.25},{x:-4.5,z:-9.25},{x:-2.5,z:-9.25}];
-  function baristaThink(dt: number){
+  // The host wanders between its work spots, free seats and random spots, pausing in between.
+  const bar: any=npc&&walker(npc,1.9,{onArrive(){bar.working=bar.atWork;bar.wait=bar.seated?8+Math.random()*12:bar.working?6+Math.random()*10:1+Math.random()*4;}});if(bar)bar.wait=2;
+  const workSpots=room==='garden'?[{x:6.0,z:-9.2},{x:8.4,z:-9.2},{x:.5,z:-9.2},{x:-10.9,z:-3.2}]:[{x:-7.5,z:-9.25},{x:-4.5,z:-9.25},{x:-2.5,z:-9.25}];
+  function npcThink(dt: number){
     if(!bar)return;bar.wait-=dt;if(bar.route.length||bar.wait>0)return;
     const roll=Math.random();
     bar.atWork=false;
@@ -619,20 +644,20 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(moves[e.key]&&mode==='walk'){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
   });
   let evening=false;
-  const day=[...pendants,...windows,sun,fill,hemi].map(l=>l.intensity);// the daylight values, captured once so toggling back is exact
+  const day=[...pendants,...windows].map(l=>l.intensity);// the lamps' own daylight values, captured once so toggling back is exact
   function toggleLight(){
-    evening=!evening;const n=pendants.length;
-    pendants.forEach((l,i)=>l.intensity=day[i]*(evening?3:1));
+    evening=!evening;const n=pendants.length,L=LIGHT[room][evening?'evening':'day'];
+    pendants.forEach((l,i)=>l.intensity=day[i]*L.lamps);
     windows.forEach((l,i)=>l.intensity=evening?0:day[n+i]);
-    sun.intensity=evening?.35:day[day.length-3];sun.color.set(evening?'#ff8c4c':'#ffd08f');
-    fill.intensity=evening?.15:day[day.length-2];
-    hemi.intensity=evening?.35:day[day.length-1];hemi.color.set(evening?'#8ea2cc':'#fff5dc');restage();
+    sun.color.set(L.sun[0]);sun.intensity=L.sun[1];fill.intensity=L.fill;
+    hemi.color.set(L.hemi[0]);hemi.groundColor.set(L.hemi[1]);hemi.intensity=L.hemi[2];
+    dusk?.(evening);restage();
     return evening;
   }
   // A walker only counts as stirring while it is on a route or still sliding onto a cushion; idle breathing moves it by less than a shadow texel.
-  const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1)||w.working;// working: the barista swings its arms at the counter
+  const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1)||w.working;// working: the host swings its arms at the counter
   function simulate(dt: number){
-    me.step(dt);baristaThink(dt);bar?.step(dt);
+    me.step(dt);npcThink(dt);bar?.step(dt);
     let moving=stirring(me)||!!(bar&&stirring(bar));
     for(const r of remotes.values()){r.w.step(dt);moving||=stirring(r.w);}
     if(moving)stir=2;
