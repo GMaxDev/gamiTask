@@ -129,6 +129,8 @@ $('#app').innerHTML=`
     <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button>
   </dialog>
   <dialog id="guests-dialog"><div class="dialog-heading"><h2>Ma pièce.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
+    <p>Envoie ce lien à quelqu’un pour l’inviter directement chez toi.</p>
+    <button id="invite-copy" class="primary">${icon('link-2')}<span>Copier le lien d’invitation</span></button>
     <p>Exclus quelqu’un de ta pièce, pour un moment ou pour de bon.</p>
     <ul class="guests-list" id="guests-list"></ul>
     <p class="tasks-empty" id="guests-empty" hidden>Personne d’autre ici pour l’instant.</p>
@@ -219,11 +221,15 @@ async function resolveAuth(){
 const TWITCH_LINK_MESSAGES:Record<string,string>={linked:'Compte Twitch lié !',denied:'Connexion Twitch annulée.',expired:'Le lien a expiré, réessaie.',taken:'Ce compte Twitch est déjà lié à un autre profil.',error:'La connexion Twitch a échoué.'};
 async function start(){
   await resolveAuth();
-  const twitchParam=new URLSearchParams(location.search).get('twitch');
+  const params=new URLSearchParams(location.search);
+  const twitchParam=params.get('twitch');
   if(twitchParam){history.replaceState(null,'',location.pathname);if(TWITCH_LINK_MESSAGES[twitchParam])toast(TWITCH_LINK_MESSAGES[twitchParam]);}
+  const inviteRoomId=params.get('room');
+  if(inviteRoomId)history.replaceState(null,'',location.pathname);
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
-  if(room==='private')pendingHome=true;
+  if(room==='private'&&!inviteRoomId)pendingHome=true;// an invite link overrides « chez moi »'s own-room resolution — we're headed to someone else's room
   net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved
+  if(inviteRoomId)net.socket.once('room:info',()=>net.socket.emit('room:switch',{roomId:inviteRoomId}));// wait for the initial join to land before asking to move again
   net.onStatus(s=>{
     if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
     // le serveur retire le participant à la déconnexion : on ne garde ni « Quitter », ni l'état collectif, ni l'horloge de la salle
@@ -274,6 +280,11 @@ function renderGuests(){
   ($('#guests-empty') as HTMLElement).hidden=others.length>0;
 }
 ($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};
+($('#invite-copy') as HTMLButtonElement).onclick=async()=>{
+  const url=`${location.origin}${location.pathname}?room=${net?.roomId()}`;
+  try{await navigator.clipboard.writeText(url);toast('Lien d’invitation copié !');}
+  catch{toast('Impossible de copier le lien.');}
+};
 $('#guests-list').addEventListener('click',(e: Event)=>{
   const btn=(e.target as HTMLElement).closest('button[data-kick]') as HTMLButtonElement|null;if(!btn)return;
   const li=btn.closest('li') as HTMLElement|null,id=li?.dataset.id;if(!id)return;
@@ -540,6 +551,8 @@ function bindServerEvents(){
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const here=kindOfRoomId(roomId,rooms,identity.userId);
     if(here!==room)enterRoom(here);// an unchanged kind (an unknown public id already reads as the café) never remounts
+    // Room-manage panel is for the owner only — a private room can now also be a friend's, visited via an invite link.
+    ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});

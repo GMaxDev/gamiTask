@@ -8,10 +8,10 @@ export function homeDecision(rooms:RoomSummary[],userId:string,asked:boolean):Ho
   if(myPrivateRoom(rooms,userId))return 'switch';
   return asked?'wait':'create';
 }
-// The two public rooms the server knows. Anything else is a private room: mine, or someone's I do not belong in.
+// The two public rooms the server knows. Anything else is a private room — yours, or a friend's you were invited into.
 export const PUBLIC_IDS={cafe:'ocean',garden:'forest'} as const;
 export function kindOfRoomId(id:string,rooms:RoomSummary[],userId:string):RoomKind{
   if(id===PUBLIC_IDS.garden)return 'garden';
   if(id===PUBLIC_IDS.cafe)return 'cafe';
-  return myPrivateRoom(rooms,userId)?.id===id?'private':'cafe';
+  return rooms.find(r=>r.id===id)?.isPrivate?'private':'cafe';
 }

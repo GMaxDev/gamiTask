@@ -22,11 +22,11 @@ test('creation in flight: wait — an unrelated rooms:list must not abandon',()=
  assert.equal(homeDecision([ocean,hers],'me',true),'wait');
 });
 
-test('room ids map to room kinds, mine only for my own private room',()=>{
+test('room ids map to room kinds: any private room renders as private, owned or visited',()=>{
  const all=[ocean,forest,hers,mine];
  assert.equal(kindOfRoomId('ocean',all,'me'),'cafe');
  assert.equal(kindOfRoomId('forest',all,'me'),'garden');
  assert.equal(kindOfRoomId('r1',all,'me'),'private');
- assert.equal(kindOfRoomId('r2',all,'me'),'cafe');// someone else's room: never « chez toi »
+ assert.equal(kindOfRoomId('r2',all,'me'),'private');// someone else's room, visited via an invite link: still renders as a private room
  assert.equal(kindOfRoomId('sunset',all,'me'),'cafe');// an unknown room falls back to the café
 });
