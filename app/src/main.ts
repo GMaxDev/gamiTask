@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink,UserX} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -20,7 +20,7 @@ import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink,UserX};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -47,6 +47,7 @@ $('#app').innerHTML=`
         </button>
         <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
         <button id="account-button" class="icon-button" aria-label="Mon compte" title="Mon compte" hidden>${icon('user-cog')}</button>
+        <button id="guests-button" class="icon-button" aria-label="Gérer ma pièce" title="Gérer ma pièce" hidden>${icon('user-x')}</button>
         <button id="logout-button" class="icon-button" aria-label="Se déconnecter" title="Se déconnecter">${icon('log-out')}</button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
@@ -126,6 +127,11 @@ $('#app').innerHTML=`
     <p>Lie ta chaîne pour faire apparaître tes viewers dans ta salle, plus tard.</p>
     <button id="twitch-link" class="primary">${icon('link-2')}<span>Lier mon compte Twitch</span></button>
     <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button>
+  </dialog>
+  <dialog id="guests-dialog"><div class="dialog-heading"><h2>Ma pièce.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
+    <p>Exclus quelqu’un de ta pièce, pour un moment ou pour de bon.</p>
+    <ul class="guests-list" id="guests-list"></ul>
+    <p class="tasks-empty" id="guests-empty" hidden>Personne d’autre ici pour l’instant.</p>
   </dialog>
   <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
   <div id="login-screen" class="login-screen" role="dialog" aria-modal="true" aria-label="Connexion" hidden>
@@ -229,6 +235,13 @@ async function start(){
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
+function untilLabel(until: number|null): string{
+  if(until===null)return 'définitivement';
+  const mins=Math.max(1,Math.round((until-Date.now())/60000));
+  if(mins>=1440)return `pendant ${Math.round(mins/1440)} j`;
+  if(mins>=60)return `pendant ${Math.round(mins/60)} h`;
+  return `pendant ${mins} min`;
+}
 // Everything the HUD, the iris, the chat and the hint say about a room, in one place.
 const ROOM_UI: Record<RoomKind,{label: string; icon: string; toast: string; hint: string; chat: string}>={
   cafe:{label:'Le café Petit Jour',icon:'coffee',toast:'Retour au café.',hint:'Comptoir : passer commande',chat:'AU CAFÉ'},
@@ -253,6 +266,22 @@ const editor=createEditor($('#app') as HTMLElement,{
 });
 // Room chat: the panel sits bottom-left above the ambience controls, so it fades and goes inert with the rest of the HUD.
 const members=new Map<string,{name: string; color: number}>();
+// Owner moderation, « chez moi » only: throw someone out now, and optionally keep them out for a while.
+function renderGuests(){
+  const list=$('#guests-list') as HTMLElement;
+  const others=[...members].filter(([id])=>id!==net?.socket.id);
+  list.innerHTML=others.map(([id,m])=>`<li data-id="${id}"><span class="guest-name" style="--swatch:#${m.color.toString(16).padStart(6,'0')}">${m.name}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
+  ($('#guests-empty') as HTMLElement).hidden=others.length>0;
+}
+($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};
+$('#guests-list').addEventListener('click',(e: Event)=>{
+  const btn=(e.target as HTMLElement).closest('button[data-kick]') as HTMLButtonElement|null;if(!btn)return;
+  const li=btn.closest('li') as HTMLElement|null,id=li?.dataset.id;if(!id)return;
+  const raw=btn.dataset.kick;
+  net?.socket.emit('room:kick',{targetSocketId:id,durationMs:raw?Number(raw):null});
+  li?.remove();
+  if(!($('#guests-list') as HTMLElement).children.length)($('#guests-empty') as HTMLElement).hidden=false;
+});
 let sendTimes: number[]=[];
 function allowLocal(){const now=Date.now();sendTimes=sendTimes.filter(t=>now-t<5000);if(sendTimes.length>=5)return false;sendTimes.push(now);return true;}
 // Two short notes when someone calls your name, only if the ambience sound is on (the audio context is already unlocked then).
@@ -332,7 +361,7 @@ function switchServerRoom(next:RoomKind){
   else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
     homeTimer=setTimeout(()=>{if(!myPrivateRoom(rooms,identity.userId))abandonHome();},4000);}
 }
-function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);($('#guests-button') as HTMLElement).hidden=next!=='private';try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
 function abandonHome(){
   clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
   if(room==='private')enterRoom('cafe');
@@ -360,7 +389,7 @@ function onSceneState(state: SceneState){
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
 try{
-  mountRoom();$('.loading')?.remove();
+  mountRoom();$('.loading')?.remove();($('#guests-button') as HTMLElement).hidden=room!=='private';
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
 start();// the room is built behind the veil, then the server fills it
 
@@ -483,6 +512,8 @@ function bindServerEvents(){
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
   s.on('player-left',({id})=>{members.delete(id);cafe?.removeRemote(id);});
+  s.on('room:kicked',({until})=>toast(`Tu as été exclu de cette pièce ${untilLabel(until)}.`));
+  s.on('room:banned',({until})=>toast(`Tu ne peux pas entrer dans cette pièce, exclu ${untilLabel(until)}.`));
   // Twitch NPCs: a linked streamer's live chatters, shared with everyone in the room by the server — never in `members`, they're not real accounts to @-mention.
   const npc=(n: {name: string;color: number;look: Look;col: number;row: number})=>({name:n.name,color:n.color,hat:null,look:loadLook(n.look,n.color,[]),col:n.col,row:n.row,state:'idle' as const});
   s.on('npc:state',npcs=>{for(const n of npcs)cafe?.addRemote(n.id,npc(n));});

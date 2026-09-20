@@ -306,6 +306,8 @@ export interface ClientToServerEvents {
   "room:switch": (payload: { roomId: RoomId }) => void;
   "room:create-private": (payload: { name: string }) => void;
   "room:delete-private": () => void;
+  // Owner-only: exclude someone from this private room, right now and (optionally) for a while longer.
+  "room:kick": (payload: { targetSocketId: string; durationMs: number | null }) => void;
   move: (payload: { col: number; row: number }) => void;
   "avatar-state": (payload: { state: AvatarState }) => void;
   chat: (payload: { text: string }) => void;
@@ -398,6 +400,10 @@ export interface ServerToClientEvents {
   "npc:joined": (npc: TwitchNpc) => void;
   "npc:moved": (payload: { id: string; col: number; row: number }) => void;
   "npc:left": (payload: { id: string }) => void;
+  // Private-room moderation: sent to the person just kicked out, or to anyone whose join/switch
+  // attempt into a room was refused because they're already excluded from it.
+  "room:kicked": (payload: { until: number | null }) => void;
+  "room:banned": (payload: { until: number | null }) => void;
   "chat-message": (msg: {
     id: string;
     name: string;

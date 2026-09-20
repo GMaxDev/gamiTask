@@ -239,6 +239,17 @@ db.exec(`
   );
 `);
 
+// ── Table Bannissements de room privée ──────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS room_bans (
+    roomId    TEXT    NOT NULL,
+    userId    TEXT    NOT NULL,
+    expiresAt INTEGER,
+    bannedAt  INTEGER NOT NULL,
+    PRIMARY KEY (roomId, userId)
+  );
+`);
+
 const sql = {
   upsertUser: db.prepare(
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
@@ -373,6 +384,13 @@ const sql = {
     "INSERT INTO private_rooms (id, name, ownerId, createdAt) VALUES (?, ?, ?, ?)",
   ),
   deletePrivateRoom: db.prepare("DELETE FROM private_rooms WHERE id = ?"),
+  banFromRoom: db.prepare(
+    "INSERT INTO room_bans (roomId, userId, expiresAt, bannedAt) VALUES (?, ?, ?, ?) ON CONFLICT(roomId, userId) DO UPDATE SET expiresAt = excluded.expiresAt, bannedAt = excluded.bannedAt",
+  ),
+  getRoomBan: db.prepare(
+    "SELECT expiresAt FROM room_bans WHERE roomId = ? AND userId = ?",
+  ),
+  unbanFromRoom: db.prepare("DELETE FROM room_bans WHERE roomId = ? AND userId = ?"),
 };
 
 interface PrivateRoomRow {
@@ -1063,6 +1081,14 @@ function getPlayer(socketId: string): Player | undefined {
   return getRoom(socketId)?.players.get(socketId);
 }
 
+/** Whether a user is currently excluded from a private room (a kick, temporary or permanent). */
+function roomBanUntil(roomId: RoomId, userId: string): number | null | undefined {
+  const row = sql.getRoomBan.get(roomId, userId) as { expiresAt: number | null } | undefined;
+  if (!row) return undefined; // not banned
+  if (row.expiresAt !== null && row.expiresAt <= Date.now()) return undefined; // ban expired
+  return row.expiresAt; // null = permanent, otherwise the timestamp it lifts
+}
+
 function userLook(user: UserRow): Look {
   let raw: unknown = null;
   try {
@@ -1315,7 +1341,10 @@ io.on("connection", (socket) => {
     sql.upsertUser.run(userId);
 
     const requestedRoomId: RoomId = roomId ?? DEFAULT_ROOM_ID;
-    const existingRoom = rooms.get(requestedRoomId);
+    const requestedRoom = rooms.get(requestedRoomId);
+    const bannedUntil = requestedRoom?.isPrivate ? roomBanUntil(requestedRoomId, userId) : undefined;
+    if (bannedUntil !== undefined) socket.emit("room:banned", { until: bannedUntil });
+    const existingRoom = bannedUntil === undefined ? requestedRoom : undefined;
     const targetRoomId: RoomId = existingRoom ? requestedRoomId : DEFAULT_ROOM_ID;
     const targetRoom = existingRoom ?? rooms.get(DEFAULT_ROOM_ID)!;
 
@@ -1495,13 +1524,20 @@ io.on("connection", (socket) => {
     const currentRoom = getRoom(socket.id);
     if (!currentRoom) return;
     if (currentRoom.id === roomId) return;
+    const existing = currentRoom.players.get(socket.id);
+    if (!existing) return;
+    const userId = socketToUserId.get(socket.id);
+    if (targetRoom.isPrivate && userId) {
+      const bannedUntil = roomBanUntil(roomId, userId);
+      if (bannedUntil !== undefined) {
+        socket.emit("room:banned", { until: bannedUntil });
+        return;
+      }
+    }
     if (targetRoom.players.size >= targetRoom.capacity) {
       socket.emit("room:full", { roomId });
       return;
     }
-    const existing = currentRoom.players.get(socket.id);
-    if (!existing) return;
-    const userId = socketToUserId.get(socket.id);
 
     // Leave pomo participation if any
     if (currentRoom.pomoParticipants.delete(socket.id)) {
@@ -1655,6 +1691,44 @@ io.on("connection", (socket) => {
     broadcastLeaderboard(io, fallback);
     broadcastRoomsList(io);
     console.log(`[room:delete-private] ${existing.id}`);
+  });
+
+  // Owner-only: throw someone out of this private room right now, and (optionally) keep them out for a while.
+  socket.on("room:kick", ({ targetSocketId, durationMs }) => {
+    if (!allow(socket.id, "room:kick", 10, 10000)) return;
+    if (targetSocketId === socket.id) return;
+    const room = getRoom(socket.id);
+    if (!room || !room.isPrivate) return;
+    const callerUserId = socketToUserId.get(socket.id);
+    if (!callerUserId || room.ownerId !== callerUserId) return;
+    const target = room.players.get(targetSocketId);
+    if (!target) return;
+    const targetUserId = socketToUserId.get(targetSocketId);
+    const until = durationMs == null ? null : Date.now() + Math.max(0, durationMs);
+    if (targetUserId) sql.banFromRoom.run(room.id, targetUserId, until, Date.now());
+
+    room.players.delete(targetSocketId);
+    io.to(room.id).emit("player-left", { id: targetSocketId });
+    broadcastLeaderboard(io, room);
+    broadcastRoomsList(io);
+
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (targetSocket) {
+      const fallback = rooms.get(DEFAULT_ROOM_ID)!;
+      const movedPlayer: Player = { ...target, col: 1, row: 10, state: "idle" };
+      fallback.players.set(targetSocketId, movedPlayer);
+      socketToRoom.set(targetSocketId, fallback.id);
+      targetSocket.leave(room.id);
+      targetSocket.join(fallback.id);
+      targetSocket.to(fallback.id).emit("player-joined", movedPlayer);
+      const others = Array.from(fallback.players.values()).filter((p) => p.id !== targetSocketId);
+      targetSocket.emit("room:info", { roomId: fallback.id });
+      targetSocket.emit("room-state", others);
+      targetSocket.emit("npc:state", roomNpcSnapshot(fallback.id));
+      targetSocket.emit("room:kicked", { until });
+      broadcastLeaderboard(io, fallback);
+    }
+    console.log(`[room:kick] ${target.name} ← ${room.id} by ${callerUserId.slice(0, 6)} (${until === null ? "permanent" : `until ${new Date(until).toISOString()}`})`);
   });
 
   socket.on("move", ({ col, row }) => {
