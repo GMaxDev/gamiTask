@@ -502,6 +502,10 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const BUBBLE_TEXT_PX=16;
   function sprite(c: HTMLCanvasElement,sx: number,sy: number,x: number,y: number,pxW: number,pxH: number){
     const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+    // No mip chain: these are kept at a fixed, small on-screen size on purpose (see the per-frame
+    // rescale in animate()), so there's never a reason to minify — and picking a mip level here is
+    // exactly what turned text grey and mangled once the adaptive renderer resolution dropped.
+    tex.generateMipmaps=false;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;
     const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
     s.scale.set(sx,sy,1);s.position.set(x,y,0);s.raycast=()=>{};s.userData.px={w:pxW,h:pxH};return s;// never in the way of a click on the room
   }
