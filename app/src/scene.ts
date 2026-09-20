@@ -29,7 +29,7 @@ const LIGHT: Record<RoomKind,{day: LightSet; evening: LightSet}>={
 export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='cafe',furniture={},look}: {room?: RoomKind; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
-  const BASE_PR=Math.min(window.devicePixelRatio,1.25);let pixelRatio=BASE_PR;// adaptive: never above the base, never below .75
+  const BASE_PR=Math.min(window.devicePixelRatio,2);let pixelRatio=BASE_PR;// adaptive: never above the base, never below .75 — 1.25 used to cap Retina screens well under native, blurring fine detail like bubble text
   renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   // Shadows are rendered on demand. `stir` counts the frames still owed one; two frames cover a mover's last step and the pose it settles into.
@@ -279,6 +279,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function reskin(l: Look){applyLook(P,player,l);restage();if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
   function setLook(l: Look){reskin(l);}
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
+  // Fixed screen size regardless of zoom (like the chat bubbles below) — never lets a name shrink below NAME_TAG_PX on a far-out camera.
+  const NAME_TAG_PX=14;
   function nameTag(text: string,color: number){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=256;c.height=64;
     ctx.font='600 30px Manrope, DM Sans, sans-serif';
@@ -288,8 +290,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     ctx.fillStyle='#fffdf6e6';ctx.beginPath();ctx.roundRect((256-w)/2,8,w,48,24);ctx.fill();
     ctx.fillStyle='#'+color.toString(16).padStart(6,'0');ctx.beginPath();ctx.arc((256-w)/2+LEFT+DOT/2,32,8,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#000';ctx.textBaseline='middle';ctx.fillText(text,(256-w)/2+LEFT+DOT+GAP,33,w-LEFT-DOT-GAP-RIGHT);
-    const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
-    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));s.scale.set(1.6,.4,1);s.position.y=2.15;return s;
+    const k=NAME_TAG_PX/30;return sprite(c,1.6,.4,0,2.15,256*k,64*k);
   }
   function stateBubble(state: string){
     const c=document.createElement('canvas'),ctx=c.getContext('2d')!;c.width=64;c.height=64;
@@ -754,6 +755,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     for(const [k,b] of bubbles){if(k.endsWith(':emote')&&time>b.until){dropSprite(b.s);bubbles.delete(k);}}
     const tops=new Map<string, number>();// chat bubbles first, so emotes can sit on top of the stack
     const ppu=pixelsPerUnit();
+    for(const r of remotes.values()){const p=r.tag.userData.px;r.tag.scale.set(p.w/ppu,p.h/ppu,1);}
     for(const [id,stack] of chatStacks){
       for(let i=stack.items.length-1;i>=0;i--)if(time>stack.items[i].until+CHAT_FADE){dropSprite(stack.items[i].s);stack.items.splice(i,1);}
       if(!stack.items.length){chatStacks.delete(id);continue;}
