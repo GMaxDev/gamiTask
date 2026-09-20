@@ -4,9 +4,24 @@
 // a periodic tick re-fetches their chat roster (diffing joins/leaves) and nudges each NPC to a
 // new spot, reusing the exact player-moved/joined/left plumbing the client already renders with.
 import type { Server } from "socket.io";
-import type { ClientToServerEvents, RoomId, ServerToClientEvents, TwitchNpc } from "./types.js";
+import type { ClientToServerEvents, Look, RoomId, ServerToClientEvents, TwitchNpc } from "./types.js";
 import { getChatters } from "./twitch.js";
 import { randomNpcLook } from "./npcLook.js";
+
+// Bridges to the real account system (injected, not imported directly, to avoid a circular
+// dependency with index.ts): a chatter who has linked Twitch to a gamiTask account gets their
+// real name/look instead of a random one, and — if they're actually connected right now — no
+// decorative NPC at all, since they're already rendered as themselves via the real player pipeline.
+export interface GamitaskIdentity { userId: string; name: string; color: number; look: Look }
+let lookupGamitaskUser: (twitchId: string) => GamitaskIdentity | null = () => null;
+let isUserOnline: (userId: string) => boolean = () => false;
+export function configureTwitchNpcs(
+  lookup: (twitchId: string) => GamitaskIdentity | null,
+  online: (userId: string) => boolean,
+): void {
+  lookupGamitaskUser = lookup;
+  isUserOnline = online;
+}
 
 const TICK_MS = 8000;
 const MOVE_CHANCE = 0.6;
@@ -51,11 +66,17 @@ async function tick(io: Server<ClientToServerEvents, ServerToClientEvents>, user
   const seen = new Set<string>();
   for (const c of chatters) {
     const id = `twitch-chatter-${c.id}`;
+    const known = lookupGamitaskUser(c.id);
+    // Already present as a real, live player elsewhere in the pipeline — leaving them out of
+    // `seen` makes them get cleaned up below exactly like a chatter who left, no special-casing.
+    if (known && isUserOnline(known.userId)) continue;
     seen.add(id);
     if (npcs.has(id)) continue;
-    const { look, color } = randomNpcLook();
+    const { name, color, look } = known
+      ? { name: known.name || c.name || c.login, color: known.color, look: known.look }
+      : { name: c.name || c.login, ...randomNpcLook() };
     const spot = safeSpot();
-    const npc: TwitchNpc = { id, name: c.name || c.login, color, look, col: spot.col, row: spot.row };
+    const npc: TwitchNpc = { id, name, color, look, col: spot.col, row: spot.row };
     npcs.set(id, npc);
     owner.npcIds.add(id);
     io.to(owner.roomId).emit("npc:joined", npc);

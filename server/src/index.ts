@@ -34,7 +34,7 @@ import {
 import { sanitizeLook } from "./look.js";
 import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
 import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
-import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot } from "./twitchNpcs.js";
+import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot, configureTwitchNpcs } from "./twitchNpcs.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -1201,6 +1201,20 @@ const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: CORS_ORIGINS, methods: ["GET", "POST"] },
 });
+
+// A chatter who has linked Twitch to a gamiTask account shows up as themselves, not a random
+// look — and not at all as an NPC while they're actually online, since they're already a real player.
+configureTwitchNpcs(
+  (twitchId) => {
+    const user = sql.getUserByTwitchId.get(twitchId) as UserRow | undefined;
+    if (!user) return null;
+    return { userId: user.id, name: user.displayName ?? "", color: user.avatarColor ?? 0, look: userLook(user) };
+  },
+  (userId) => {
+    for (const uid of socketToUserId.values()) if (uid === userId) return true;
+    return false;
+  },
+);
 
 // Leaderboard par room : chaque room voit son propre classement
 function broadcastLeaderboard(
