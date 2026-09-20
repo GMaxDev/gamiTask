@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink,UserX} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink,UserX,MoreVertical} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -20,7 +20,7 @@ import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink,UserX};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogOut,UserCog,Twitch,Link2,Unlink,UserX,MoreVertical};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -46,9 +46,15 @@ $('#app').innerHTML=`
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
         </button>
         <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
-        <button id="account-button" class="icon-button" aria-label="Mon compte" title="Mon compte" hidden>${icon('user-cog')}</button>
-        <button id="guests-button" class="icon-button" aria-label="Gérer ma pièce" title="Gérer ma pièce" hidden>${icon('user-x')}</button>
-        <button id="logout-button" class="icon-button" aria-label="Se déconnecter" title="Se déconnecter">${icon('log-out')}</button>
+        <div class="hud-menu-wrap">
+          <button id="hud-menu-button" class="icon-button" aria-label="Menu" aria-haspopup="true" aria-expanded="false">${icon('more-vertical')}</button>
+          <div id="hud-menu" class="hud-menu" role="menu" hidden>
+            <button id="account-button" role="menuitem" hidden>${icon('user-cog')}<span>Mon compte</span></button>
+            <button id="guests-button" role="menuitem" hidden>${icon('user-x')}<span>Gérer ma pièce</span></button>
+            <hr>
+            <button id="logout-button" role="menuitem" class="danger">${icon('log-out')}<span>Se déconnecter</span></button>
+          </div>
+        </div>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
       <div class="world-bottom"><div class="world-left"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
@@ -280,6 +286,13 @@ function renderGuests(){
   ($('#guests-empty') as HTMLElement).hidden=others.length>0;
 }
 ($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};
+// Compte / gérer ma pièce / déconnexion used to be three lone icons in the HUD — folded into one menu to keep the bar readable.
+const hudMenuButton=$('#hud-menu-button') as HTMLButtonElement,hudMenu=$('#hud-menu') as HTMLElement;
+const closeHudMenu=()=>{hudMenu.hidden=true;hudMenuButton.setAttribute('aria-expanded','false');};
+hudMenuButton.onclick=()=>{const opening=hudMenu.hidden;hudMenu.hidden=!opening;hudMenuButton.setAttribute('aria-expanded',String(opening));};
+document.addEventListener('click',e=>{if(!hudMenu.hidden&&!(e.target as HTMLElement).closest('.hud-menu-wrap'))closeHudMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHudMenu();});
+hudMenu.querySelectorAll('button').forEach(b=>b.addEventListener('click',closeHudMenu));
 ($('#invite-copy') as HTMLButtonElement).onclick=async()=>{
   const url=`${location.origin}${location.pathname}?room=${net?.roomId()}`;
   try{await navigator.clipboard.writeText(url);toast('Lien d’invitation copié !');}
