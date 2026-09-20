@@ -25,14 +25,19 @@ export function configureTwitchNpcs(
 
 const TICK_MS = 8000;
 const MOVE_CHANCE = 0.6;
-// A conservative interior band that fits inside even the smallest room (the 12x10 private one),
-// so NPCs never wander into a wall — at the cost of not roaming a big public room's full floor.
-const safeSpot = () => ({ col: 2 + Math.floor(Math.random() * 8), row: 2 + Math.floor(Math.random() * 6) });
+// Public rooms are 24x20, private ones a cosy 12x10 (mirrors the client's own app/src/coords.ts
+// DIMS) — a 2-cell margin from every wall keeps a wandering NPC off the furniture-dense edges.
+const ROOM_DIMS = { public: { w: 24, d: 20 }, private: { w: 12, d: 10 } };
+const safeSpot = (isPrivate: boolean) => {
+  const { w, d } = isPrivate ? ROOM_DIMS.private : ROOM_DIMS.public;
+  return { col: 2 + Math.floor(Math.random() * (w - 4)), row: 2 + Math.floor(Math.random() * (d - 4)) };
+};
 
 interface Owner {
   roomId: RoomId;
   broadcasterId: string;
   getAccessToken: () => Promise<string | null>;
+  isPrivate: boolean;
   timer: ReturnType<typeof setInterval>;
   npcIds: Set<string>;
 }
@@ -75,7 +80,7 @@ async function tick(io: Server<ClientToServerEvents, ServerToClientEvents>, user
     const { name, color, look } = known
       ? { name: known.name || c.name || c.login, color: known.color, look: known.look }
       : { name: c.name || c.login, ...randomNpcLook() };
-    const spot = safeSpot();
+    const spot = safeSpot(owner.isPrivate);
     const npc: TwitchNpc = { id, name, color, look, col: spot.col, row: spot.row };
     npcs.set(id, npc);
     owner.npcIds.add(id);
@@ -91,7 +96,7 @@ async function tick(io: Server<ClientToServerEvents, ServerToClientEvents>, user
     if (Math.random() >= MOVE_CHANCE) continue;
     const npc = npcs.get(id);
     if (!npc) continue;
-    const spot = safeSpot();
+    const spot = safeSpot(owner.isPrivate);
     npc.col = spot.col;
     npc.row = spot.row;
     io.to(owner.roomId).emit("npc:moved", { id, col: spot.col, row: spot.row });
@@ -104,12 +109,13 @@ export function startTwitchNpcs(
   roomId: RoomId,
   broadcasterId: string,
   getAccessToken: () => Promise<string | null>,
+  isPrivate: boolean,
 ): void {
   stopTwitchNpcs(io, userId);
   const timer = setInterval(() => {
     tick(io, userId);
   }, TICK_MS);
-  owners.set(userId, { roomId, broadcasterId, getAccessToken, timer, npcIds: new Set() });
+  owners.set(userId, { roomId, broadcasterId, getAccessToken, isPrivate, timer, npcIds: new Set() });
   tick(io, userId);
 }
 

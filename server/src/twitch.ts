@@ -103,6 +103,14 @@ export async function getTwitchUser(userAccessToken: string): Promise<TwitchUser
 
 export interface Chatter { id: string; login: string; name: string }
 
+// Twitch has no "this account is a bot" flag on a chatter — these are just the moderation/alert
+// bots common enough on most channels that showing them as a "person" would be actively wrong.
+const KNOWN_BOTS = new Set([
+  "streamelements", "nightbot", "moobot", "streamlabs", "wizebot", "fossabot",
+  "coebot", "deepbot", "ankhbot", "soundalerts", "pretzelrocks", "own3d",
+  "commanderroot", "sery_bot", "botismo", "streamdeckerbot", "phantombot",
+]);
+
 /**
  * Who's actually in a channel's chat right now. Twitch only allows a broadcaster (or one of
  * their mods) to read this about their own channel, using that person's own user access token —
@@ -115,5 +123,7 @@ export async function getChatters(broadcasterId: string, userAccessToken: string
   });
   if (!res.ok) throw new Error(`twitch chatters: ${res.status}`);
   const data = (await res.json()) as { data: { user_id: string; user_login: string; user_name: string }[] };
-  return data.data.map((c) => ({ id: c.user_id, login: c.user_login, name: c.user_name }));
+  return data.data
+    .filter((c) => !KNOWN_BOTS.has(c.user_login.toLowerCase()))
+    .map((c) => ({ id: c.user_id, login: c.user_login, name: c.user_name }));
 }

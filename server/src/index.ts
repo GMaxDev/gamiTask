@@ -1455,7 +1455,7 @@ io.on("connection", (socket) => {
             color, text: sanitize(msg.text), ts: Date.now(),
           });
         });
-        startTwitchNpcs(io, userId, targetRoomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId));
+        startTwitchNpcs(io, userId, targetRoomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), targetRoom.isPrivate);
       }
     }
     sql.setAvatarInfo.run(name, color, userId);
@@ -1585,7 +1585,7 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     if (userId) {
       const twitchRow = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
-      if (twitchRow?.twitchId) startTwitchNpcs(io, userId, roomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId));
+      if (twitchRow?.twitchId) startTwitchNpcs(io, userId, roomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), targetRoom.isPrivate);
     }
 
     socket.emit("room:info", { roomId });
