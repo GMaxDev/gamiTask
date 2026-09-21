@@ -32,6 +32,7 @@ import {
   type Look,
 } from "./types.js";
 import { sanitizeLook } from "./look.js";
+import { userIdFromToken, type Role } from "./auth.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -64,6 +65,7 @@ interface UserRow {
   displayName: string | null;
   avatarColor: number;
   isAdmin: number;
+  role: Role;
   look: string | null;
 }
 interface TaskRow {
@@ -166,6 +168,10 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0`);
 } catch {}
 try {
+  db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
+  db.exec(`UPDATE users SET role = 'admin' WHERE isAdmin = 1`);
+} catch {}
+try {
   db.exec(
     `ALTER TABLE users ADD COLUMN placedFurniture TEXT NOT NULL DEFAULT ''`,
   );
@@ -214,7 +220,7 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, look FROM users WHERE id = ?",
+    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look FROM users WHERE id = ?",
   ),
   setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
@@ -276,7 +282,7 @@ const sql = {
   updateGoogleAuth: db.prepare(
     "UPDATE users SET email = ?, displayName = COALESCE(NULLIF(displayName, ''), ?) WHERE id = ?",
   ),
-  setAdminFlag: db.prepare("UPDATE users SET isAdmin = ? WHERE id = ?"),
+  setAdminFlag: db.prepare("UPDATE users SET isAdmin = 1, role = 'admin' WHERE id = ?"),
   saveDailyReset: db.prepare(
     "UPDATE users SET lastDailyResetAt = ?, degradation = ? WHERE id = ?",
   ),
@@ -489,11 +495,12 @@ app.post("/auth/google", async (req, res): Promise<void> => {
         googleName,
         isAdminLogin ? 1 : 0,
       );
+      if (isAdminLogin) sql.setAdminFlag.run(userId);
       user = sql.getUserByGoogleId.get(googleId) as UserRow;
     } else {
       userId = user.id;
       sql.updateGoogleAuth.run(email, googleName, userId);
-      if (isAdminLogin && !user.isAdmin) sql.setAdminFlag.run(1, userId);
+      if (isAdminLogin && user.role !== "admin") sql.setAdminFlag.run(userId);
       user = sql.getUserByGoogleId.get(googleId) as UserRow;
     }
     const token = jwt.sign({ userId, googleId }, JWT_SECRET, {
@@ -504,7 +511,8 @@ app.post("/auth/google", async (req, res): Promise<void> => {
       token,
       name: user.displayName ?? googleName,
       color: user.avatarColor ?? 0,
-      isAdmin: isAdminLogin || !!user.isAdmin,
+      isAdmin: user.role === "admin",
+      role: user.role,
       isGoogleUser: true,
     });
   } catch (err) {
@@ -530,14 +538,13 @@ app.post("/auth/token", (req, res): void => {
       res.status(404).json({ error: "User not found" });
       return;
     }
-    const isAdmin =
-      (!!ADMIN_EMAIL && user.email === ADMIN_EMAIL) || !!user.isAdmin;
     res.json({
       userId: user.id,
       token,
       name: user.displayName ?? "",
       color: user.avatarColor ?? 0,
-      isAdmin,
+      isAdmin: user.role === "admin",
+      role: user.role,
       isGoogleUser: !!user.googleId,
     });
   } catch {
@@ -1102,8 +1109,14 @@ io.on("connection", (socket) => {
   // Envoi initial de la liste des rooms (utile pour l'écran de sélection avant join)
   socket.emit("rooms:list", { rooms: buildRoomSummaries() });
 
-  socket.on("join", ({ name, color, userId, roomId }) => {
+  socket.on("join", ({ name, color, userId: claimedId, roomId, token }) => {
+    // A Google account is only ever joined through its token; the bare userId is trusted for guests alone.
+    const tokenId = userIdFromToken(token, JWT_SECRET);
+    const userId = tokenId ?? claimedId;
+    if (token && !tokenId) { socket.emit("auth:invalid"); return; }
     sql.upsertUser.run(userId);
+    const me = sql.getUser.get(userId) as UserRow;
+    if (!tokenId && me.googleId) { socket.emit("auth:invalid"); return; }
 
     const requestedRoomId: RoomId = roomId ?? DEFAULT_ROOM_ID;
     const existingRoom = rooms.get(requestedRoomId);
@@ -1210,6 +1223,7 @@ io.on("connection", (socket) => {
 
     // Announce assigned room to the client first (so client can correct UI)
     socket.emit("room:info", { roomId: targetRoomId });
+    socket.emit("me:state", { userId, role: me.role });
     // Broadcast to existing occupants
     socket.to(targetRoomId).emit("player-joined", player);
     // Send existing players to the newcomer
@@ -2140,7 +2154,7 @@ io.on("connection", (socket) => {
     const uid = socketToUserId.get(socket.id);
     if (!uid) return false;
     const u = sql.getUser.get(uid) as UserRow | undefined;
-    return !!u?.isAdmin || (!!ADMIN_EMAIL && u?.email === ADMIN_EMAIL);
+    return u?.role === "admin";
   }
 
   socket.on("admin:give-coins", ({ targetUserId, amount }) => {

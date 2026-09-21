@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -19,7 +19,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users};
+const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -44,7 +44,7 @@ $('#app').innerHTML=`
           <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
         </button>
-        <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span></button>
+        <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span><span id="role-badge" class="role-badge" hidden></span></button><button id="sign-in" class="identity-chip" hidden>${icon('log-in')}<span>Connexion</span></button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
       <div class="world-bottom"><div class="world-left"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
@@ -117,6 +117,7 @@ $('#app').innerHTML=`
     <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
     <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
+    <p class="form-note or">ou, pour retrouver ton compte partout</p><div id="google-signin"></div>
   </form></dialog>
   <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
 `;
@@ -125,12 +126,32 @@ drawIcons();
 const uuid=()=>crypto.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const {identity,fresh}=loadIdentity(load('gamitask.identity',null),uuid);
 function saveIdentity(){save('gamitask.identity',identity);renderIdentity();}
-function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);}
+let role:'user'|'moderator'|'admin'='user';
+function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);
+  $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#sign-in').hidden=!!identity.token;}
+// Google Sign-In: the server swaps the credential for our account and a session token; a reload then joins as that account.
+const GOOGLE_CLIENT_ID=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
+function mountGoogleButton(){
+  const slot=$('#google-signin') as HTMLElement;if(!GOOGLE_CLIENT_ID||slot.childElementCount)return;
+  const render=()=>{const g=(window as any).google;if(!g)return setTimeout(render,200);
+    g.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:async({credential}:{credential:string})=>{
+      const r=await fetch(`${API_URL}/auth/google`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential})});
+      if(!r.ok){toast('La connexion Google a échoué.');return;}
+      const d=await r.json();identity.userId=d.userId;identity.token=d.token;if(!identity.name)identity.name=cleanName(d.name)??'';save('gamitask.identity',identity);location.reload();}});
+    g.accounts.id.renderButton(slot,{theme:'outline',size:'large',shape:'pill',text:'continue_with',locale:'fr'});};
+  if(!document.querySelector('script[src*="gsi/client"]')){const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;document.head.append(s);}
+  render();
+}
+function forgetSession(){identity.token=null;identity.userId=uuid();save('gamitask.identity',identity);location.reload();}
+async function revalidate(){// a stale token would make every join fail, so it is checked once before connecting
+  if(!identity.token)return;
+  try{const r=await fetch(`${API_URL}/auth/token`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:identity.token})});if(r.status===401||r.status===404)forgetSession();}catch{}
+}
 function askIdentity():Promise<void>{
   const dialog=$('#identity-dialog') as HTMLDialogElement,form=$('#identity-form') as HTMLFormElement;
   (form.elements.namedItem('name') as HTMLInputElement).value=identity.name;
   for(const r of form.querySelectorAll<HTMLInputElement>('input[name=color]'))r.checked=Number(r.value)===identity.color;
-  dialog.showModal();
+  dialog.showModal();mountGoogleButton();
   const input=form.elements.namedItem('name') as HTMLInputElement;
   input.setCustomValidity('');input.oninput=()=>input.setCustomValidity('');
   return new Promise(resolve=>{form.onsubmit=e=>{const name=cleanName(input.value);if(!name){e.preventDefault();input.setCustomValidity('Choisis un pseudo d’au moins 2 caractères.');input.reportValidity();return;}
@@ -148,6 +169,7 @@ function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.tex
 let ready={room:false,tasks:false};
 function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
 async function start(){
+  await revalidate();
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
   if(room==='private')pendingHome=true;
   net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved
@@ -225,7 +247,7 @@ function closeEditor(){
   if(!editing)return;editing=false;($('.world') as HTMLElement).classList.remove('editing');hudInert(false);
   previewLook=null;editor.close();cafe?.exitEditor();($('#identity-chip') as HTMLElement).focus();// never leave focus inside the hidden sheet
 }
-$('#identity-chip').onclick=openEditor;($('#identity-chip') as HTMLElement).setAttribute('aria-label','Mon personnage');
+$('#identity-chip').onclick=openEditor;$('#sign-in').onclick=()=>askIdentity();($('#identity-chip') as HTMLElement).setAttribute('aria-label','Mon personnage');
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
@@ -390,6 +412,8 @@ function bindServerEvents(){
     applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants},Date.now());
     if(roomPomo.joined&&was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
     renderRoomPomo();});
+  s.on('me:state',u=>{role=u.role;renderIdentity();});
+  s.on('auth:invalid',forgetSession);
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const here=kindOfRoomId(roomId,rooms,identity.userId);

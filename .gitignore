@@ -5,3 +5,4 @@ dist/
 
 # Env files (private configuration)
 **/.env
+**/.env.local

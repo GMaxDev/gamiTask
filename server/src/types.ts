@@ -292,6 +292,7 @@ export interface ClientToServerEvents {
     row: number;
     userId: string;
     roomId: RoomId;
+    token?: string;
   }) => void;
   "room:switch": (payload: { roomId: RoomId }) => void;
   "room:create-private": (payload: { name: string }) => void;
@@ -377,6 +378,8 @@ export interface ClientToServerEvents {
 
 // Événements Serveur → Client
 export interface ServerToClientEvents {
+  "me:state": (payload: { userId: string; role: "user" | "moderator" | "admin" }) => void;
+  "auth:invalid": () => void;
   "room-state": (players: Player[]) => void;
   "player-joined": (player: Player) => void;
   "player-moved": (payload: { id: string; col: number; row: number }) => void;

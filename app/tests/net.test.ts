@@ -11,7 +11,7 @@ function fakeSocket(){
     fire(e:string,...a:unknown[]){if(e==='connect')s.connected=true;if(e==='disconnect')s.connected=false;for(const cb of handlers.get(e)??[])cb(...a);}};
   return s;
 }
-const me={userId:'u1',name:'Max',color:0x819478};
+const me={userId:'u1',name:'Max',color:0x819478,token:null};
 
 test('joins on connect and again on every reconnect, with the current room',()=>{
   const s=fakeSocket(),net=createNet(me,'ocean',s);const seen:string[]=[];net.onStatus(x=>seen.push(x));
@@ -30,4 +30,8 @@ test('a replaced session disconnects for good',()=>{
 test('setRoom changes what the next join asks for',()=>{
   const s=fakeSocket(),net=createNet(me,'ocean',s);net.setRoom('forest');s.fire('connect');
   assert.equal((s.sent[0][1] as {roomId:string}).roomId,'forest');
+});
+test('a signed-in identity joins with its token',()=>{
+  const s=fakeSocket(),net=createNet({...me,token:'jwt.here'},'ocean',s);s.fire('connect');
+  assert.equal((s.sent[0][1] as {token?:string}).token,'jwt.here');
 });

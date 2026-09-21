@@ -10,7 +10,7 @@ test('a first visit gets a fresh user id and needs a name',()=>{
 });
 test('a saved identity is kept as is',()=>{
  const {identity,fresh}=loadIdentity({userId:'abc',name:'Maxime',color:PALETTE[2].hex},uuid);
- assert.deepEqual(identity,{userId:'abc',name:'Maxime',color:PALETTE[2].hex});assert.equal(fresh,false);
+ assert.deepEqual(identity,{userId:'abc',name:'Maxime',color:PALETTE[2].hex,token:null});assert.equal(fresh,false);
 });
 test('corrupt fields fall back without losing the user id',()=>{
  const {identity,fresh}=loadIdentity({userId:'abc',name:'   ',color:'red'},uuid);
@@ -18,4 +18,9 @@ test('corrupt fields fall back without losing the user id',()=>{
 });
 test('names are trimmed, squeezed and bounded',()=>{
  assert.equal(cleanName('  Max   G '),'Max G');assert.equal(cleanName('x'),null);assert.equal(cleanName('a'.repeat(30))?.length,20);assert.equal(cleanName(42),null);
+});
+test('a session token is kept, anything else is dropped',()=>{
+ assert.equal(loadIdentity({userId:'abc',name:'Max',color:PALETTE[0].hex,token:'jwt.here'},uuid).identity.token,'jwt.here');
+ assert.equal(loadIdentity({userId:'abc',name:'Max',color:PALETTE[0].hex,token:42},uuid).identity.token,null);
+ assert.equal(loadIdentity(null,uuid).identity.token,null);
 });
