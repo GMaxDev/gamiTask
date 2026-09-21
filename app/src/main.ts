@@ -200,9 +200,10 @@ function applyAuthUser(u:{userId:string;token:string;name:string;color:number;tw
 }
 ($('#account-button') as HTMLButtonElement).onclick=()=>{renderAccount();($('#account-dialog') as HTMLDialogElement).showModal();};
 ($('#twitch-link') as HTMLButtonElement).onclick=async()=>{
-  const token=load('gamitask.token',null);if(!token)return;
-  const url=await startTwitchLink(API_URL,token);
-  if(url)location.href=url;else toast('Impossible de lancer la connexion Twitch.');
+  const token=load('gamitask.token',null);if(!token){toast('Connecte-toi avec Google pour lier Twitch.');return;}
+  const r=await startTwitchLink(API_URL,token);
+  if('url' in r)location.href=r.url;
+  else toast(r.status===401?'Ta session a expiré : déconnecte-toi puis reconnecte-toi avec Google.':r.status===500?'Twitch n’est pas configuré sur ce serveur (TWITCH_CLIENT_ID / SECRET).':r.status===0?'Le serveur ne répond pas.':`Impossible de lancer la connexion Twitch (${r.status}).`);
 };
 ($('#twitch-unlink') as HTMLButtonElement).onclick=async()=>{
   const token=load('gamitask.token',null);if(!token)return;

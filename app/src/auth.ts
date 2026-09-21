@@ -12,12 +12,13 @@ export const loginWithGoogle=(apiUrl:string,credential:string)=>post(apiUrl,'/au
 
 // Twitch account link: a full-page redirect (Twitch requires a real navigation, not a fetch), so the server
 // only hands back the authorize URL here — the caller does `location.href = url` to leave the SPA.
-export async function startTwitchLink(apiUrl:string,token:string):Promise<string|null>{
+// Resolves to the authorize URL, or to the HTTP status that refused it (0 when the server was unreachable), so the caller can say why.
+export async function startTwitchLink(apiUrl:string,token:string):Promise<{url:string}|{status:number}>{
   try{
     const res=await fetch(`${apiUrl}/auth/twitch/start`,{headers:{Authorization:`Bearer ${token}`}});
-    if(!res.ok)return null;
-    return (await res.json()).url as string;
-  }catch{return null;}
+    if(!res.ok)return {status:res.status};
+    return {url:(await res.json()).url as string};
+  }catch{return {status:0};}
 }
 export async function unlinkTwitch(apiUrl:string,token:string):Promise<boolean>{
   try{
