@@ -7,18 +7,19 @@ body{background:#eee9df;color:#55624a;font-family:'DM Sans',sans-serif}
 .lp-nav{display:flex;gap:22px;font-size:14px}.lp-nav a{color:#7e8873;text-decoration:none}.lp-nav a:hover{color:#4d5b43}
 .lp{max-width:1120px;margin:0 auto;padding:0 28px}
 /* The stage: everything above the fold at once — copy and timer left, the room centre, notes right. */
-.lp-stage{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr) minmax(260px,320px);gap:20px;align-items:stretch;padding:18px 24px 24px;height:calc(100vh - 65px);min-height:620px}
+.lp-stage{display:grid;grid-template-columns:minmax(340px,400px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:16px 20px;align-items:stretch;padding:18px 24px 24px;height:calc(100vh - 65px);min-height:620px}
+.lp-stage .lp-demo{grid-column:2;grid-row:1/3}.lp-side-left{grid-column:1;grid-row:1;justify-content:flex-start}.lp-side-right{grid-column:1;grid-row:2;justify-content:flex-start;min-height:0}
 .lp-side{display:flex;flex-direction:column;justify-content:center;gap:16px;min-width:0}
 .lp-hero{text-align:left}
-.lp-hero h1{font-family:var(--serif);font-size:clamp(30px,2.6vw,44px);font-weight:400;line-height:1.08;letter-spacing:-1.2px;color:#4d5b43;margin:10px 0 12px}.lp-hero h1 em{font-style:italic;color:#657757}
-.lp-lead{font-size:15px;line-height:1.6;color:#7e8873;margin:0 0 18px}
+.lp-hero h1{font-family:var(--serif);font-size:clamp(28px,2.2vw,34px);font-weight:400;line-height:1.08;letter-spacing:-1.2px;color:#4d5b43;margin:10px 0 12px}.lp-hero h1 em{font-style:italic;color:#657757}
+.lp-lead{font-size:14px;line-height:1.6;color:#7e8873;margin:0 0 14px}
 .lp-cta{display:flex;gap:12px}.lp-cta .primary{text-decoration:none;padding:14px 22px;font-size:15px;border-radius:99px}.lp-cta .primary svg{width:16px;height:16px}
 @media(max-width:800px){.lp-nav{display:none}.lp{padding:0 16px}.lp-hero{padding:48px 0 28px}}
 /* The playable hero: the app's room with two floating cards over it. */
 .lp-demo{position:relative;height:100%;min-height:0;border-radius:28px;overflow:hidden;margin:0;box-shadow:0 30px 80px #4e593522,0 0 0 1px #fff6 inset}
 .lp-demo .scene{position:absolute;inset:0}.lp-demo .scene canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 .lp-card{position:relative;z-index:2;width:auto;padding:16px;background:#fbfcf3e6;border:1px solid #fff9;backdrop-filter:blur(14px);border-radius:20px;box-shadow:0 10px 30px #4e593514;color:#55624a}
-.lp-notes{display:flex;flex-direction:column;max-height:60vh}.lp-side-note{font-size:12px;line-height:1.6;color:#9a9f8c;margin:0 6px}
+.lp-notes{display:flex;flex-direction:column;flex:1;min-height:0}.lp-note-list{flex:1}.lp-time{font-size:46px}.lp-side-note{font-size:12px;line-height:1.6;color:#9a9f8c;margin:0 6px}
 .lp-card-head{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;font-weight:650;color:#8b917f;margin-bottom:12px}.lp-card-head svg{width:14px;height:14px;color:#8b9271}.lp-card-head .pill{margin-left:auto;padding:1px 7px;border-radius:99px;background:#e8eedf;font-size:11px}
 .lp-modes{width:100%}.lp-modes .chip{flex:1;justify-content:center}
 .lp-time{display:block;font-family:Manrope,sans-serif;font-size:56px;font-weight:500;letter-spacing:-3px;line-height:1.1;color:#536447;margin:12px 0 8px;font-variant-numeric:tabular-nums}
@@ -31,7 +32,6 @@ body{background:#eee9df;color:#55624a;font-family:'DM Sans',sans-serif}
 .lp-demo-hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:12px;color:#8f987e;pointer-events:none;margin:0;z-index:2}
 .lp-demo .toast{bottom:44px}.lp-demo .toast a{color:#657757;font-weight:600;margin-left:6px}
 .lp-cta .chip{height:auto;padding:14px 18px;font-size:14px}
-@media(max-width:1100px){.lp-stage{display:flex;flex-direction:column;height:auto;min-height:0;gap:14px}.lp-side{justify-content:flex-start}.lp-demo{height:60vh;min-height:380px;border-radius:20px}.lp-notes{max-height:none}.lp-demo-hint{display:none}.lp-hero{text-align:center}.lp-cta{justify-content:center}}
 
 /* ── Sections under the hero ── */
 .lp-section{padding:56px 0 24px;text-align:center}.lp-section h2{font-family:var(--serif);font-size:clamp(30px,4vw,44px);font-weight:400;letter-spacing:-1px;line-height:1.1;color:#4d5b43;margin:12px auto 36px;max-width:720px}.lp-section h2 em{font-style:italic;color:#657757}
@@ -69,22 +69,4 @@ body{background:#eee9df;color:#55624a;font-family:'DM Sans',sans-serif}
 #features,#how,#streamers,#pricing,#voices,#faq{content-visibility:auto;contain-intrinsic-size:auto 700px}
 @media(max-width:600px){.lp-stage{padding:12px 14px 18px}.lp-cta{flex-direction:column;align-items:stretch}.lp-cta .primary,.lp-cta .chip{justify-content:center;white-space:normal;text-align:center}.lp-hero h1{letter-spacing:-1px}.lp-bar{padding:10px 14px}}
 .lp-stage{--chip-h:36px;--chip-bg:#fbfcf3d9;--chip-bd:#fff9;--chip-fg:#66735c;--chip-on:#657757;--chip-on-fg:#fffdf2}
-/* ── Stage variants (temporary switch) ── */
-.lp-variants{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;display:flex;gap:4px;padding:4px;border-radius:99px;background:#2f3d2ae6;box-shadow:0 8px 24px #0004}.lp-variants button{width:34px;height:30px;border-radius:99px;background:transparent;color:#fffdf2;font-weight:700;font-size:13px}.lp-variants button[aria-pressed=true]{background:#fffdf2;color:#2f3d2a}
-/* B — immersive: the room fills the stage edge to edge, copy and cards float in its empty corners. */
-.lp-stage[data-variant=b]{display:block;position:relative;padding:0;height:calc(100vh - 65px)}
-.lp-stage[data-variant=b] .lp-demo{height:100%;border-radius:0;box-shadow:none}
-.lp-stage[data-variant=b] .lp-side-left{position:absolute;left:28px;top:26px;width:400px;z-index:3;gap:14px;justify-content:flex-start}
-.lp-stage[data-variant=b] .lp-hero{padding:22px 22px 20px;border-radius:22px;background:#fbfcf3d9;border:1px solid #fff9;backdrop-filter:blur(14px);box-shadow:0 10px 30px #4e593514}
-.lp-stage[data-variant=b] .lp-hero h1{font-size:34px}.lp-stage[data-variant=b] .lp-lead{font-size:14px;margin-bottom:14px}
-.lp-stage[data-variant=b] .lp-side-right{position:absolute;right:28px;bottom:28px;width:320px;z-index:3;justify-content:flex-end}
-.lp-stage[data-variant=b] .lp-side-note{display:none}.lp-stage[data-variant=b] .lp-demo-hint{left:auto;right:28px;top:26px;bottom:auto;text-align:right;width:320px}
-/* C — workstation: the room takes two thirds, a single column on the right stacks title, timer and notes like a desk. */
-.lp-stage[data-variant=c]{grid-template-columns:minmax(0,1fr) 400px;grid-template-rows:auto minmax(0,1fr);row-gap:16px}
-.lp-stage[data-variant=c] .lp-demo{grid-column:1;grid-row:1/3}
-.lp-stage[data-variant=c] .lp-side-left{grid-column:2;grid-row:1;justify-content:flex-start}
-.lp-stage[data-variant=c] .lp-side-right{grid-column:2;grid-row:2;justify-content:flex-start;min-height:0}
-.lp-stage[data-variant=c] .lp-notes{max-height:none;flex:1;min-height:0}.lp-stage[data-variant=c] .lp-note-list{flex:1}
-.lp-stage[data-variant=c] .lp-hero h1{font-size:30px;letter-spacing:-.8px}.lp-stage[data-variant=c] .lp-lead{font-size:14px;margin-bottom:12px}.lp-stage[data-variant=c] .lp-hero{padding-bottom:4px}
-.lp-stage[data-variant=c] .lp-time{font-size:44px}
-@media(max-width:1100px){.lp-stage[data-variant=b],.lp-stage[data-variant=c]{display:flex;flex-direction:column;height:auto;padding:12px 14px}.lp-stage[data-variant=b] .lp-side-left,.lp-stage[data-variant=b] .lp-side-right{position:static;width:auto}.lp-stage[data-variant=b] .lp-demo{height:60vh;border-radius:20px}}
+@media(max-width:1100px){.lp-stage{display:flex;flex-direction:column;height:auto;min-height:0;gap:14px}.lp-stage .lp-demo{height:60vh;min-height:380px;border-radius:20px;order:-1}.lp-side{justify-content:flex-start}.lp-notes{max-height:none}.lp-demo-hint{display:none}}

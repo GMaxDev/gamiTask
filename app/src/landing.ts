@@ -201,15 +201,13 @@ async function mountRoom(){
   $('.loading')?.remove();cafe.setTasks(pendingNotes());
   // The stage's centre column is narrower than the app's viewport: step back so the whole room fits.
   const w=($('.lp-demo') as HTMLElement).clientWidth;if(w<1500)cafe.zoomOut();if(w<1000)cafe.zoomOut();
+  // The wheel scrolls the page here, it never zooms the room: the scene's own wheel handler is cut off before it runs.
+  ($('.lp-demo') as HTMLElement).addEventListener('wheel',e=>e.stopPropagation(),{capture:true,passive:true});
 }
 if('requestIdleCallback' in window)(window as any).requestIdleCallback(mountRoom,{timeout:800});else setTimeout(mountRoom,50);
 
 // ── Sections: reveal on scroll; feature pictures are drawn from the real pieces the first time they come into view. ──
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-// Three layouts of the stage to choose from (A three columns, B immersive, C workstation): ?v= or the switch below. Temporary.
-const stage=$('.lp-stage') as HTMLElement,variant=new URLSearchParams(location.search).get('v')??load('gamitask.landing.variant','a');
-stage.dataset.variant=variant;const sw=document.createElement('div');sw.className='lp-variants';sw.innerHTML=['a','b','c'].map(v=>`<button data-v="${v}" aria-pressed="${v===variant}">${v.toUpperCase()}</button>`).join('');document.body.appendChild(sw);
-sw.onclick=e=>{const b=(e.target as HTMLElement).closest('button');if(!b)return;save('gamitask.landing.variant',b.dataset.v);location.href='/?v='+b.dataset.v;};
 const revealer=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){e.target.classList.add('in');revealer.unobserve(e.target);}},{rootMargin:'0px 0px -10% 0px'});
 for(const el of root.querySelectorAll('.reveal')){if(reduced)el.classList.add('in');else revealer.observe(el);}
 let vignettes:Promise<{draw(kind:Vignette):string}>|null=null;
