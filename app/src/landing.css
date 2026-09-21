@@ -62,3 +62,6 @@ body{background:#eee9df;color:#55624a;font-family:'DM Sans',sans-serif}
 .lp-foot .brand{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:Manrope,sans-serif;font-size:17px;font-weight:800;letter-spacing:-.6px;color:#44533e}.lp-foot .brand-mark{width:28px;height:28px;border-radius:50%;background:#657658;color:#faf4de;display:grid;place-items:center}.lp-foot .brand-mark svg{width:15px;height:15px}
 .lp-foot nav{display:flex;gap:18px;flex-wrap:wrap}.lp-foot nav a{display:inline-flex;align-items:center;gap:5px;color:#66735c;text-decoration:none}.lp-foot nav svg{width:14px;height:14px}.lp-foot p{margin:0}
 @media(max-width:900px){.lp-plans{grid-template-columns:1fr}.lp-quotes{grid-template-columns:1fr}.lp-foot-in{flex-direction:column;align-items:flex-start}}
+/* Sections below the fold are laid out lazily; the hero and the bar stay eager. */
+#features,#how,#streamers,#pricing,#voices,#faq{content-visibility:auto;contain-intrinsic-size:auto 700px}
+@media(max-width:600px){.lp-cta{flex-direction:column;align-items:stretch}.lp-cta .primary,.lp-cta .chip{justify-content:center;white-space:normal;text-align:center}.lp-hero h1{letter-spacing:-1px}.lp-bar{padding:10px 14px}}
