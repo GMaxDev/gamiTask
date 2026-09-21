@@ -6,6 +6,7 @@ import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
+import {createWorkshop,WORKSHOP_ICONS} from './workshop.ts';
 import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
 import {toCell} from './coords.ts';
@@ -19,7 +20,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn};
+const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -44,7 +45,7 @@ $('#app').innerHTML=`
           <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
           <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
         </button>
-        <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span><span id="role-badge" class="role-badge" hidden></span></button><button id="sign-in" class="identity-chip" hidden>${icon('log-in')}<span>Connexion</span></button>
+        <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span><span id="role-badge" class="role-badge" hidden></span></button><button id="workshop-btn" class="identity-chip workshop-btn" hidden>${icon('hammer')}<span>Atelier</span></button><button id="sign-in" class="identity-chip" hidden>${icon('log-in')}<span>Connexion</span></button>
       </div>
       <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
       <div class="world-bottom"><div class="world-left"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
@@ -128,7 +129,7 @@ const {identity,fresh}=loadIdentity(load('gamitask.identity',null),uuid);
 function saveIdentity(){save('gamitask.identity',identity);renderIdentity();}
 let role:'user'|'moderator'|'admin'='user';
 function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);
-  $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#sign-in').hidden=!!identity.token;}
+  $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#sign-in').hidden=!!identity.token;$('#workshop-btn').hidden=role==='user';}
 // Google Sign-In: the server swaps the credential for our account and a session token; a reload then joins as that account.
 const GOOGLE_CLIENT_ID=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
 function mountGoogleButton(){
@@ -238,6 +239,10 @@ drawIcons();
 // The HUD is only faded out behind the sheet, so it stays tabbable and clickable without this. The world/canvas stays live: drag-rotate is part of editing.
 const HUD_BEHIND_SHEET='.hud-top,.view-controls,.world-bottom,.timer-dock,#open-tasks,#tasks-drawer';
 function hudInert(on: boolean){document.querySelectorAll(HUD_BEHIND_SHEET).forEach((e: any)=>{e.inert=on;});}
+// Object workshop: moderators build catalogue items; the server validates, stores and broadcasts them.
+let catalog:import('@shared/catalog').CatalogItem[]=[];
+const workshop=createWorkshop($('#app') as HTMLElement,{items:()=>catalog,save(item){net?.socket.emit('catalog:save',{item});},remove(id){net?.socket.emit('catalog:delete',{id});},onExit(){workshop.close();($('#workshop-btn') as HTMLElement).focus();}});
+$('#workshop-btn').onclick=()=>{if(role!=='user')workshop.open();};
 function openEditor(){
   if(editing||!cafe||switching||placingId)return;editing=true;
   openDrawer(false);board.close();($('.world') as HTMLElement).classList.add('editing');hudInert(true);
@@ -413,7 +418,7 @@ function bindServerEvents(){
     if(roomPomo.joined&&was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
     renderRoomPomo();});
   s.on('me:state',u=>{role=u.role;renderIdentity();});
-  s.on('catalog:state',({items})=>{setCatalog(items);renderShop();if(room==='private'&&furnitureSeen){try{mountRoom();syncScene();}catch(error){console.error(error);}}});// a changed recipe rebuilds the room it stands in
+  s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();if(room==='private'&&furnitureSeen){try{mountRoom();syncScene();}catch(error){console.error(error);}}});// a changed recipe rebuilds the room it stands in
   s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',forgetSession);
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
