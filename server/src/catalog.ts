@@ -7,7 +7,9 @@ export type Part =
   | (PartBase & { kind: "box"; w: number; h: number; d: number; r: number })
   | (PartBase & { kind: "cyl"; rt: number; rb: number; h: number; n: number })
   | (PartBase & { kind: "ball"; r: number; sx: number; sy: number; sz: number });
-export type Anchor = { kind: "seat" | "surface" | "portable" | "wearable"; x: number; y: number; z: number; rot: number };
+export type AnchorKind = "seat" | "surface" | "portable" | "wearable";
+// A surface also has a footprint: the area later inventory items may be set down on.
+export type Anchor = { kind: AnchorKind; x: number; y: number; z: number; rot: number; w?: number; d?: number };
 export interface CatalogItem { id: string; kind: "hat" | "furniture"; name: string; emoji: string; price: number; w: number; d: number; parts: Part[]; anchors: Anchor[] }
 
 export const MAX_PARTS = 64;
@@ -38,7 +40,10 @@ function sanitizeAnchor(raw: unknown): Anchor | null {
   const a = raw as Record<string, unknown>;
   if (!["seat", "surface", "portable", "wearable"].includes(a.kind as string)) return null;
   const x = num(a.x, -8, 8, 0), y = num(a.y, -8, 8, 0), z = num(a.z, -8, 8, 0), rot = num(a.rot, -7, 7, 0);
-  return x === null || y === null || z === null || rot === null ? null : { kind: a.kind as Anchor["kind"], x, y, z, rot };
+  if (x === null || y === null || z === null || rot === null) return null;
+  const out: Anchor = { kind: a.kind as AnchorKind, x, y, z, rot };
+  if (out.kind === "surface") { const clamp = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? Math.max(0.05, Math.min(4, Math.round(v * 1000) / 1000)) : 1; out.w = clamp(a.w); out.d = clamp(a.d); }
+  return out;
 }
 export function sanitizeItem(raw: unknown): CatalogItem | null {
   if (!raw || typeof raw !== "object") return null;

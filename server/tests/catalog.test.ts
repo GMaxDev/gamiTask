@@ -33,3 +33,9 @@ test("names, prices and footprints are clamped", () => {
   assert.equal(it.name.length, 30); assert.equal(it.price, 0); assert.equal(it.w, 4); assert.equal(it.d, 1); assert.equal(it.emoji, "📦");
   assert.equal(sanitizeItem({ ...ok, name: "" }), null);
 });
+test("anchors carry a pose, surfaces a footprint too", () => {
+  const it = sanitizeItem({ ...ok, anchors: [{ kind: "seat", x: 0.1, y: 0.6, z: 0, rot: 1.5 }, { kind: "surface", x: 0, y: 1, z: 0, w: 9, d: 0.5 }] })!;
+  assert.deepEqual(it.anchors[0], { kind: "seat", x: 0.1, y: 0.6, z: 0, rot: 1.5 });
+  assert.deepEqual(it.anchors[1], { kind: "surface", x: 0, y: 1, z: 0, rot: 0, w: 4, d: 0.5 });
+  assert.equal(sanitizeItem({ ...ok, anchors: [{ kind: "bed", x: 0, y: 0, z: 0 }] }), null);
+});

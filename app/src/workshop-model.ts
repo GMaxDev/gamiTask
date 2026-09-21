@@ -1,5 +1,5 @@
 // Pure model of the object workshop: the draft item and how it changes. Rendering and UI live in workshop.ts.
-import type {CatalogItem,Part,PartKind} from '@shared/catalog';
+import type {CatalogItem,Part,PartKind,Anchor,AnchorKind} from '@shared/catalog';
 import {HATS,FURNITURE} from './shop.ts';
 import {C} from './primitives.ts';
 
@@ -18,3 +18,11 @@ export function slugId(name:string,taken:string[]):string{
   let id=base;for(let n=2;used.has(id);n++)id=`${base}-${n}`;return id;
 }
 export const duplicate=(it:CatalogItem,taken:string[]):CatalogItem=>{const name=`${it.name} (copie)`;return {...structuredClone(it),id:slugId(name,taken),name};};
+export function defaultAnchor(kind:AnchorKind):Anchor{
+  if(kind==='seat')return {kind,x:0,y:.5,z:0,rot:0};
+  if(kind==='surface')return {kind,x:0,y:.8,z:0,rot:0,w:.8,d:.8};
+  if(kind==='wearable')return {kind,x:0,y:.5,z:0,rot:0};
+  return {kind,x:0,y:.3,z:0,rot:0};
+}
+// Switching a function on gives it one anchor to start from; off drops every anchor of that kind.
+export const setFunction=(it:CatalogItem,kind:AnchorKind,on:boolean):CatalogItem=>({...it,anchors:on?(it.anchors.some(a=>a.kind===kind)?it.anchors:[...it.anchors,defaultAnchor(kind)]):it.anchors.filter(a=>a.kind!==kind)});

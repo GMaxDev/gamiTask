@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {newItem,addPart,slugId,duplicate} from '../src/workshop-model.ts';
+import {newItem,addPart,slugId,duplicate,setFunction} from '../src/workshop-model.ts';
 
 test('a new item is a furniture with one box to start from',()=>{
   const it=newItem();assert.equal(it.kind,'furniture');assert.equal(it.parts.length,1);assert.equal(it.parts[0].kind,'box');assert.deepEqual([it.w,it.d],[1,1]);
@@ -21,4 +21,10 @@ test('a duplicate is a deep copy under a fresh id and name',()=>{
   const a=addPart(newItem(),'cyl');a.id='stool';a.name='Tabouret';
   const b=duplicate(a,['stool']);
   assert.equal(b.id,'tabouret-copie');assert.equal(b.name,'Tabouret (copie)');assert.notEqual(b.parts,a.parts);assert.deepEqual(b.parts,a.parts);
+});
+test('a function is switched on with one default anchor and off by dropping all of its anchors',()=>{
+  let it=setFunction(newItem(),'seat',true);assert.equal(it.anchors.length,1);assert.equal(it.anchors[0].kind,'seat');
+  it=setFunction(it,'surface',true);it.anchors.push({...it.anchors[0]});assert.equal(it.anchors.length,3);
+  it=setFunction(it,'seat',false);assert.deepEqual(it.anchors.map(a=>a.kind),['surface']);
+  assert.equal(setFunction(it,'surface',true).anchors.length,1);// already on: nothing added
 });
