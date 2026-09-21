@@ -81,9 +81,9 @@ export function randomLook(shirtPalette:number[],rng:()=>number=Math.random):Loo
 }
 export const withChange=(look:Look,patch:Partial<Look>):Look=>({...look,...patch});
 export const equalLook=(a:Look,b:Look)=>(Object.keys(a) as (keyof Look)[]).every(k=>a[k]===b[k]);
-export interface History{current():Look;push(look:Look):void;undo():Look|null;canUndo():boolean;reset():Look}
+export interface History<T=Look>{current():T;push(look:T):void;undo():T|null;canUndo():boolean;reset():T}
 const LIMIT=50;
-export function createHistory(initial:Look):History{
-  let now=initial;const past:Look[]=[];
+export function createHistory<T=Look>(initial:T):History<T>{
+  let now=initial;const past:T[]=[];
   return {current:()=>now,push(look){past.push(now);if(past.length>LIMIT)past.shift();now=look;},undo(){const p=past.pop();if(!p)return null;now=p;return now;},canUndo:()=>past.length>0,reset(){past.length=0;now=initial;return now;}};
 }
