@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {newItem,addPart,slugId,duplicate,setFunction} from '../src/workshop-model.ts';
+import {newItem,addPart,slugId,duplicate,setFunction,defaultPart} from '../src/workshop-model.ts';
 
 test('a new item is a furniture with one box to start from',()=>{
   const it=newItem();assert.equal(it.kind,'furniture');assert.equal(it.parts.length,1);assert.equal(it.parts[0].kind,'box');assert.deepEqual([it.w,it.d],[1,1]);
@@ -27,4 +27,7 @@ test('a function is switched on with one default anchor and off by dropping all 
   it=setFunction(it,'surface',true);it.anchors.push({...it.anchors[0]});assert.equal(it.anchors.length,3);
   it=setFunction(it,'seat',false);assert.deepEqual(it.anchors.map(a=>a.kind),['surface']);
   assert.equal(setFunction(it,'surface',true).anchors.length,1);// already on: nothing added
+});
+test('every part kind has a default that stands on the floor',()=>{
+  for(const k of ['box','cyl','ball','torus','shell'] as const){const p=defaultPart(k) as any;assert.equal(p.kind,k);assert.ok(p.y>0);}
 });

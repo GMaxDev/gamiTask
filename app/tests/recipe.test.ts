@@ -28,3 +28,14 @@ test('capturing a built group reads back the same parts, scale folded into the d
     {kind:'ball',x:0,y:2,z:0,rx:0,ry:0,rz:0,r:.4,sx:1,sy:2,sz:1,color:'#819478'},
   ]);
 });
+test('a torus is one ring, a hollow box five walls open at the front, and a torus reads back',()=>{
+  const g=buildRecipe(P,[
+    {kind:'torus',x:0,y:.5,z:0,rx:1.57,ry:0,rz:0,rad:.3,tube:.05,n:24,arc:3.14,color:'#d2a754'},
+    {kind:'shell',x:0,y:.5,z:0,rx:0,ry:0,rz:0,w:.8,h:1,d:.4,t:.04,r:0,color:'#d9aa72'},
+  ],root);
+  const [ring,shell]=g.children as any[];
+  assert.equal(ring.geometry.type,'TorusGeometry');assert.equal(ring.geometry.parameters.arc,3.14);assert.equal(ring.rotation.x,1.57);
+  assert.equal(shell.children.length,5);const back=shell.children[0];assert.equal(back.geometry.parameters.depth,.04);assert.ok(Math.abs(back.position.z+.18)<1e-9);
+  assert.ok(shell.children.every((w:any)=>w.position.z<=.001),'nothing closes the front');
+  assert.deepEqual(captureRecipe(g)[0],{kind:'torus',x:0,y:.5,z:0,rx:1.57,ry:0,rz:0,rad:.3,tube:.05,n:24,arc:3.14,color:'#d2a754'});
+});

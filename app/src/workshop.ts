@@ -9,29 +9,29 @@ import {createDecor,DECOR_PIECES} from './decor.ts';
 import {defaultLook,createHistory} from './look.ts';
 import {PALETTE} from './identity.ts';
 import {newItem,addPart,slugId,duplicate,setFunction} from './workshop-model.ts';
-import {createIcons,Hammer,Box,Cylinder,Circle,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2} from 'lucide';
+import {createIcons,Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2} from 'lucide';
 
 export interface WorkshopDeps{items():CatalogItem[];save(item:CatalogItem):void;remove(id:string):void;onExit():void}
 export interface Workshop{open():void;close():void;isOpen():boolean;refresh():void;dispose():void}
-export const WORKSHOP_ICONS={Hammer,Box,Cylinder,Circle,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2};
+export const WORKSHOP_ICONS={Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2};
 
 type Field=[string,string,number,number,number];// key, label, min, max, step
 const POSE:Field[]=[['x','X',-4,4,.01],['y','Y',-2,4,.01],['z','Z',-4,4,.01],['rx','Rot X',-3.14,3.14,.01],['ry','Rot Y',-3.14,3.14,.01],['rz','Rot Z',-3.14,3.14,.01]];
-const DIMS:Record<PartKind,Field[]>={box:[['w','Largeur',.02,4,.01],['h','Hauteur',.02,4,.01],['d','Profondeur',.02,4,.01],['r','Arrondi',0,.5,.01]],cyl:[['rt','Rayon haut',0,4,.01],['rb','Rayon bas',0,4,.01],['h','Hauteur',.02,4,.01],['n','Facettes',3,64,1]],ball:[['r','Rayon',.02,4,.01],['sx','Étire X',.1,4,.01],['sy','Étire Y',.1,4,.01],['sz','Étire Z',.1,4,.01]]};
+const DIMS:Record<PartKind,Field[]>={box:[['w','Largeur',.02,4,.01],['h','Hauteur',.02,4,.01],['d','Profondeur',.02,4,.01],['r','Arrondi',0,.5,.01]],cyl:[['rt','Rayon haut',0,4,.01],['rb','Rayon bas',0,4,.01],['h','Hauteur',.02,4,.01],['n','Facettes',3,64,1]],ball:[['r','Rayon',.02,4,.01],['sx','Étire X',.1,4,.01],['sy','Étire Y',.1,4,.01],['sz','Étire Z',.1,4,.01]],torus:[['rad','Rayon',.01,4,.01],['tube','Épaisseur',.005,2,.005],['n','Facettes',3,64,1],['arc','Arc',.1,6.283,.01]],shell:[['w','Largeur',.02,4,.01],['h','Hauteur',.02,4,.01],['d','Profondeur',.02,4,.01],['t','Paroi',.005,1,.005],['r','Arrondi',0,.5,.01]]};
 const ANCHOR:Record<AnchorKind,{label:string;color:string}>={seat:{label:'Assise',color:'#657757'},surface:{label:'Surface',color:'#d2a754'},portable:{label:'Prise en main',color:'#c9764f'},wearable:{label:'Sur la tête',color:'#8aa6b8'}};
 const FUNCTIONS:[AnchorKind,string][]=[['seat','Asseyable'],['surface','Surface'],['portable','Portable'],['wearable','Porté sur la tête']];
 const ANCHOR_FIELDS:Field[]=[['x','X',-4,4,.01],['y','Y',-2,4,.01],['z','Z',-4,4,.01],['rot','Orientation',-3.14,3.14,.01]],SURFACE_FIELDS:Field[]=[['w','Largeur',.05,4,.01],['d','Profondeur',.05,4,.01]];
 // The coded pieces the workshop can open: shop hats and furniture plus the rooms' decor. Opening one captures its geometry.
 interface Native{id:string;name:string;emoji:string;price:number;kind:CatalogItem['kind']}
 const natives=():Native[]=>[...HATS.filter(h=>isBuiltIn(h.id)).map(h=>({...h,kind:'hat' as const})),...FURNITURE.filter(f=>isBuiltIn(f.id)).map(f=>({...f,kind:'furniture' as const})),...DECOR_PIECES.map(d=>({...d,emoji:'🪑',price:0,kind:'decor' as const}))];
-const KIND_LABEL:Record<PartKind,string>={box:'Cube',cyl:'Cylindre',ball:'Sphère'},KIND_ICON:Record<PartKind,string>={box:'box',cyl:'cylinder',ball:'circle'};
+const KIND_LABEL:Record<PartKind,string>={box:'Cube',cyl:'Cylindre',ball:'Sphère',torus:'Tore',shell:'Boîte creuse'},KIND_ICON:Record<PartKind,string>={box:'box',cyl:'cylinder',ball:'circle',torus:'torus',shell:'package-open'};
 
 const MARKUP=`<aside class="ws-side"><header class="ws-head"><h2><i data-lucide="hammer"></i>Atelier</h2><button id="ws-new" class="tool-btn"><i data-lucide="plus"></i>Nouvel objet</button></header><ul id="ws-items" class="ws-items"></ul></aside>
 <div class="ws-view"><canvas id="ws-canvas" tabindex="0" aria-label="Aperçu de l’objet"></canvas><span class="ws-hint">Glisser : tourner · Molette : zoom · Clic : choisir un bloc</span><div class="ws-guard" id="ws-guard" hidden><span>Modifications non enregistrées.</span><button id="ws-guard-save" class="primary">Enregistrer</button><button id="ws-guard-drop" class="ghost-btn">Abandonner</button><button id="ws-guard-stay" class="ghost-btn">Rester</button></div><div class="ws-view-actions"><button id="ws-undo" class="tool-btn" disabled><i data-lucide="undo-2"></i>Annuler</button><button id="ws-reset" class="tool-btn"><i data-lucide="locate-fixed"></i>Vue par défaut</button><button id="ws-exit" class="ghost-btn"><i data-lucide="x"></i>Quitter</button></div></div>
 <aside class="ws-side ws-panel">
   <section class="ws-meta"><label>Nom<input id="ws-name" maxlength="30" required/></label><div class="ws-row"><label>Emoji<input id="ws-emoji" maxlength="8"/></label><label>Prix<input id="ws-price" type="number" min="0" max="99999"/></label></div>
     <div class="ws-row"><label>Type<select id="ws-kind"><option value="furniture">Mobilier</option><option value="hat">Chapeau</option><option value="decor" disabled>Décor</option></select></label><label class="ws-cells">Cases<input id="ws-w" type="number" min="1" max="4"/>×<input id="ws-d" type="number" min="1" max="4"/></label></div></section>
-  <section class="ws-parts"><div class="ws-add"><span>Blocs</span><button data-add="box" title="Ajouter un cube"><i data-lucide="box"></i></button><button data-add="cyl" title="Ajouter un cylindre"><i data-lucide="cylinder"></i></button><button data-add="ball" title="Ajouter une sphère"><i data-lucide="circle"></i></button></div><ul id="ws-parts"></ul></section>
+  <section class="ws-parts"><div class="ws-add"><span>Blocs</span><button data-add="box" title="Ajouter un cube"><i data-lucide="box"></i></button><button data-add="cyl" title="Ajouter un cylindre"><i data-lucide="cylinder"></i></button><button data-add="ball" title="Ajouter une sphère"><i data-lucide="circle"></i></button><button data-add="torus" title="Ajouter un tore"><i data-lucide="torus"></i></button><button data-add="shell" title="Ajouter une boîte creuse (ouverte devant)"><i data-lucide="package-open"></i></button></div><ul id="ws-parts"></ul></section>
   <section class="ws-parts ws-fns"><div class="ws-add"><span>Fonctions</span></div><div id="ws-fns" class="ws-checks"></div><ul id="ws-anchors"></ul></section>
   <section class="ws-inspector" id="ws-inspector"></section>
   <footer class="ws-foot"><button id="ws-delete" class="ghost-btn"><i data-lucide="trash-2"></i>Supprimer</button><button id="ws-dup" class="ghost-btn"><i data-lucide="copy"></i>Dupliquer</button><button id="ws-save" class="primary"><i data-lucide="save"></i>Enregistrer</button></footer>

@@ -7,9 +7,16 @@ import type {Part} from '@shared/catalog';
 export function buildRecipe(p:Primitives,parts:Part[],parent:any):any{
   const g=new THREE.Group();parent.add(g);
   for(const q of parts){
-    const m=q.kind==='box'?p.box(q.w,q.h,q.d,q.color,q.x,q.y,q.z,q.r,g):q.kind==='cyl'?p.cyl(q.rt,q.rb,q.h,q.color,q.x,q.y,q.z,g,q.n):p.ball(q.r,q.color,q.x,q.y,q.z,g,q.sx,q.sy,q.sz);
+    const m=q.kind==='box'?p.box(q.w,q.h,q.d,q.color,q.x,q.y,q.z,q.r,g):q.kind==='cyl'?p.cyl(q.rt,q.rb,q.h,q.color,q.x,q.y,q.z,g,q.n):q.kind==='ball'?p.ball(q.r,q.color,q.x,q.y,q.z,g,q.sx,q.sy,q.sz)
+      :q.kind==='torus'?p.mesh(new THREE.TorusGeometry(q.rad,q.tube,8,q.n,q.arc),q.color,q.x,q.y,q.z,g):shell(p,q,g);
     m.rotation.set(q.rx,q.ry,q.rz);
   }
+  return g;
+}
+// Back, two sides, bottom and top: the front stays open so shelves and things can sit inside.
+function shell(p:Primitives,q:Extract<Part,{kind:'shell'}>,parent:any){
+  const g=new THREE.Group();g.position.set(q.x,q.y,q.z);parent.add(g);const {w,h,d,t,r,color}=q;
+  p.box(w,h,t,color,0,0,-d/2+t/2,r,g);for(const s of [-1,1])p.box(t,h,d,color,s*(w-t)/2,0,0,r,g);for(const s of [-1,1])p.box(w,t,d,color,0,s*(h-t)/2,0,r,g);
   return g;
 }
 const r3=(v:number)=>Math.round(v*1000)/1000||0;
@@ -25,6 +32,7 @@ export function captureRecipe(root:any):Part[]{
     const base={x:r3(pos.x),y:r3(pos.y),z:r3(pos.z),rx:r3(eul.x),ry:r3(eul.y),rz:r3(eul.z),color};
     if(g.type==='BoxGeometry'||g.type==='RoundedBoxGeometry')parts.push({kind:'box',...base,w:r3(P.width*scl.x),h:r3(P.height*scl.y),d:r3(P.depth*scl.z),r:r3((P.radius??0)*scl.x)});
     else if(g.type==='CylinderGeometry')parts.push({kind:'cyl',...base,rt:r3(P.radiusTop*scl.x),rb:r3(P.radiusBottom*scl.x),h:r3(P.height*scl.y),n:P.radialSegments});
+    else if(g.type==='TorusGeometry')parts.push({kind:'torus',...base,rad:r3(P.radius*scl.x),tube:r3(P.tube*scl.x),n:P.tubularSegments,arc:r3(P.arc)});
     else if(g.type==='SphereGeometry'){const s=Math.min(scl.x,scl.y,scl.z);parts.push({kind:'ball',...base,r:r3(P.radius*s),sx:r3(scl.x/s),sy:r3(scl.y/s),sz:r3(scl.z/s)});}
   });
   return parts;

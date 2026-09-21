@@ -7,7 +7,9 @@ const BASE={x:0,y:0,z:0,rx:0,ry:0,rz:0};
 export function defaultPart(kind:PartKind):Part{
   if(kind==='box')return {...BASE,kind,y:.25,w:.5,h:.5,d:.5,r:.04,color:C.wood};
   if(kind==='cyl')return {...BASE,kind,y:.25,rt:.2,rb:.2,h:.5,n:16,color:C.terra};
-  return {...BASE,kind,y:.25,r:.25,sx:1,sy:1,sz:1,color:C.sage};
+  if(kind==='ball')return {...BASE,kind,y:.25,r:.25,sx:1,sy:1,sz:1,color:C.sage};
+  if(kind==='torus')return {...BASE,kind,y:.25,rad:.25,tube:.05,n:24,arc:6.283,color:C.gold};
+  return {...BASE,kind,y:.5,w:.8,h:1,d:.4,t:.04,r:.02,color:C.oak};
 }
 export const newItem=():CatalogItem=>({id:'',kind:'furniture',name:'',emoji:'📦',price:50,w:1,d:1,parts:[defaultPart('box')],anchors:[]});
 export const addPart=(it:CatalogItem,kind:PartKind):CatalogItem=>({...it,parts:[...it.parts,defaultPart(kind)]});

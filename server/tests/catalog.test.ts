@@ -40,3 +40,9 @@ test("anchors carry a pose, surfaces a footprint too", () => {
   assert.deepEqual(it.anchors[1], { kind: "surface", x: 0, y: 1, z: 0, rot: 0, w: 4, d: 0.5 });
   assert.equal(sanitizeItem({ ...ok, anchors: [{ kind: "bed", x: 0, y: 0, z: 0 }] }), null);
 });
+test("a torus and a hollow box are parts too", () => {
+  const it = sanitizeItem({ ...ok, parts: [{ kind: "torus", x: 0, y: 0.5, z: 0, rad: 0.3, tube: 0.05, color: "#d2a754", n: 200 }, { kind: "shell", x: 0, y: 0.5, z: 0, w: 0.8, h: 1, d: 0.4, color: "#d9aa72" }] })!;
+  assert.deepEqual(it.parts[0], { kind: "torus", x: 0, y: 0.5, z: 0, rx: 0, ry: 0, rz: 0, rad: 0.3, tube: 0.05, n: 64, arc: 6.283, color: "#d2a754" });
+  assert.deepEqual(it.parts[1], { kind: "shell", x: 0, y: 0.5, z: 0, rx: 0, ry: 0, rz: 0, w: 0.8, h: 1, d: 0.4, t: 0.04, r: 0.02, color: "#d9aa72" });
+  assert.equal(sanitizeItem({ ...ok, parts: [{ kind: "shell", x: 0, y: 0, z: 0, w: 0.8, h: 1, d: 0.4, t: 0.5, color: "#fff" }] }), null);// walls thicker than the box
+});

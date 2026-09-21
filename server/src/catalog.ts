@@ -1,11 +1,14 @@
 // Items built in the in-app editor: a recipe of primitives the client turns into meshes. Pure validation, no DB.
 
-export type PartKind = "box" | "cyl" | "ball";
+export type PartKind = "box" | "cyl" | "ball" | "torus" | "shell";
 interface PartBase { kind: PartKind; x: number; y: number; z: number; rx: number; ry: number; rz: number; color: string }
 export type Part =
   | (PartBase & { kind: "box"; w: number; h: number; d: number; r: number })
   | (PartBase & { kind: "cyl"; rt: number; rb: number; h: number; n: number })
-  | (PartBase & { kind: "ball"; r: number; sx: number; sy: number; sz: number });
+  | (PartBase & { kind: "ball"; r: number; sx: number; sy: number; sz: number })
+  | (PartBase & { kind: "torus"; rad: number; tube: number; n: number; arc: number })
+  // A hollow box: five walls of thickness t, open on its +z face, the way a shelf or a cupboard is carved.
+  | (PartBase & { kind: "shell"; w: number; h: number; d: number; t: number; r: number });
 export type AnchorKind = "seat" | "surface" | "portable" | "wearable";
 // A surface also has a footprint: the area later inventory items may be set down on.
 export type Anchor = { kind: AnchorKind; x: number; y: number; z: number; rot: number; w?: number; d?: number };
@@ -32,6 +35,9 @@ function sanitizePart(raw: unknown): Part | null {
   if (p.kind === "box") { const d = dims({ w: [0.01, 8, undefined], h: [0.01, 8, undefined], d: [0.01, 8, undefined], r: [0, 2, 0.04] }); return d && { kind: "box", ...b, ...(d as { w: number; h: number; d: number; r: number }), color }; }
   if (p.kind === "cyl") { const d = dims({ rt: [0, 8, undefined], rb: [0, 8, undefined], h: [0.01, 8, undefined] }), n = typeof p.n === "number" && Number.isFinite(p.n) ? Math.max(3, Math.min(64, Math.round(p.n))) : 16; return d && { kind: "cyl", ...b, ...(d as { rt: number; rb: number; h: number }), n, color }; }
   if (p.kind === "ball") { const d = dims({ r: [0.01, 8, undefined], sx: [0.05, 8, 1], sy: [0.05, 8, 1], sz: [0.05, 8, 1] }); return d && { kind: "ball", ...b, ...(d as { r: number; sx: number; sy: number; sz: number }), color }; }
+  const segs = (v: unknown, dflt: number) => (typeof v === "number" && Number.isFinite(v) ? Math.max(3, Math.min(64, Math.round(v))) : dflt);
+  if (p.kind === "torus") { const d = dims({ rad: [0.01, 8, undefined], tube: [0.005, 4, undefined], arc: [0.1, 6.283, 6.283] }); return d && { kind: "torus", ...b, ...(d as { rad: number; tube: number; arc: number }), n: segs(p.n, 24), color }; }
+  if (p.kind === "shell") { const d = dims({ w: [0.02, 8, undefined], h: [0.02, 8, undefined], d: [0.02, 8, undefined], t: [0.005, 4, 0.04], r: [0, 2, 0.02] }); return d && d.t * 2 < Math.min(d.w, d.h, d.d) ? { kind: "shell", ...b, ...(d as { w: number; h: number; d: number; t: number; r: number }), color } : null; }
   return null;
 }
 function sanitizeAnchor(raw: unknown): Anchor | null {
