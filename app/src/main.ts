@@ -112,44 +112,43 @@ $('#app').innerHTML=`
       </div>
     </aside>
   </main>
-  <dialog id="progress-dialog"><div class="dialog-heading"><h2>Ma progression.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
+  <dialog id="progress-dialog" class="card card-honey"><header class="card-head"><span class="card-icon">${icon('trophy')}</span><span class="card-eyebrow">MA PROGRESSION</span><h2>Petit à petit.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
     <div class="progress-summary"><span class="coins">${icon('coins')}<strong id="coins-big">0</strong> pièces</span><span class="level-badge" id="level-big">Niveau 0</span></div>
     <div class="xp-bar" aria-hidden="true"><span id="xp-fill-big"></span></div><div class="xp-label" id="xp-label">0 / 50 XP</div>
     <div class="day-stats"><div><strong id="sessions">0</strong><span>sessions aujourd’hui</span></div><span class="stat-divider"></span><div><strong><span id="minutes">0</span><small> min</small></strong><span>rien que pour toi</span></div></div>
     <div class="session-dots"><span class="filled"></span><span></span><span></span><span></span><small id="cycle-label">Un pas après l’autre</small></div>
-    <p class="eyebrow">SUCCÈS <span id="achievements-count">0/7</span></p><ul class="achievements-list" id="achievements-list"></ul>
-  </dialog>
-  <dialog id="settings-dialog"><form id="settings-form"><div class="dialog-heading"><h2>Ton propre rythme.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div><p>Choisis la durée de tes sessions, en minutes.</p><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></form></dialog>
-  <dialog id="help-dialog"><div class="dialog-heading"><h2>Bienvenue au café.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div><p>Ce petit coin est à toi. Prends tes marques.</p><ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul><p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p><button class="primary close-dialog">Je m’installe</button></dialog>
-  <dialog id="identity-dialog"><form id="identity-form" method="dialog"><div class="dialog-heading"><h2>On se présente ?</h2></div>
+    <section><h3>Succès <span class="pill" id="achievements-count">0/7</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
+  </div></dialog>
+  <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label></div><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
+  <dialog id="help-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('mouse-pointer-2')}</span><span class="card-eyebrow">BIENVENUE</span><h2>Prends tes marques.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Ce petit coin est à toi. Prends tes marques.</p><ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul><p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p><button class="primary close-dialog">Je m’installe</button></div></dialog>
+  <dialog id="identity-dialog" class="card card-sage"><form id="identity-form" method="dialog"><header class="card-head"><span class="card-icon">${icon('smile')}</span><span class="card-eyebrow">ON SE PRÉSENTE ?</span><h2>Un pseudo, une couleur.</h2></header><div class="card-body">
     <p>Un pseudo et une couleur, c’est tout ce qu’il faut pour entrer au café.</p>
     <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
     <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
-  </form></dialog>
-  <dialog id="account-dialog"><div class="dialog-heading"><h2>Mon compte.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
-    <div class="account-row"><span class="account-label">${icon('twitch')}<span>Twitch</span></span><span class="account-value" id="account-twitch-status">Non lié</span></div>
+  </div></form></dialog>
+  <dialog id="account-dialog" class="card card-plum"><header class="card-head"><span class="card-icon">${icon('user-cog')}</span><span class="card-eyebrow">MON COMPTE</span><h2>Toi, partout.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
+    <section><h3>Twitch</h3><div class="kv"><span class="kv-key">${icon('twitch')}<span>Chaîne</span></span><span class="pill" id="account-twitch-status">Non lié</span></div>
     <p>Lie ta chaîne pour faire apparaître tes viewers dans ta salle, plus tard.</p>
     <button id="twitch-link" class="primary">${icon('link-2')}<span>Lier mon compte Twitch</span></button>
-    <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button>
-  </dialog>
-  <dialog id="guests-dialog"><div class="dialog-heading"><h2>Ma pièce.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
-    <p>Envoie ce lien à quelqu’un pour l’inviter directement chez toi.</p>
-    <button id="invite-copy" class="primary">${icon('link-2')}<span>Copier le lien d’invitation</span></button>
-    <p>Exclus quelqu’un de ta pièce, pour un moment ou pour de bon.</p>
+    <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button></section>
+  </div></dialog>
+  <dialog id="guests-dialog" class="card card-sage"><header class="card-head"><span class="card-icon">${icon('home')}</span><span class="card-eyebrow">MA PIÈCE</span><h2>Ta pièce, tes invités.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
+    <section><h3>Inviter</h3><p>Envoie ce lien à quelqu’un pour l’inviter directement chez toi.</p>
+    <button id="invite-copy" class="primary">${icon('link-2')}<span>Copier le lien d’invitation</span></button></section>
+    <section><h3>Qui est là <span class="pill" id="guests-count">0</span></h3><p>Exclus quelqu’un de ta pièce, pour un moment ou pour de bon.</p>
     <ul class="guests-list" id="guests-list"></ul>
-    <p class="tasks-empty" id="guests-empty" hidden>Personne d’autre ici pour l’instant.</p>
-  </dialog>
+    <div class="empty" id="guests-empty" hidden>${icon('coffee')}<span>Personne d’autre ici pour l’instant.</span></div></section>
+  </div></dialog>
   <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
   <div id="login-screen" class="login-screen" role="dialog" aria-modal="true" aria-label="Connexion" hidden>
-    <div class="login-card">
-      <span class="brand-mark">${icon('coffee')}</span>
-      <h2>Bienvenue au café.</h2>
+    <div class="login-card card card-sage">
+      <header class="card-head"><span class="card-icon">${icon('coffee')}</span><span class="card-eyebrow">BIENVENUE</span><h2>Le café ouvre ses portes.</h2></header><div class="card-body">
       <p>Connecte-toi avec Google pour retrouver ton personnage sur n’importe quel appareil, ou entre directement en invité.</p>
       <div id="google-btn" class="google-btn-slot"></div>
       <div class="login-sep"><span>ou</span></div>
       <button id="login-guest" class="secondary" type="button">Continuer en invité</button>
-    </div>
+    </div></div>
   </div>
 `;
 drawIcons();
@@ -188,7 +187,7 @@ const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefine
 let twitch:{login:string|null;displayName:string|null}={login:null,displayName:null};
 function renderAccount(){
   const linked=!!twitch.login;
-  ($('#account-twitch-status') as HTMLElement).textContent=linked?`Lié : ${twitch.displayName||twitch.login}`:'Non lié';
+  const st=$('#account-twitch-status') as HTMLElement;st.textContent=linked?`Lié · ${twitch.displayName||twitch.login}`:'Non lié';st.classList.toggle('on',linked);
   ($('#twitch-link') as HTMLElement).hidden=linked;($('#twitch-unlink') as HTMLElement).hidden=!linked;
 }
 function applyAuthUser(u:{userId:string;token:string;name:string;color:number;twitchLogin?:string|null;twitchDisplayName?:string|null}){
@@ -285,7 +284,7 @@ function renderGuests(){
   const list=$('#guests-list') as HTMLElement;
   const others=[...members].filter(([id])=>id!==net?.socket.id);
   list.innerHTML=others.map(([id,m])=>`<li data-id="${id}"><span class="guest-name" style="--swatch:#${m.color.toString(16).padStart(6,'0')}">${m.name}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
-  ($('#guests-empty') as HTMLElement).hidden=others.length>0;
+  ($('#guests-empty') as HTMLElement).hidden=others.length>0;($('#guests-count') as HTMLElement).textContent=String(others.length);
 }
 ($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};
 // Compte / gérer ma pièce / déconnexion used to be three lone icons in the HUD — folded into one menu to keep the bar readable.

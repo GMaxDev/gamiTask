@@ -201,3 +201,29 @@
 .timer-dock .timer-tabs-top{gap:4px;margin:0 0 8px 4px}.world .timer-tabs-top .chip{position:static;border-radius:99px;border:1px solid var(--chip-bd);font-weight:500}.world .timer-tabs-top .chip .tab-count{color:inherit;opacity:.75}
 .timer-hud .timer-tabs button{border-radius:99px;font-size:12px;padding:6px 10px}
 .world .chip .role-badge{font-size:10px;padding:2px 6px}
+
+/* ── Cards: every modal opens with a coloured head (icon, eyebrow, serif title) over a sectioned body ── */
+.card{--card:#657757;--card-deep:#4f6144;padding:0;overflow:hidden;width:440px;border:0;border-radius:24px;box-shadow:0 30px 90px #2e382a33,0 2px 0 #fff8 inset}
+.card-sage{--card:#657757;--card-deep:#4f6144}.card-honey{--card:#c9a24b;--card-deep:#a9863a}.card-terra{--card:#c9764f;--card-deep:#a85d3b}.card-sky{--card:#7f9fb3;--card-deep:#607f93}.card-plum{--card:#7c6a9c;--card-deep:#62527f}
+.card-head{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:14px;align-items:center;padding:22px 26px 20px;color:#fffdf2;background:linear-gradient(135deg,var(--card),var(--card-deep))}
+.card-head::after{content:"";position:absolute;right:-30px;top:-40px;width:150px;height:150px;border-radius:50%;background:#fff;opacity:.08;pointer-events:none}
+.card-icon{grid-row:1/3;width:48px;height:48px;border-radius:50%;background:#fffdf233;display:grid;place-items:center;box-shadow:0 0 0 1px #fffdf24d inset}.card-icon svg{width:24px;height:24px;color:#fffdf2}
+.card-eyebrow{font-size:11px;letter-spacing:1.6px;font-weight:650;opacity:.8}
+.card-head h2{font-family:var(--serif);font-size:25px;font-weight:400;margin:2px 0 0;letter-spacing:-.4px;line-height:1.15;color:#fffdf2}
+.card-head .close-dialog{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;background:#fffdf21f;color:#fffdf2}.card-head .close-dialog:hover{background:#fffdf240}
+.card-body{padding:6px 26px 26px;background:#faf9f2}
+.card-body section{padding:18px 0}.card-body section+section{border-top:1px solid #ebe9dd}.card-body section:last-child{padding-bottom:0}
+.card-body h3{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;font-weight:650;color:#8b917f;margin:0 0 8px}
+.card-body p{margin:8px 0 12px;font-size:14px;line-height:1.65;color:#7e8873}.card-body .primary{width:100%;margin-top:6px}.card-body .secondary{margin-top:8px}
+.card-body .pill{display:inline-block;min-width:22px;padding:2px 8px;border-radius:99px;background:#e8eedf;color:#5b6b4e;font-size:11px;letter-spacing:.4px;font-weight:650;text-align:center}.card-body .pill.on{background:var(--card);color:#fffdf2}
+.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:#f3f4ec;font-size:14px;color:#55624a}.kv-key{display:flex;align-items:center;gap:8px}.kv-key svg{width:16px;height:16px;color:#9146ff}
+.empty{display:flex;align-items:center;gap:10px;padding:14px;border:1px dashed #d9dccb;border-radius:12px;font-size:13px;color:#a0a595}.empty svg{width:16px;height:16px;color:#b8bfa9}.empty[hidden]{display:none}
+.field-rows{display:grid;gap:6px;margin:6px 0 4px}.field-rows label{margin:0;padding:10px 12px;border-radius:12px;background:#f3f4ec}
+.card-body .help-list{margin:8px 0 18px}.card-body .help-list li{margin:14px 0}
+.card-body .progress-summary{margin-top:12px}.card-body .day-stats{margin-top:18px;padding-top:16px}.card-body .session-dots{margin:12px 0 0}
+.guests-list{margin-top:4px}.guests-list li{padding:10px 12px;border-radius:12px;background:#f3f4ec}
+.login-card.card{width:400px;padding:0;text-align:left}.login-card .card-body p{margin-top:16px}.login-card .google-btn-slot{display:flex;justify-content:center;margin:6px 0}
+@keyframes card-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}@keyframes veil-in{from{opacity:0}to{opacity:1}}
+dialog.card[open]{animation:card-in .36s cubic-bezier(.2,.8,.2,1)}dialog.card[open]::backdrop{animation:veil-in .3s ease}dialog.card::backdrop{background:#2f3d2a66;backdrop-filter:blur(6px) saturate(.9)}
+@media(prefers-reduced-motion:reduce){dialog.card[open],dialog.card[open]::backdrop{animation:none}}
+dialog.card[open]{display:flex;flex-direction:column;max-height:calc(100vh - 40px)}dialog.card form{display:contents}.card-head{flex-shrink:0}.card-body{overflow-y:auto;scrollbar-width:thin;min-height:0}
