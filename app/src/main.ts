@@ -575,6 +575,11 @@ function bindServerEvents(){
     ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
+  // Notes and timer settings started on the landing page follow the visitor in, once.
+  s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
+    for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,type:'task'});
+    if(h.durations){Object.assign(timer.durations,h.durations);resetTimer(timer);persistTimer();}
+    if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:toggled',({taskId,done,coins})=>{const t=taskToggled(tasks,taskId,done);const before=progress.coins;setCoins(progress,coins);renderTasks();renderProgress();syncScene();
     if(t&&done)toast(`${t.type==='daily'?'Fait pour aujourd’hui.':'C’est fait.'}${coins>before?` +${coins-before} pièces.`:''}`);});

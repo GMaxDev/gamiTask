@@ -11,3 +11,21 @@ body{background:#eee9df;color:#55624a;font-family:'DM Sans',sans-serif}
 .lp-lead{font-size:18px;line-height:1.65;color:#7e8873;margin:0 auto 26px;max-width:600px}
 .lp-cta{display:flex;justify-content:center;gap:12px}.lp-cta .primary{text-decoration:none;padding:14px 22px;font-size:15px;border-radius:99px}.lp-cta .primary svg{width:16px;height:16px}
 @media(max-width:800px){.lp-nav{display:none}.lp{padding:0 16px}.lp-hero{padding:48px 0 28px}}
+/* The playable hero: the app's room with two floating cards over it. */
+.lp-demo{position:relative;height:72vh;min-height:540px;border-radius:28px;overflow:hidden;margin:8px 0 56px;box-shadow:0 30px 80px #4e593522,0 0 0 1px #fff6 inset}
+.lp-demo .scene{position:absolute;inset:0}.lp-demo .scene canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.lp-card{position:absolute;z-index:2;width:280px;padding:16px;background:#fbfcf3e6;border:1px solid #fff9;backdrop-filter:blur(14px);border-radius:20px;box-shadow:0 10px 30px #4e593514;color:#55624a}
+.lp-timer{left:22px;top:22px}.lp-notes{right:22px;top:22px;max-height:calc(100% - 44px);display:flex;flex-direction:column}
+.lp-card-head{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;font-weight:650;color:#8b917f;margin-bottom:12px}.lp-card-head svg{width:14px;height:14px;color:#8b9271}.lp-card-head .pill{margin-left:auto;padding:1px 7px;border-radius:99px;background:#e8eedf;font-size:11px}
+.lp-modes{width:100%}.lp-modes .chip{flex:1;justify-content:center}
+.lp-time{display:block;font-family:Manrope,sans-serif;font-size:56px;font-weight:500;letter-spacing:-3px;line-height:1.1;color:#536447;margin:12px 0 8px;font-variant-numeric:tabular-nums}
+.lp-timer-actions{display:flex;gap:8px;align-items:center}.lp-timer-actions .primary{flex:1;padding:11px 14px;border-radius:99px}.lp-timer-actions .primary svg{width:14px;height:14px}
+.lp-timer-note{font-size:12px;color:#9a9f8c;margin:12px 0 0}
+.lp-note-form{display:flex;gap:6px}.lp-note-form input{flex:1;min-width:0;background:#fff;border:1px solid #dce1d0;border-radius:99px;padding:8px 12px;font-size:13px;color:#55624a}.lp-note-form input::placeholder{color:#b3b7a8}
+.lp-note-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:thin}.lp-note-list li{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px;font-size:14px}
+.lp-note-list li.done .task-text{text-decoration:line-through;color:#adb2a3}.lp-note-list li:hover .remove-task{opacity:1}.lp-note-list li.flash{animation:flash 1.6s ease-out}
+.lp-empty{font-size:12px;color:#a0a595;line-height:1.6;margin:10px 0 0}.lp-empty[hidden]{display:none}
+.lp-demo-hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:12px;color:#8f987e;pointer-events:none;margin:0;z-index:2}
+.lp-demo .toast{bottom:44px}.lp-demo .toast a{color:#657757;font-weight:600;margin-left:6px}
+.lp-cta .chip{height:auto;padding:14px 18px;font-size:14px}
+@media(max-width:900px){.lp-demo{height:auto;min-height:0;display:flex;flex-direction:column;border-radius:20px}.lp-demo .scene{position:relative;height:52vh;min-height:360px}.lp-card{position:static;width:auto;margin:10px 12px 0;backdrop-filter:none;background:#fbfcf3}.lp-notes{margin-bottom:44px;max-height:none}.lp-demo-hint{display:none}}
