@@ -212,6 +212,16 @@ export const PUBLIC_ROOM_IDS = ["ocean", "forest", "sunset"] as const;
 export type PublicRoomId = (typeof PUBLIC_ROOM_IDS)[number];
 export const DEFAULT_ROOM_ID: PublicRoomId = "ocean";
 
+// A Twitch chatter rendered as a wandering NPC — no real account, just a name and a random look.
+export interface TwitchNpc {
+  id: string;
+  name: string;
+  color: number;
+  look: Look;
+  col: number;
+  row: number;
+}
+
 export const MAX_PUBLIC_ROOM = 20;
 export const MAX_PRIVATE_ROOM = 10;
 
@@ -297,6 +307,8 @@ export interface ClientToServerEvents {
   "room:switch": (payload: { roomId: RoomId }) => void;
   "room:create-private": (payload: { name: string }) => void;
   "room:delete-private": () => void;
+  // Owner-only: exclude someone from this private room, right now and (optionally) for a while longer.
+  "room:kick": (payload: { targetSocketId: string; durationMs: number | null }) => void;
   move: (payload: { col: number; row: number }) => void;
   "avatar-state": (payload: { state: AvatarState }) => void;
   chat: (payload: { text: string }) => void;
@@ -390,6 +402,16 @@ export interface ServerToClientEvents {
   "player-moved": (payload: { id: string; col: number; row: number }) => void;
   "player-state": (payload: { id: string; state: AvatarState }) => void;
   "player-left": (payload: { id: string }) => void;
+  // A linked streamer's live Twitch chatters, rendered as decorative wandering characters —
+  // shared with everyone in the room, unlike the player-* events' real accounts.
+  "npc:state": (npcs: TwitchNpc[]) => void;
+  "npc:joined": (npc: TwitchNpc) => void;
+  "npc:moved": (payload: { id: string; col: number; row: number }) => void;
+  "npc:left": (payload: { id: string }) => void;
+  // Private-room moderation: sent to the person just kicked out, or to anyone whose join/switch
+  // attempt into a room was refused because they're already excluded from it.
+  "room:kicked": (payload: { until: number | null }) => void;
+  "room:banned": (payload: { until: number | null }) => void;
   "chat-message": (msg: {
     id: string;
     name: string;

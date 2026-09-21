@@ -1,15 +1,15 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn,Smile} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
-import {loadLook,type Look} from './look.ts';
+import {loadLook,randomLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {createWorkshop,WORKSHOP_ICONS} from './workshop.ts';
 import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
-import {toCell} from './coords.ts';
+import {toCell,DIMS} from './coords.ts';
 import type {RoomKind} from './coords.ts';
 import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
@@ -18,9 +18,10 @@ import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
+import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Smile,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn};
+const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -51,7 +52,7 @@ $('#app').innerHTML=`
         </div></div>
         <div class="hud-zone hud-right">
           <details class="identity-menu" id="identity-menu"><summary id="identity-chip" class="chip" aria-label="Mon compte"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span><span id="role-badge" class="role-badge" hidden></span><span class="chev">${icon('chevron-down')}</span></summary>
-            <div class="menu"><button id="me-edit">${icon('smile')}Mon personnage</button><button id="workshop-btn" hidden>${icon('hammer')}Atelier</button><button id="sign-in" hidden>${icon('log-in')}Continuer avec Google</button></div></details>
+            <div class="menu" role="menu"><button id="me-edit" role="menuitem">${icon('smile')}Mon personnage</button><button id="account-button" role="menuitem" hidden>${icon('user-cog')}Mon compte</button><button id="guests-button" role="menuitem" hidden>${icon('user-x')}Gérer ma pièce</button><button id="workshop-btn" role="menuitem" hidden>${icon('hammer')}Atelier</button><hr><button id="logout-button" role="menuitem" class="danger">${icon('log-out')}Se déconnecter</button></div></details>
           <div class="chip-group view-controls"><button id="follow" class="chip icon active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="chip icon" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="chip icon" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="chip icon" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
         </div>
       </div>
@@ -125,41 +126,46 @@ $('#app').innerHTML=`
     <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
     <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
-    <p class="form-note or">ou, pour retrouver ton compte partout</p><div id="google-signin"></div>
   </form></dialog>
+  <dialog id="account-dialog"><div class="dialog-heading"><h2>Mon compte.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
+    <div class="account-row"><span class="account-label">${icon('twitch')}<span>Twitch</span></span><span class="account-value" id="account-twitch-status">Non lié</span></div>
+    <p>Lie ta chaîne pour faire apparaître tes viewers dans ta salle, plus tard.</p>
+    <button id="twitch-link" class="primary">${icon('link-2')}<span>Lier mon compte Twitch</span></button>
+    <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button>
+  </dialog>
+  <dialog id="guests-dialog"><div class="dialog-heading"><h2>Ma pièce.</h2><button class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></div>
+    <p>Envoie ce lien à quelqu’un pour l’inviter directement chez toi.</p>
+    <button id="invite-copy" class="primary">${icon('link-2')}<span>Copier le lien d’invitation</span></button>
+    <p>Exclus quelqu’un de ta pièce, pour un moment ou pour de bon.</p>
+    <ul class="guests-list" id="guests-list"></ul>
+    <p class="tasks-empty" id="guests-empty" hidden>Personne d’autre ici pour l’instant.</p>
+  </dialog>
   <div id="net-veil" class="net-veil" role="status"><span class="veil-label">${icon('coffee')}<span id="net-text">Connexion au café…</span></span></div>
+  <div id="login-screen" class="login-screen" role="dialog" aria-modal="true" aria-label="Connexion" hidden>
+    <div class="login-card">
+      <span class="brand-mark">${icon('coffee')}</span>
+      <h2>Bienvenue au café.</h2>
+      <p>Connecte-toi avec Google pour retrouver ton personnage sur n’importe quel appareil, ou entre directement en invité.</p>
+      <div id="google-btn" class="google-btn-slot"></div>
+      <div class="login-sep"><span>ou</span></div>
+      <button id="login-guest" class="secondary" type="button">Continuer en invité</button>
+    </div>
+  </div>
 `;
 drawIcons();
 // Who you are: kept locally, sent to the server at every `join`.
 const uuid=()=>crypto.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-const {identity,fresh}=loadIdentity(load('gamitask.identity',null),uuid);
+const {identity,fresh:initialFresh}=loadIdentity(load('gamitask.identity',null),uuid);
+let fresh=initialFresh;
 function saveIdentity(){save('gamitask.identity',identity);renderIdentity();}
 let role:'user'|'moderator'|'admin'='user';
 function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);
-  $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#sign-in').hidden=!!identity.token;$('#workshop-btn').hidden=role==='user';}
-// Google Sign-In: the server swaps the credential for our account and a session token; a reload then joins as that account.
-const GOOGLE_CLIENT_ID=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
-function mountGoogleButton(){
-  const slot=$('#google-signin') as HTMLElement;if(!GOOGLE_CLIENT_ID||slot.childElementCount)return;
-  const render=()=>{const g=(window as any).google;if(!g)return setTimeout(render,200);
-    g.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:async({credential}:{credential:string})=>{
-      const r=await fetch(`${API_URL}/auth/google`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential})});
-      if(!r.ok){toast('La connexion Google a échoué.');return;}
-      const d=await r.json();identity.userId=d.userId;identity.token=d.token;if(!identity.name)identity.name=cleanName(d.name)??'';save('gamitask.identity',identity);location.reload();}});
-    g.accounts.id.renderButton(slot,{theme:'outline',size:'large',shape:'pill',text:'continue_with',locale:'fr'});};
-  if(!document.querySelector('script[src*="gsi/client"]')){const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;document.head.append(s);}
-  render();
-}
-function forgetSession(){identity.token=null;identity.userId=uuid();save('gamitask.identity',identity);location.reload();}
-async function revalidate(){// a stale token would make every join fail, so it is checked once before connecting
-  if(!identity.token)return;
-  try{const r=await fetch(`${API_URL}/auth/token`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:identity.token})});if(r.status===401||r.status===404)forgetSession();}catch{}
-}
+  $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#workshop-btn').hidden=role==='user';}
 function askIdentity():Promise<void>{
   const dialog=$('#identity-dialog') as HTMLDialogElement,form=$('#identity-form') as HTMLFormElement;
   (form.elements.namedItem('name') as HTMLInputElement).value=identity.name;
   for(const r of form.querySelectorAll<HTMLInputElement>('input[name=color]'))r.checked=Number(r.value)===identity.color;
-  dialog.showModal();mountGoogleButton();
+  dialog.showModal();
   const input=form.elements.namedItem('name') as HTMLInputElement;
   input.setCustomValidity('');input.oninput=()=>input.setCustomValidity('');
   return new Promise(resolve=>{form.onsubmit=e=>{const name=cleanName(input.value);if(!name){e.preventDefault();input.setCustomValidity('Choisis un pseudo d’au moins 2 caractères.');input.reportValidity();return;}
@@ -167,6 +173,8 @@ function askIdentity():Promise<void>{
 }
 ($('#identity-dialog') as HTMLDialogElement).addEventListener('cancel',e=>{if(!identity.name)e.preventDefault();});// no way out of the very first hello
 renderIdentity();
+function logout(){save('gamitask.token',null);save('gamitask.guest',null);save('gamitask.identity',null);location.reload();}
+($('#logout-button') as HTMLButtonElement).onclick=logout;// forget who we are and land back on the login screen
 
 // Connection: the café is unreachable until the server answers, so a veil covers the room in the meantime.
 const API_URL=(import.meta.env.VITE_API_URL as string|undefined)??'http://localhost:3001';
@@ -176,11 +184,60 @@ const veil=$('#net-veil') as HTMLElement,veilText=$('#net-text') as HTMLElement;
 function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.textContent=text;}
 let ready={room:false,tasks:false};
 function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
+const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined)??'';
+let twitch:{login:string|null;displayName:string|null}={login:null,displayName:null};
+function renderAccount(){
+  const linked=!!twitch.login;
+  ($('#account-twitch-status') as HTMLElement).textContent=linked?`Lié : ${twitch.displayName||twitch.login}`:'Non lié';
+  ($('#twitch-link') as HTMLElement).hidden=linked;($('#twitch-unlink') as HTMLElement).hidden=!linked;
+}
+function applyAuthUser(u:{userId:string;token:string;name:string;color:number;twitchLogin?:string|null;twitchDisplayName?:string|null}){
+  identity.userId=u.userId;
+  if(u.name)identity.name=u.name;
+  if(PALETTE.some(p=>p.hex===u.color))identity.color=u.color;
+  identity.token=u.token;saveIdentity();save('gamitask.token',u.token);fresh=!identity.name;// the token also rides along in `join`
+  twitch={login:u.twitchLogin??null,displayName:u.twitchDisplayName??null};renderAccount();
+  ($('#account-button') as HTMLElement).hidden=false;
+}
+($('#account-button') as HTMLButtonElement).onclick=()=>{renderAccount();($('#account-dialog') as HTMLDialogElement).showModal();};
+($('#twitch-link') as HTMLButtonElement).onclick=async()=>{
+  const token=load('gamitask.token',null);if(!token)return;
+  const url=await startTwitchLink(API_URL,token);
+  if(url)location.href=url;else toast('Impossible de lancer la connexion Twitch.');
+};
+($('#twitch-unlink') as HTMLButtonElement).onclick=async()=>{
+  const token=load('gamitask.token',null);if(!token)return;
+  if(await unlinkTwitch(API_URL,token)){twitch={login:null,displayName:null};renderAccount();toast('Compte Twitch délié.');}
+  else toast('La déconnexion Twitch a échoué.');
+};
+async function resolveAuth(){
+  const savedToken=load('gamitask.token',null)??identity.token;// sessions opened before the token moved to its own key
+  if(savedToken){const user=await verifyToken(API_URL,savedToken);if(user){applyAuthUser(user);return;}save('gamitask.token',null);identity.token=null;saveIdentity();}
+  if(load('gamitask.guest',false))return;// chose « invité » before: walk straight back in, like the identity dialog does for a returning guest
+  const screen=$('#login-screen') as HTMLElement;
+  screen.hidden=false;
+  await new Promise<void>(resolve=>{
+    ($('#login-guest') as HTMLButtonElement).onclick=()=>{save('gamitask.guest',true);screen.hidden=true;resolve();};
+    if(!GOOGLE_CLIENT_ID){($('#google-btn') as HTMLElement).hidden=true;return;}
+    renderGoogleButton(GOOGLE_CLIENT_ID,$('#google-btn'),async credential=>{
+      const user=await loginWithGoogle(API_URL,credential);
+      if(!user){toast('La connexion Google a échoué, réessaie ou continue en invité.');return;}
+      applyAuthUser(user);screen.hidden=true;resolve();
+    }).catch(()=>{($('#google-btn') as HTMLElement).hidden=true;});
+  });
+}
+const TWITCH_LINK_MESSAGES:Record<string,string>={linked:'Compte Twitch lié !',denied:'Connexion Twitch annulée.',expired:'Le lien a expiré, réessaie.',taken:'Ce compte Twitch est déjà lié à un autre profil.',error:'La connexion Twitch a échoué.'};
 async function start(){
-  await revalidate();
+  await resolveAuth();
+  const params=new URLSearchParams(location.search);
+  const twitchParam=params.get('twitch');
+  if(twitchParam){history.replaceState(null,'',location.pathname);if(TWITCH_LINK_MESSAGES[twitchParam])toast(TWITCH_LINK_MESSAGES[twitchParam]);}
+  const inviteRoomId=params.get('room');
+  if(inviteRoomId)history.replaceState(null,'',location.pathname);
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
-  if(room==='private')pendingHome=true;
+  if(room==='private'&&!inviteRoomId)pendingHome=true;// an invite link overrides « chez moi »'s own-room resolution — we're headed to someone else's room
   net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved
+  if(inviteRoomId)net.socket.once('room:info',()=>net.socket.emit('room:switch',{roomId:inviteRoomId}));// wait for the initial join to land before asking to move again
   net.onStatus(s=>{
     if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
     // le serveur retire le participant à la déconnexion : on ne garde ni « Quitter », ni l'état collectif, ni l'horloge de la salle
@@ -192,6 +249,13 @@ async function start(){
 let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
 function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
+function untilLabel(until: number|null): string{
+  if(until===null)return 'définitivement';
+  const mins=Math.max(1,Math.round((until-Date.now())/60000));
+  if(mins>=1440)return `pendant ${Math.round(mins/1440)} j`;
+  if(mins>=60)return `pendant ${Math.round(mins/60)} h`;
+  return `pendant ${mins} min`;
+}
 // Everything the HUD, the iris, the chat and the hint say about a room, in one place.
 const ROOM_UI: Record<RoomKind,{label: string; icon: string; toast: string; hint: string; chat: string}>={
   cafe:{label:'Le café Petit Jour',icon:'coffee',toast:'Retour au café.',hint:'Comptoir : passer commande',chat:'AU CAFÉ'},
@@ -216,6 +280,29 @@ const editor=createEditor($('#app') as HTMLElement,{
 });
 // Room chat: the panel sits bottom-left above the ambience controls, so it fades and goes inert with the rest of the HUD.
 const members=new Map<string,{name: string; color: number}>();
+// Owner moderation, « chez moi » only: throw someone out now, and optionally keep them out for a while.
+function renderGuests(){
+  const list=$('#guests-list') as HTMLElement;
+  const others=[...members].filter(([id])=>id!==net?.socket.id);
+  list.innerHTML=others.map(([id,m])=>`<li data-id="${id}"><span class="guest-name" style="--swatch:#${m.color.toString(16).padStart(6,'0')}">${m.name}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
+  ($('#guests-empty') as HTMLElement).hidden=others.length>0;
+}
+($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};
+// Compte / gérer ma pièce / déconnexion used to be three lone icons in the HUD — folded into one menu to keep the bar readable.
+for(const b of (($('#identity-menu') as HTMLElement).querySelectorAll('.menu button')))b.addEventListener('click',()=>{($('#identity-menu') as HTMLDetailsElement).open=false;});
+($('#invite-copy') as HTMLButtonElement).onclick=async()=>{
+  const url=`${location.origin}${location.pathname}?room=${net?.roomId()}`;
+  try{await navigator.clipboard.writeText(url);toast('Lien d’invitation copié !');}
+  catch{toast('Impossible de copier le lien.');}
+};
+$('#guests-list').addEventListener('click',(e: Event)=>{
+  const btn=(e.target as HTMLElement).closest('button[data-kick]') as HTMLButtonElement|null;if(!btn)return;
+  const li=btn.closest('li') as HTMLElement|null,id=li?.dataset.id;if(!id)return;
+  const raw=btn.dataset.kick;
+  net?.socket.emit('room:kick',{targetSocketId:id,durationMs:raw?Number(raw):null});
+  li?.remove();
+  if(!($('#guests-list') as HTMLElement).children.length)($('#guests-empty') as HTMLElement).hidden=false;
+});
 let sendTimes: number[]=[];
 function allowLocal(){const now=Date.now();sendTimes=sendTimes.filter(t=>now-t<5000);if(sendTimes.length>=5)return false;sendTimes.push(now);return true;}
 // Two short notes when someone calls your name, only if the ambience sound is on (the audio context is already unlocked then).
@@ -261,7 +348,7 @@ function closeEditor(){
 }
 // The account menu closes once a choice is made or on any click outside it.
 const menu=$('#identity-menu') as HTMLDetailsElement;const pick=(f:()=>void)=>()=>{menu.open=false;f();};
-$('#me-edit').onclick=pick(openEditor);$('#sign-in').onclick=pick(()=>askIdentity());document.addEventListener('click',e=>{if(menu.open&&!menu.contains(e.target as Node))menu.open=false;});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;($('#identity-chip') as HTMLElement).focus();}});
+$('#me-edit').onclick=pick(openEditor);document.addEventListener('click',e=>{if(menu.open&&!menu.contains(e.target as Node))menu.open=false;});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;($('#identity-chip') as HTMLElement).focus();}});
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
@@ -301,7 +388,7 @@ function switchServerRoom(next:RoomKind){
   else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
     homeTimer=setTimeout(()=>{if(!myPrivateRoom(rooms,identity.userId))abandonHome();},4000);}
 }
-function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);($('#guests-button') as HTMLElement).hidden=next!=='private';try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
 function abandonHome(){
   clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
   if(room==='private')enterRoom('cafe');
@@ -329,9 +416,51 @@ function onSceneState(state: SceneState){
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
 try{
-  mountRoom();$('.loading')?.remove();
+  mountRoom();$('.loading')?.remove();($('#guests-button') as HTMLElement).hidden=room!=='private';
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
 start();// the room is built behind the veil, then the server fills it
+
+// Prototype: spawn as many random-looking characters as a Twitch channel's live viewers, purely local (not synced to other clients).
+(window as any).spawnTwitchViewers=async(channel: string)=>{
+  const res=await fetch(`${API_URL}/twitch/viewers?channel=${encodeURIComponent(channel)}`);
+  if(!res.ok){console.error('[twitch] lookup failed',await res.text());return;}
+  const {live,viewerCount}=await res.json();
+  if(!live){console.log(`[twitch] ${channel} is offline`);return;}
+  const {w,d}=DIMS[room];
+  console.log(`[twitch] ${channel}: ${viewerCount} viewers, spawning…`);
+  for(let i=0;i<viewerCount;i++){
+    cafe.addRemote(`twitch-${channel}-${i}`,{
+      name:`viewer${i+1}`,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
+    });
+  }
+};
+// Prototype: spawn the real chatters of MY OWN linked Twitch channel — Twitch only lets a broadcaster read their own chat list.
+// Still random-looking (a chatter's real gamitask look only exists once they link their own account too), but tagged with their real name.
+(window as any).spawnMyChatters=async()=>{
+  const token=load('gamitask.token',null);
+  if(!token){console.log('[twitch] connecte-toi avec Google et lie ton compte Twitch d’abord.');return;}
+  const chatters=await getMyChatters(API_URL,token);
+  if(!chatters){console.error('[twitch] lookup failed — compte Twitch lié ?');return;}
+  const {w,d}=DIMS[room];
+  console.log(`[twitch] ${chatters.length} chatters, spawning…`);
+  for(const c of chatters){
+    cafe.addRemote(`twitch-chatter-${c.id}`,{
+      name:c.name||c.login,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
+    });
+  }
+};
+// Dev-only: spawn made-up names to check the name tag/look rendering without needing a live channel to test against.
+(window as any).spawnFakeChatters=(names:string[])=>{
+  const {w,d}=DIMS[room];
+  for(const name of names){
+    cafe.addRemote(`fake-chatter-${name}`,{
+      name,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
+      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
+    });
+  }
+};
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
 $('#light').onclick=()=>{if(!cafe)return;const evening=cafe.toggleLight();$('#light').innerHTML=icon(evening?'moon':'sun')+`<span>${evening?'Douce soirée':'Lumière du jour'}</span>`;$('.world').classList.toggle('evening',evening);drawIcons();};
 $('#help').onclick=()=>$('#help-dialog').showModal();
@@ -410,6 +539,14 @@ function bindServerEvents(){
   s.on('player-hat',({id,hat})=>cafe?.setRemoteHat(id,hat));
   s.on('player-look',({id,look})=>cafe?.setRemoteLook(id,loadLook(look,look.shirt,look.hat?[look.hat]:[])));
   s.on('player-left',({id})=>{members.delete(id);cafe?.removeRemote(id);});
+  s.on('room:kicked',({until})=>toast(`Tu as été exclu de cette pièce ${untilLabel(until)}.`));
+  s.on('room:banned',({until})=>toast(`Tu ne peux pas entrer dans cette pièce, exclu ${untilLabel(until)}.`));
+  // Twitch NPCs: a linked streamer's live chatters, shared with everyone in the room by the server — never in `members`, they're not real accounts to @-mention.
+  const npc=(n: {name: string;color: number;look: Look;col: number;row: number})=>({name:n.name,color:n.color,hat:null,look:loadLook(n.look,n.color,[]),col:n.col,row:n.row,state:'idle' as const});
+  s.on('npc:state',npcs=>{for(const n of npcs)cafe?.addRemote(n.id,npc(n));});
+  s.on('npc:joined',n=>cafe?.addRemote(n.id,npc(n)));
+  s.on('npc:moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
+  s.on('npc:left',({id})=>cafe?.removeRemote(id));
   s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(msg.name,msg.color,text);else cafe?.say(msg.id,msg.name,msg.color,text);});
   s.on('leaderboard-update',entries=>{board.update(entries);drawIcons();});
   s.on('tasks:public-update',({socketId,taskIds})=>cafe?.setTodo(socketId,taskIds.length));
@@ -430,11 +567,13 @@ function bindServerEvents(){
   s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
     if(furnitureSeen){try{mountRoom();syncScene();net.socket.emit('room:refresh');}catch(error){console.error(error);}}});
   s.on('catalog:error',({message})=>toast(message));
-  s.on('auth:invalid',forgetSession);
+  s.on('auth:invalid',logout);// a Google account without a valid token starts over as a guest
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const here=kindOfRoomId(roomId,rooms,identity.userId);
     if(here!==room)enterRoom(here);// an unchanged kind (an unknown public id already reads as the café) never remounts
+    // Room-manage panel is for the owner only — a private room can now also be a friend's, visited via an invite link.
+    ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
   s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});

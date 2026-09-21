@@ -34,6 +34,9 @@ import {
 import { sanitizeLook } from "./look.js";
 import { userIdFromToken, canEdit, type Role } from "./auth.js";
 import { sanitizeItem, type CatalogItem } from "./catalog.js";
+import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
+import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
+import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot, configureTwitchNpcs } from "./twitchNpcs.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -68,6 +71,12 @@ interface UserRow {
   isAdmin: number;
   role: Role;
   look: string | null;
+  twitchId: string | null;
+  twitchLogin: string | null;
+  twitchDisplayName: string | null;
+  twitchAccessToken: string | null;
+  twitchRefreshToken: string | null;
+  twitchTokenExpiresAt: number;
 }
 interface TaskRow {
   id: string;
@@ -180,8 +189,29 @@ try {
     `UPDATE users SET placedFurniture = ownedFurniture WHERE placedFurniture = '' AND ownedFurniture != ''`,
   );
 } catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchId TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchLogin TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchDisplayName TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchAccessToken TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchRefreshToken TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN twitchTokenExpiresAt INTEGER NOT NULL DEFAULT 0`);
+} catch {}
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`,
+);
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_twitchId ON users(twitchId) WHERE twitchId IS NOT NULL`,
 );
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`,
@@ -225,12 +255,23 @@ db.exec(`
   );
 `);
 
+// ── Table Bannissements de room privée ──────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS room_bans (
+    roomId    TEXT    NOT NULL,
+    userId    TEXT    NOT NULL,
+    expiresAt INTEGER,
+    bannedAt  INTEGER NOT NULL,
+    PRIMARY KEY (roomId, userId)
+  );
+`);
+
 const sql = {
   upsertUser: db.prepare(
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look FROM users WHERE id = ?",
+    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName FROM users WHERE id = ?",
   ),
   setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
@@ -297,6 +338,22 @@ const sql = {
   getItem: db.prepare("SELECT data FROM items WHERE id = ?"),
   upsertItem: db.prepare("INSERT INTO items (id, data, updatedAt) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt"),
   deleteItem: db.prepare("DELETE FROM items WHERE id = ?"),
+  getUserByTwitchId: db.prepare("SELECT * FROM users WHERE twitchId = ?"),
+  linkTwitch: db.prepare(
+    "UPDATE users SET twitchId = ?, twitchLogin = ?, twitchDisplayName = ?, twitchAccessToken = ?, twitchRefreshToken = ?, twitchTokenExpiresAt = ? WHERE id = ?",
+  ),
+  unlinkTwitch: db.prepare(
+    "UPDATE users SET twitchId = NULL, twitchLogin = NULL, twitchDisplayName = NULL, twitchAccessToken = NULL, twitchRefreshToken = NULL, twitchTokenExpiresAt = 0 WHERE id = ?",
+  ),
+  getTwitchTokens: db.prepare(
+    "SELECT twitchId, twitchAccessToken, twitchRefreshToken, twitchTokenExpiresAt FROM users WHERE id = ?",
+  ),
+  saveTwitchTokens: db.prepare(
+    "UPDATE users SET twitchAccessToken = ?, twitchRefreshToken = ?, twitchTokenExpiresAt = ? WHERE id = ?",
+  ),
+  clearTwitchTokens: db.prepare(
+    "UPDATE users SET twitchAccessToken = NULL, twitchRefreshToken = NULL, twitchTokenExpiresAt = 0 WHERE id = ?",
+  ),
   saveDailyReset: db.prepare(
     "UPDATE users SET lastDailyResetAt = ?, degradation = ? WHERE id = ?",
   ),
@@ -347,6 +404,13 @@ const sql = {
     "INSERT INTO private_rooms (id, name, ownerId, createdAt) VALUES (?, ?, ?, ?)",
   ),
   deletePrivateRoom: db.prepare("DELETE FROM private_rooms WHERE id = ?"),
+  banFromRoom: db.prepare(
+    "INSERT INTO room_bans (roomId, userId, expiresAt, bannedAt) VALUES (?, ?, ?, ?) ON CONFLICT(roomId, userId) DO UPDATE SET expiresAt = excluded.expiresAt, bannedAt = excluded.bannedAt",
+  ),
+  getRoomBan: db.prepare(
+    "SELECT expiresAt FROM room_bans WHERE roomId = ? AND userId = ?",
+  ),
+  unbanFromRoom: db.prepare("DELETE FROM room_bans WHERE roomId = ? AND userId = ?"),
 };
 
 interface PrivateRoomRow {
@@ -535,6 +599,8 @@ app.post("/auth/google", async (req, res): Promise<void> => {
       isAdmin: user.role === "admin",
       role: user.role,
       isGoogleUser: true,
+      twitchLogin: user.twitchLogin,
+      twitchDisplayName: user.twitchDisplayName,
     });
   } catch (err) {
     console.error("[auth/google]", err);
@@ -544,6 +610,22 @@ app.post("/auth/google", async (req, res): Promise<void> => {
 
 app.get("/api/rooms", (_req, res): void => {
   res.json({ rooms: buildRoomSummaries() });
+});
+
+// Prototype: how many people are watching a live Twitch channel right now, to test spawning that many characters.
+app.get("/twitch/viewers", async (req, res): Promise<void> => {
+  const channel = (req.query.channel as string | undefined)?.trim();
+  if (!channel) {
+    res.status(400).json({ error: "Missing channel" });
+    return;
+  }
+  try {
+    const viewerCount = await getViewerCount(channel);
+    res.json({ channel, live: viewerCount !== null, viewerCount: viewerCount ?? 0 });
+  } catch (err) {
+    console.error("[twitch/viewers]", err);
+    res.status(502).json({ error: "Twitch lookup failed" });
+  }
 });
 
 app.post("/auth/token", (req, res): void => {
@@ -567,9 +649,126 @@ app.post("/auth/token", (req, res): void => {
       isAdmin: user.role === "admin",
       role: user.role,
       isGoogleUser: !!user.googleId,
+      twitchLogin: user.twitchLogin,
+      twitchDisplayName: user.twitchDisplayName,
     });
   } catch {
     res.status(401).json({ error: "Token invalide ou expiré" });
+  }
+});
+
+// ── Twitch account linking ──────────────────────────────────────────────
+const TWITCH_REDIRECT_URI = process.env.TWITCH_REDIRECT_URI ?? "http://localhost:3001/auth/twitch/callback";
+const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
+
+function requireAuth(req: express.Request, res: express.Response): string | null {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ error: "Missing token" });
+    return null;
+  }
+  try {
+    return (jwt.verify(token, JWT_SECRET) as { userId: string }).userId;
+  } catch {
+    res.status(401).json({ error: "Token invalide ou expiré" });
+    return null;
+  }
+}
+
+app.get("/auth/twitch/start", (req, res): void => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  if (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET) {
+    res.status(500).json({ error: "Server misconfigured: TWITCH_CLIENT_ID/TWITCH_CLIENT_SECRET not set" });
+    return;
+  }
+  const state = jwt.sign({ userId, purpose: "twitch-link" }, JWT_SECRET, { expiresIn: "10m" });
+  res.json({ url: buildAuthorizeUrl(TWITCH_REDIRECT_URI, state) });
+});
+
+app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
+  const { code, state, error } = req.query as { code?: string; state?: string; error?: string };
+  if (error || !code || !state) {
+    res.redirect(`${APP_URL}/?twitch=denied`);
+    return;
+  }
+  let userId: string;
+  try {
+    const decoded = jwt.verify(state, JWT_SECRET) as { userId: string; purpose: string };
+    if (decoded.purpose !== "twitch-link") throw new Error("wrong purpose");
+    userId = decoded.userId;
+  } catch {
+    res.redirect(`${APP_URL}/?twitch=expired`);
+    return;
+  }
+  try {
+    const tokens = await exchangeCodeForToken(code, TWITCH_REDIRECT_URI);
+    const twitchUser = await getTwitchUser(tokens.accessToken);
+    const existing = sql.getUserByTwitchId.get(twitchUser.id) as UserRow | undefined;
+    if (existing && existing.id !== userId) {
+      res.redirect(`${APP_URL}/?twitch=taken`);
+      return;
+    }
+    sql.linkTwitch.run(
+      twitchUser.id, twitchUser.login, twitchUser.display_name,
+      tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId,
+    );
+    res.redirect(`${APP_URL}/?twitch=linked`);
+  } catch (err) {
+    console.error("[auth/twitch/callback]", err);
+    res.redirect(`${APP_URL}/?twitch=error`);
+  }
+});
+
+app.post("/auth/twitch/unlink", (req, res): void => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  sql.unlinkTwitch.run(userId);
+  disconnectTwitchChat(userId);
+  stopTwitchNpcs(io, userId);
+  res.json({ ok: true });
+});
+
+/** A valid (refreshing if needed) Twitch user access token for this gamiTask user, or null if not linked / revoked. */
+async function getValidTwitchAccessToken(userId: string): Promise<string | null> {
+  const row = sql.getTwitchTokens.get(userId) as
+    | { twitchId: string | null; twitchAccessToken: string | null; twitchRefreshToken: string | null; twitchTokenExpiresAt: number }
+    | undefined;
+  if (!row?.twitchId || !row.twitchRefreshToken) return null;
+  if (row.twitchAccessToken && Date.now() < row.twitchTokenExpiresAt - 60_000) return row.twitchAccessToken;
+  try {
+    const tokens = await refreshUserToken(row.twitchRefreshToken);
+    sql.saveTwitchTokens.run(tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId);
+    return tokens.accessToken;
+  } catch {
+    sql.clearTwitchTokens.run(userId);
+    return null;
+  }
+}
+
+// Real chatters: only ever the caller's own linked channel — Twitch itself refuses to let anyone
+// read another broadcaster's chat list without that broadcaster's own token.
+app.get("/twitch/chatters", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const row = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
+  if (!row?.twitchId) {
+    res.status(400).json({ error: "Compte Twitch non lié" });
+    return;
+  }
+  const accessToken = await getValidTwitchAccessToken(userId);
+  if (!accessToken) {
+    res.status(401).json({ error: "Reconnecte ton compte Twitch" });
+    return;
+  }
+  try {
+    // The broadcaster shows up in their own chatters list, but they already have a player avatar in the room — skip that duplicate.
+    const chatters = (await getChatters(row.twitchId, accessToken)).filter((c) => c.id !== row.twitchId);
+    res.json({ chatters });
+  } catch (err) {
+    console.error("[twitch/chatters]", err);
+    res.status(502).json({ error: "Twitch lookup failed" });
   }
 });
 
@@ -910,6 +1109,14 @@ function getPlayer(socketId: string): Player | undefined {
   return getRoom(socketId)?.players.get(socketId);
 }
 
+/** Whether a user is currently excluded from a private room (a kick, temporary or permanent). */
+function roomBanUntil(roomId: RoomId, userId: string): number | null | undefined {
+  const row = sql.getRoomBan.get(roomId, userId) as { expiresAt: number | null } | undefined;
+  if (!row) return undefined; // not banned
+  if (row.expiresAt !== null && row.expiresAt <= Date.now()) return undefined; // ban expired
+  return row.expiresAt; // null = permanent, otherwise the timestamp it lifts
+}
+
 function userLook(user: UserRow): Look {
   let raw: unknown = null;
   try {
@@ -1049,6 +1256,20 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: CORS_ORIGINS, methods: ["GET", "POST"] },
 });
 
+// A chatter who has linked Twitch to a gamiTask account shows up as themselves, not a random
+// look — and not at all as an NPC while they're actually online, since they're already a real player.
+configureTwitchNpcs(
+  (twitchId) => {
+    const user = sql.getUserByTwitchId.get(twitchId) as UserRow | undefined;
+    if (!user) return null;
+    return { userId: user.id, name: user.displayName ?? "", color: user.avatarColor ?? 0, look: userLook(user) };
+  },
+  (userId) => {
+    for (const uid of socketToUserId.values()) if (uid === userId) return true;
+    return false;
+  },
+);
+
 // Leaderboard par room : chaque room voit son propre classement
 function broadcastLeaderboard(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
@@ -1098,6 +1319,20 @@ function emitToOwnRoom<E extends keyof ServerToClientEvents>(
   (io.to(rid).emit as (e: E, ...a: Parameters<ServerToClientEvents[E]>) => boolean)(event, ...args);
 }
 
+/** Emit to whichever room a user's single active session currently sits in (a Twitch chat message arrives with no socket of its own). */
+function emitToUsersRoom<E extends keyof ServerToClientEvents>(
+  userId: string,
+  event: E,
+  ...args: Parameters<ServerToClientEvents[E]>
+): void {
+  for (const [sid, uid] of socketToUserId.entries()) {
+    if (uid === userId) {
+      emitToOwnRoom(io, sid, event, ...args);
+      return;
+    }
+  }
+}
+
 function buildRoomSummaries(): RoomSummary[] {
   const out: RoomSummary[] = [];
   for (const r of rooms.values()) {
@@ -1140,7 +1375,10 @@ io.on("connection", (socket) => {
     if (!tokenId && me.googleId) { socket.emit("auth:invalid"); return; }
 
     const requestedRoomId: RoomId = roomId ?? DEFAULT_ROOM_ID;
-    const existingRoom = rooms.get(requestedRoomId);
+    const requestedRoom = rooms.get(requestedRoomId);
+    const bannedUntil = requestedRoom?.isPrivate ? roomBanUntil(requestedRoomId, userId) : undefined;
+    if (bannedUntil !== undefined) socket.emit("room:banned", { until: bannedUntil });
+    const existingRoom = bannedUntil === undefined ? requestedRoom : undefined;
     const targetRoomId: RoomId = existingRoom ? requestedRoomId : DEFAULT_ROOM_ID;
     const targetRoom = existingRoom ?? rooms.get(DEFAULT_ROOM_ID)!;
 
@@ -1240,6 +1478,20 @@ io.on("connection", (socket) => {
     socketToRoom.set(socket.id, targetRoomId);
     socketToUserId.set(socket.id, userId);
     socket.join(targetRoomId);
+    {
+      const twitchRow = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
+      if (twitchRow?.twitchId) {
+        connectTwitchChat(userId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), (msg) => {
+          const color = msg.color ? parseInt(msg.color.slice(1), 16) : 0x9146ff; // Twitch purple when the chatter has none set
+          emitToUsersRoom(userId, "chat-message", {
+            id: `twitch-chatter-${msg.chatterId}`, // matches the id spawnMyChatters gives that NPC, so the message also floats above them if they're in the room
+            name: msg.chatterName || msg.chatterLogin,
+            color, text: sanitize(msg.text), ts: Date.now(),
+          });
+        });
+        startTwitchNpcs(io, userId, targetRoomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), targetRoom.isPrivate);
+      }
+    }
     sql.setAvatarInfo.run(name, color, userId);
 
     // Announce assigned room to the client first (so client can correct UI)
@@ -1253,6 +1505,7 @@ io.on("connection", (socket) => {
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
+    socket.emit("npc:state", roomNpcSnapshot(targetRoomId));
     socket.emit("pomo:state", pomoState(targetRoom));
     console.log(`[join] ${name} → room:${targetRoomId} @ (${spawnCol},${spawnRow})`);
 
@@ -1307,13 +1560,20 @@ io.on("connection", (socket) => {
     const currentRoom = getRoom(socket.id);
     if (!currentRoom) return;
     if (currentRoom.id === roomId) return;
+    const existing = currentRoom.players.get(socket.id);
+    if (!existing) return;
+    const userId = socketToUserId.get(socket.id);
+    if (targetRoom.isPrivate && userId) {
+      const bannedUntil = roomBanUntil(roomId, userId);
+      if (bannedUntil !== undefined) {
+        socket.emit("room:banned", { until: bannedUntil });
+        return;
+      }
+    }
     if (targetRoom.players.size >= targetRoom.capacity) {
       socket.emit("room:full", { roomId });
       return;
     }
-    const existing = currentRoom.players.get(socket.id);
-    if (!existing) return;
-    const userId = socketToUserId.get(socket.id);
 
     // Leave pomo participation if any
     if (currentRoom.pomoParticipants.delete(socket.id)) {
@@ -1359,6 +1619,10 @@ io.on("connection", (socket) => {
     targetRoom.players.set(socket.id, rePlayer);
     socketToRoom.set(socket.id, roomId);
     socket.join(roomId);
+    if (userId) {
+      const twitchRow = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
+      if (twitchRow?.twitchId) startTwitchNpcs(io, userId, roomId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), targetRoom.isPrivate);
+    }
 
     socket.emit("room:info", { roomId });
     socket.to(roomId).emit("player-joined", rePlayer);
@@ -1366,6 +1630,7 @@ io.on("connection", (socket) => {
       (p) => p.id !== socket.id,
     );
     socket.emit("room-state", otherPlayers);
+    socket.emit("npc:state", roomNpcSnapshot(roomId));
     socket.emit("pomo:state", pomoState(targetRoom));
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
@@ -1462,6 +1727,44 @@ io.on("connection", (socket) => {
     broadcastLeaderboard(io, fallback);
     broadcastRoomsList(io);
     console.log(`[room:delete-private] ${existing.id}`);
+  });
+
+  // Owner-only: throw someone out of this private room right now, and (optionally) keep them out for a while.
+  socket.on("room:kick", ({ targetSocketId, durationMs }) => {
+    if (!allow(socket.id, "room:kick", 10, 10000)) return;
+    if (targetSocketId === socket.id) return;
+    const room = getRoom(socket.id);
+    if (!room || !room.isPrivate) return;
+    const callerUserId = socketToUserId.get(socket.id);
+    if (!callerUserId || room.ownerId !== callerUserId) return;
+    const target = room.players.get(targetSocketId);
+    if (!target) return;
+    const targetUserId = socketToUserId.get(targetSocketId);
+    const until = durationMs == null ? null : Date.now() + Math.max(0, durationMs);
+    if (targetUserId) sql.banFromRoom.run(room.id, targetUserId, until, Date.now());
+
+    room.players.delete(targetSocketId);
+    io.to(room.id).emit("player-left", { id: targetSocketId });
+    broadcastLeaderboard(io, room);
+    broadcastRoomsList(io);
+
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (targetSocket) {
+      const fallback = rooms.get(DEFAULT_ROOM_ID)!;
+      const movedPlayer: Player = { ...target, col: 1, row: 10, state: "idle" };
+      fallback.players.set(targetSocketId, movedPlayer);
+      socketToRoom.set(targetSocketId, fallback.id);
+      targetSocket.leave(room.id);
+      targetSocket.join(fallback.id);
+      targetSocket.to(fallback.id).emit("player-joined", movedPlayer);
+      const others = Array.from(fallback.players.values()).filter((p) => p.id !== targetSocketId);
+      targetSocket.emit("room:info", { roomId: fallback.id });
+      targetSocket.emit("room-state", others);
+      targetSocket.emit("npc:state", roomNpcSnapshot(fallback.id));
+      targetSocket.emit("room:kicked", { until });
+      broadcastLeaderboard(io, fallback);
+    }
+    console.log(`[room:kick] ${target.name} ← ${room.id} by ${callerUserId.slice(0, 6)} (${until === null ? "permanent" : `until ${new Date(until).toISOString()}`})`);
   });
 
   socket.on("move", ({ col, row }) => {
@@ -2167,7 +2470,12 @@ io.on("connection", (socket) => {
       broadcastRoomsList(io);
     }
     socketToRoom.delete(socket.id);
+    const disconnectedUserId = socketToUserId.get(socket.id);
     socketToUserId.delete(socket.id);
+    if (disconnectedUserId) {
+      disconnectTwitchChat(disconnectedUserId);
+      stopTwitchNpcs(io, disconnectedUserId);
+    }
     console.log(`[-] disconnected: ${socket.id}`);
   });
 
