@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn,Smile} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -20,7 +20,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn};
+const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Smile,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,LogIn};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -39,18 +39,25 @@ $('#app').innerHTML=`
     <section class="world" aria-label="Ton café">
       <div class="scene" id="scene"><div class="loading">Le café ouvre ses portes…</div></div>
       <div class="hud-top">
-        <a class="brand" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span><small>LE CAFÉ PETIT JOUR</small></span></a>
-        <div class="room-switch" role="group" aria-label="Changer de salle"><button data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
-        <button id="progress-chip" class="progress-chip" aria-label="Ma progression" title="Ma progression">
-          <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
-          <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
-        </button>
-        <button id="identity-chip" class="identity-chip" aria-label="Changer de pseudo"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span><span id="role-badge" class="role-badge" hidden></span></button><button id="workshop-btn" class="identity-chip workshop-btn" hidden>${icon('hammer')}<span>Atelier</span></button><button id="sign-in" class="identity-chip" hidden>${icon('log-in')}<span>Connexion</span></button>
+        <div class="hud-zone hud-left">
+          <a class="brand chip" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
+          <div class="chip-group room-switch" role="group" aria-label="Changer de salle"><button class="chip" data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button class="chip" data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button class="chip" data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
+        </div>
+        <div class="hud-zone hud-center"><div class="chip-group progress-group">
+          <button id="progress-chip" class="chip progress" aria-label="Ma progression" title="Ma progression">
+            <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
+            <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
+          </button>
+        </div></div>
+        <div class="hud-zone hud-right">
+          <details class="identity-menu" id="identity-menu"><summary id="identity-chip" class="chip" aria-label="Mon compte"><span class="swatch-dot" id="identity-dot"></span><span id="identity-name"></span><span id="role-badge" class="role-badge" hidden></span><span class="chev">${icon('chevron-down')}</span></summary>
+            <div class="menu"><button id="me-edit">${icon('smile')}Mon personnage</button><button id="workshop-btn" hidden>${icon('hammer')}Atelier</button><button id="sign-in" hidden>${icon('log-in')}Continuer avec Google</button></div></details>
+          <div class="chip-group view-controls"><button id="follow" class="chip icon active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="chip icon" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="chip icon" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="chip icon" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
+        </div>
       </div>
-      <div class="view-controls"><button id="follow" class="icon-button active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="icon-button" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="icon-button" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
-      <div class="world-bottom"><div class="world-left"><div class="ambience-controls"><button id="light" class="ambience-button">${icon('sun')}<span>Lumière du jour</span></button><span class="divider"></span><button id="sound" class="ambience-button" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button></div></div><button id="help" class="help-button" aria-label="Comment se déplacer">${icon('help-circle')}</button></div>
+      <div class="world-bottom"><div class="world-left"><div class="chip-group ambience-controls"><button id="light" class="chip">${icon('sun')}<span>Lumière du jour</span></button><button id="sound" class="chip" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button><span class="divider"></span><button id="help" class="chip icon" aria-label="Comment se déplacer" title="Comment se déplacer">${icon('help-circle')}</button></div></div></div>
       <div class="timer-dock">
-        <div class="timer-tabs-top" role="tablist" aria-label="Minuteur"><button role="tab" id="tab-solo" aria-selected="true" aria-controls="pane-solo">Solo</button><button role="tab" id="tab-room" aria-selected="false" aria-controls="pane-room">Avec la salle<span class="tab-dot" id="room-dot" hidden></span><span class="tab-count" id="room-count" hidden>0</span></button></div>
+        <div class="timer-tabs-top" role="tablist" aria-label="Minuteur"><button class="chip" role="tab" id="tab-solo" aria-selected="true" aria-controls="pane-solo">Solo</button><button class="chip" role="tab" id="tab-room" aria-selected="false" aria-controls="pane-room">Avec la salle<span class="tab-dot" id="room-dot" hidden></span><span class="tab-count" id="room-count" hidden>0</span></button></div>
         <section class="timer-hud timer-card" aria-label="Pomodoro">
           <div id="pane-solo" role="tabpanel" aria-labelledby="tab-solo">
             <div class="timer-tabs" role="group" aria-label="Type de session"><button data-mode="focus" aria-pressed="true">Focus</button><button data-mode="short" aria-pressed="false">Pause</button><button data-mode="long" aria-pressed="false">Longue</button></div>
@@ -70,7 +77,7 @@ $('#app').innerHTML=`
           </div>
         </section>
       </div>
-      <button id="open-tasks" class="open-tasks" aria-label="Mes tâches" aria-expanded="false">${icon('list-checks')}<span id="tasks-count" class="tasks-count"></span></button>
+      <button id="open-tasks" class="chip active open-tasks" aria-label="Mes tâches" aria-expanded="false">${icon('list-checks')}<span id="tasks-count" class="tasks-count"></span></button>
       <div class="movement-hint">${icon('mouse-pointer-2')} Cliquer pour marcher ou s’asseoir <span>·</span> ${icon('move')} Glisser pour explorer <span>·</span> ${icon('coffee')} <span id="move-hint-room">Comptoir : passer commande</span></div>
       <div id="toast" class="toast" role="status"></div>
       <div id="hint" class="hint" role="tooltip" hidden></div>
@@ -242,7 +249,7 @@ function hudInert(on: boolean){document.querySelectorAll(HUD_BEHIND_SHEET).forEa
 // Object workshop: moderators build catalogue items; the server validates, stores and broadcasts them.
 let catalog:import('@shared/catalog').CatalogItem[]=[];
 const workshop=createWorkshop($('#app') as HTMLElement,{items:()=>catalog,save(item){net?.socket.emit('catalog:save',{item});},remove(id){net?.socket.emit('catalog:delete',{id});},onExit(){workshop.close();($('#workshop-btn') as HTMLElement).focus();}});
-$('#workshop-btn').onclick=()=>{if(role!=='user')workshop.open();};
+$('#workshop-btn').onclick=()=>{($('#identity-menu') as HTMLDetailsElement).open=false;if(role!=='user')workshop.open();};
 function openEditor(){
   if(editing||!cafe||switching||placingId)return;editing=true;
   openDrawer(false);board.close();($('.world') as HTMLElement).classList.add('editing');hudInert(true);
@@ -252,7 +259,9 @@ function closeEditor(){
   if(!editing)return;editing=false;($('.world') as HTMLElement).classList.remove('editing');hudInert(false);
   previewLook=null;editor.close();cafe?.exitEditor();($('#identity-chip') as HTMLElement).focus();// never leave focus inside the hidden sheet
 }
-$('#identity-chip').onclick=openEditor;$('#sign-in').onclick=()=>askIdentity();($('#identity-chip') as HTMLElement).setAttribute('aria-label','Mon personnage');
+// The account menu closes once a choice is made or on any click outside it.
+const menu=$('#identity-menu') as HTMLDetailsElement;const pick=(f:()=>void)=>()=>{menu.open=false;f();};
+$('#me-edit').onclick=pick(openEditor);$('#sign-in').onclick=pick(()=>askIdentity());document.addEventListener('click',e=>{if(menu.open&&!menu.contains(e.target as Node))menu.open=false;});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;($('#identity-chip') as HTMLElement).focus();}});
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';

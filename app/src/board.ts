@@ -28,7 +28,7 @@ const STATES: Record<string,{icon: string; title: string}>={focus:{icon:'flame',
 
 export function createBoard(host: HTMLElement,deps: BoardDeps): Board{
   const anchor=document.createElement('div');anchor.className='board-anchor';
-  anchor.innerHTML=`<button id="board-chip" class="board-chip" aria-haspopup="dialog" aria-expanded="false" aria-label="Classement de la pièce"><i data-lucide="trophy" aria-hidden="true"></i><span id="board-rank">—</span></button>
+  anchor.innerHTML=`<button id="board-chip" class="chip board-chip" aria-haspopup="dialog" aria-expanded="false" aria-label="Classement de la pièce"><i data-lucide="trophy" aria-hidden="true"></i><span id="board-rank">—</span></button>
   <div id="board-card" class="board-card" role="dialog" aria-label="Classement de la pièce" hidden>
     <div class="board-head"><span class="eyebrow">DANS LA PIÈCE</span><button type="button" class="icon-button board-close" aria-label="Fermer"><i data-lucide="x" aria-hidden="true"></i></button></div>
     <ol id="board-list" class="board-list"></ol>
