@@ -42,6 +42,10 @@ cd server && npm test && npx tsc --noEmit
 
 L'éditeur v2 règle le visage au détail (yeux, sourcils, nez, bouche, avec curseurs de hauteur, d'écartement et de taille), propose des sets de coiffure, des tenues (motif, manches, bas, chaussures), trois gabarits de corps et un bouton « Au hasard ». L'éditeur s'ouvre depuis le chip « Mon personnage » de la barre du haut ou en cliquant sur le miroir dans « Chez moi ». Le look choisi est envoyé au serveur à la validation (`look:update`), qui le range en base et le diffuse aux autres joueurs (`player-look`) : ils voient le nouveau visage, la coiffure et la tenue immédiatement, et le retrouvent à leur prochaine arrivée dans la salle. Le serveur le renvoie à la connexion (`cosmetics:state`), donc `localStorage` (clé `gamitask.look`) n'est qu'un cache pour afficher le bon personnage avant la réponse. Le chapeau porté reste piloté par la boutique (`cosmetic:equip`).
 
+## Landing
+
+`/` est la page d'accueil (`app/index.html`, `src/landing.ts`, `src/landing.css`) : un héros jouable (la pièce privée de l'app hors ligne, pomodoro et notes en `localStorage` sous `gamitask.landing.*`, transférés dans le café à l'entrée via `gamitask.landing.handoff`), des fonctionnalités illustrées par des vignettes rendues à la volée depuis les vraies pièces (`src/vignettes.ts`), les étapes, un bloc streamers, les tarifs (Gratuit / Pro « bientôt »), des témoignages d'exemple à remplacer, une FAQ et un pied de page. Le formulaire Pro écrit dans la table `waitlist` via `POST /api/waitlist` (validation `server/src/waitlist.ts`, cinq envois par minute et par IP) ; aucun e-mail n'est envoyé.
+
 ## Comptes et rôles
 
 Sans connexion, tu es un invité : un identifiant local (`gamitask.identity` dans `localStorage`) envoyé tel quel au serveur. « Continuer avec Google » (dans « On se présente ? » ou le chip « Connexion ») échange le jeton Google contre un jeton de session ; `join` le transmet et le serveur en déduit qui tu es. Un compte Google ne peut plus être rejoint sans jeton valide (`auth:invalid` → retour en invité), donc l'identifiant seul ne suffit pas à l'usurper.

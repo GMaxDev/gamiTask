@@ -2,7 +2,7 @@
 // The hero is a real room from the app running offline: a pomodoro, notes that become tickets, a character to walk.
 import './style.css';
 import './landing.css';
-import {createIcons,Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame} from 'lucide';
+import {createIcons,Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github} from 'lucide';
 import type {Vignette} from './vignettes.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,type TimerMode} from './timer.ts';
 import {loadLook} from './look.ts';
@@ -12,7 +12,7 @@ import type {Task} from '@shared/types';
 import type {SceneState} from './scene.ts';
 
 const icon=(name:string):string=>`<i data-lucide="${name}" aria-hidden="true"></i>`;
-const drawIcons=()=>createIcons({icons:{Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame},attrs:{'stroke-width':1.65}});
+const drawIcons=()=>createIcons({icons:{Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github},attrs:{'stroke-width':1.65}});
 const FEATURES:{v:Vignette;ic:string;title:string;text:string}[]=[
   {v:'timer',ic:'timer',title:'Un pomodoro, seul ou avec la salle',text:'Vingt-cinq minutes de concentration, une vraie pause, et toute la salle peut suivre le même tempo. L’horloge au mur avance avec toi.'},
   {v:'tasks',ic:'list-checks',title:'Des tâches qui deviennent des tickets',text:'Chaque chose à faire est un petit ticket posé sur ta table. Tu la coches, il disparaît. Les tâches du jour reviennent chaque matin.'},
@@ -79,7 +79,46 @@ root.innerHTML=`
         <figure class="lp-figure lp-band-figure" data-vignette="twitch"></figure>
       </div>
     </section>
-  </main>`;
+    <section class="lp-section" id="pricing">
+      <p class="eyebrow">TARIFS</p><h2>Gratuit pour travailler, <em>Pro pour recevoir</em>.</h2>
+      <div class="lp-plans">
+        <article class="lp-plan reveal"><h3>Gratuit</h3><p class="lp-price"><strong>0 €</strong><span>pour toujours</span></p>
+          <ul>${['Le café et le jardin publics','Pomodoro seul ou avec la salle','Tâches en tickets, tâches du jour','Personnage, boutique et pièces gagnées','Une pièce privée à toi'].map(t=>`<li>${icon('check')}${t}</li>`).join('')}</ul>
+          <a class="secondary" href="/app/" data-enter>Entrer au café</a></article>
+        <article class="lp-plan lp-plan-pro reveal"><span class="pill">BIENTÔT</span><h3>Pro</h3><p class="lp-price"><strong>4,99 €</strong><span>par mois</span></p>
+          <ul>${['Tout le gratuit','Invités illimités dans ta pièce, liens et modération','Twitch : tes viewers dans ta salle, chat en direct','Chapeaux et mobilier exclusifs, sets à bonus','L’atelier d’objets pour ta communauté'].map(t=>`<li>${icon('sparkles')}${t}</li>`).join('')}</ul>
+          <form id="lp-waitlist" class="lp-waitlist"><input type="email" name="email" placeholder="ton@email.fr" required autocomplete="email"/><button class="primary" type="submit">${icon('mail')}<span>Me prévenir</span></button></form>
+          <p class="lp-plan-note" id="lp-waitlist-note">Pas de paiement pour l’instant : on te prévient à l’ouverture.</p></article>
+      </div>
+    </section>
+    <section class="lp-section" id="voices">
+      <p class="eyebrow">ILS S’Y SONT INSTALLÉS</p><h2>Des sessions <em>qu’on a envie de refaire</em>.</h2>
+      <div class="lp-quotes">
+        <!-- Exemples à remplacer par de vrais retours. -->
+        <blockquote class="lp-quote reveal"><p>« Je lance une session, mon personnage s’assoit, et bizarrement je m’y mets aussi. »</p><footer><span class="swatch-dot" style="--swatch:#c9764f"></span>Camille · exemple</footer></blockquote>
+        <blockquote class="lp-quote reveal"><p>« Mes viewers arrivent dans ma pièce pendant le stream : on travaille ensemble sans que je quitte l’écran. »</p><footer><span class="swatch-dot" style="--swatch:#819478"></span>Noé · exemple</footer></blockquote>
+        <blockquote class="lp-quote reveal"><p>« Les tickets sur la table, c’est ma to-do préférée depuis des années. »</p><footer><span class="swatch-dot" style="--swatch:#8aa6b8"></span>Inès · exemple</footer></blockquote>
+      </div>
+    </section>
+    <section class="lp-section lp-faq" id="faq">
+      <p class="eyebrow">QUESTIONS</p><h2>Ce qu’on nous <em>demande souvent</em>.</h2>
+      <div class="lp-faq-list">
+        ${[['C’est vraiment gratuit ?','Oui. Le café, le pomodoro, les tâches, le personnage et une pièce privée sont gratuits, sans limite de temps. Le Pro ajoutera ce qui sert à recevoir : invités illimités, Twitch, cosmétiques exclusifs.'],
+            ['Ai-je besoin d’un compte ?','Non pour commencer : un pseudo et une couleur suffisent, tout reste dans ton navigateur. Un compte Google permet de retrouver ton personnage et tes pièces sur n’importe quel appareil.'],
+            ['Que deviennent mes données ?','Tes tâches, pièces et réglages sont stockés sur nos serveurs en Europe, liés à ton compte. Pas de revente, pas de publicité. Tu peux tout supprimer depuis ton compte.'],
+            ['Ça marche sur mobile ?','Le café s’ouvre dans un navigateur mobile récent, mais il est pensé pour un écran d’ordinateur, à côté de ton travail. Une version mobile dédiée viendra avec le Pro.'],
+            ['Je stream : comment mes viewers entrent ?','Depuis « Mon compte », lie ta chaîne Twitch. Les personnes qui écrivent dans ton chat apparaissent alors comme des personnages dans ta pièce, avec leur message au-dessus de la tête.']]
+          .map(([q,a])=>`<details class="lp-faq-item reveal"><summary>${q}</summary><p>${a}</p></details>`).join('')}
+      </div>
+    </section>
+  </main>
+  <footer class="lp-foot">
+    <div class="lp-foot-in">
+      <a class="brand" href="/"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
+      <nav aria-label="Pied de page"><a href="/app/" data-enter>Entrer au café</a><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a><a href="https://github.com/GMaxDev/gamiTask" rel="noopener">${icon('github')}GitHub</a></nav>
+      <p>Fait avec ☕ à Paris. © ${new Date().getFullYear()} gamitask.</p>
+    </div>
+  </footer>`;
 drawIcons();
 
 // ── Pomodoro: the app's own timer model, kept in this page's storage. ──
@@ -133,6 +172,13 @@ renderNotes();
 
 // ── Entering the café takes what was started here along: notes and timer durations. ──
 root.addEventListener('click',e=>{if((e.target as HTMLElement).closest('[data-enter]'))save('gamitask.landing.handoff',{notes:pendingNotes().map(n=>n.text),durations:timer.durations});});
+
+// ── Waiting list: one e-mail to the server, one line of feedback. ──
+const API_URL=(import.meta.env.VITE_API_URL as string|undefined)??'http://localhost:3001';
+$('#lp-waitlist').onsubmit=async(e:Event)=>{e.preventDefault();const form=e.target as HTMLFormElement,note=$('#lp-waitlist-note') as HTMLElement,email=(form.elements.namedItem('email') as HTMLInputElement).value;
+  try{const r=await fetch(`${API_URL}/api/waitlist`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    note.textContent=r.ok?'C’est noté. On t’écrit à l’ouverture du Pro.':r.status===429?'Doucement, réessaie dans une minute.':'Cette adresse ne passe pas, vérifie-la.';if(r.ok)form.reset();}
+  catch{note.textContent='Le serveur ne répond pas, réessaie plus tard.';}};
 
 // ── The room: the app's private room, built once the page has painted. Three.js is loaded on demand. ──
 function onSceneState(state:SceneState){
