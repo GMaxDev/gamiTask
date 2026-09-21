@@ -17,11 +17,18 @@ Variables utiles :
 | server | `PORT` | `3001` | Port HTTP / socket |
 | server | `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Origines autorisées (séparées par des virgules). **En production, doit lister l'origine publique du front** (ex. `https://gamitask.gmaxdev.com`), sinon la connexion socket est refusée. |
 | server | `ALLOW_GUEST_PRIVATE_ROOMS` | `true` | Rooms privées pour les invités (à passer à `false` avec l'auth) |
+| server | `GOOGLE_CLIENT_ID` | — | Client OAuth Google ; sans lui, `/auth/google` refuse et l'app reste en mode invité. |
+| server | `ADMIN_EMAIL` | — | Le compte Google qui porte cette adresse obtient `role = 'admin'` à la connexion. |
+| server | `JWT_SECRET` | `gamitask_dev_secret` | Signe les jetons de session (30 jours). À changer en production. |
+| app | `VITE_GOOGLE_CLIENT_ID` | — | Le même client id, pour le bouton « Continuer avec Google ». Fichier `app/.env.local` en local. |
+
+Les fichiers `.env` et `.env.local` sont ignorés par git.
 
 ## Tests
 
 ```bash
 cd app && npm test && npm run typecheck
+cd server && npm test && npx tsc --noEmit
 ```
 
 ## Pièces
@@ -33,3 +40,21 @@ cd app && npm test && npm run typecheck
 ## Personnage
 
 L'éditeur v2 règle le visage au détail (yeux, sourcils, nez, bouche, avec curseurs de hauteur, d'écartement et de taille), propose des sets de coiffure, des tenues (motif, manches, bas, chaussures), trois gabarits de corps et un bouton « Au hasard ». L'éditeur s'ouvre depuis le chip « Mon personnage » de la barre du haut ou en cliquant sur le miroir dans « Chez moi ». Le look choisi est envoyé au serveur à la validation (`look:update`), qui le range en base et le diffuse aux autres joueurs (`player-look`) : ils voient le nouveau visage, la coiffure et la tenue immédiatement, et le retrouvent à leur prochaine arrivée dans la salle. Le serveur le renvoie à la connexion (`cosmetics:state`), donc `localStorage` (clé `gamitask.look`) n'est qu'un cache pour afficher le bon personnage avant la réponse. Le chapeau porté reste piloté par la boutique (`cosmetic:equip`).
+
+## Comptes et rôles
+
+Sans connexion, tu es un invité : un identifiant local (`gamitask.identity` dans `localStorage`) envoyé tel quel au serveur. « Continuer avec Google » (dans « On se présente ? » ou le chip « Connexion ») échange le jeton Google contre un jeton de session ; `join` le transmet et le serveur en déduit qui tu es. Un compte Google ne peut plus être rejoint sans jeton valide (`auth:invalid` → retour en invité), donc l'identifiant seul ne suffit pas à l'usurper.
+
+Chaque utilisateur a un `role` : `user`, `moderator` ou `admin`. `ADMIN_EMAIL` promeut son compte en admin ; les modérateurs se nomment en SQL (`UPDATE users SET role = 'moderator' WHERE email = …`). Le serveur renvoie le rôle après le join (`me:state`) ; un badge l'affiche à côté du pseudo. Les vérifications de droits sont toujours faites côté serveur (`canEdit` dans `server/src/auth.ts`).
+
+## Atelier d'objets
+
+Les modérateurs et admins voient un chip « Atelier » dans la barre du haut. Il ouvre un éditeur plein écran pour créer des objets de boutique sans toucher au code, en assemblant des blocs simples (cube, cylindre, sphère — le même vocabulaire que `primitives.ts`).
+
+- **Vue 3D** : mêmes lumières et tone mapping que le café, grille au sol à l'échelle d'une case. Glisser pour tourner, molette pour zoomer, clic sur un bloc ou une ancre pour le sélectionner. Un chapeau s'aperçoit directement sur le vrai avatar.
+- **Blocs** : ajouter, dupliquer, retirer ; l'inspecteur règle dimensions, position, rotation (curseur + nombre) et couleur.
+- **Métadonnées** : nom, emoji, prix, type (mobilier ou chapeau), empreinte en cases (mobilier).
+- **Fonctions** : *Asseyable*, *Surface*, *Portable*, *Porté sur la tête*. Cocher une fonction crée une ancre placée dans la vue 3D (anneau + flèche d'orientation, dalle pour une surface) ; on peut en avoir plusieurs (deux assises sur un banc). Une ancre `seat` sur un meuble posé devient un vrai siège. `surface`, `portable` et `wearable` sont stockés pour le futur inventaire.
+- **Enregistrer / Dupliquer / Supprimer** (suppression en deux clics). L'id est un slug du nom, unique et jamais celui d'un objet codé en dur.
+
+Côté données : la table `items` garde la recette JSON, validée par `server/src/catalog.ts` (bornes, couleurs hex, 64 blocs max). Le serveur envoie `catalog:state` après le join et le rediffuse à tous après chaque `catalog:save` / `catalog:delete` — les objets apparaissent en boutique et se reconstruisent dans les pièces sans redéploiement. Côté client, `shop.ts` fusionne ces objets dans `HATS`/`FURNITURE` et `recipe.ts` (`buildRecipe`) en fait un `THREE.Group` avec les matériaux de la scène ; `buildPiece` et `buildHat` y retombent pour tout id inconnu. Les objets codés en dur (`decor.ts`) restent tels quels.
