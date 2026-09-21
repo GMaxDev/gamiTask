@@ -682,6 +682,7 @@ app.post("/auth/token", (req, res): void => {
 // ── Twitch account linking ──────────────────────────────────────────────
 const TWITCH_REDIRECT_URI = process.env.TWITCH_REDIRECT_URI ?? "http://localhost:3001/auth/twitch/callback";
 const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
+if (!process.env.APP_URL) console.warn("[twitch] APP_URL is not set: OAuth returns will point at", APP_URL);
 
 function requireAuth(req: express.Request, res: express.Response): string | null {
   const header = req.headers.authorization;

@@ -54,6 +54,14 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // A seat: world position, cushion height, the direction it faces and the mesh that catches the click.
   function taskSpot(x: number,y: number,z: number){if(previewing)return;const o=rootOrigin();taskSpots.push(new THREE.Vector3(x+o.x,y,z+o.z));}
   function seat(x: number,z: number,y: number,rot: number,object: any){if(previewing)return;object.userData.keep=true;const o=rootOrigin();seats.push({x:x+o.x,z:z+o.z,y,rot,object});}
+  // Movers never write the shadow maps — those would have to be redrawn every frame they walk, the single biggest cost on
+  // integrated GPUs. Each gets a soft disc that follows it instead; the maps only refresh when the room itself changes.
+  function ground(rig: any){
+    rig.g.traverse((o: any)=>{if(o.isMesh)o.castShadow=false;});
+    if(!rig.g.userData.blob&&rig.g.parent){const b=new THREE.Mesh(new THREE.CircleGeometry(.3,24),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity:.14,depthWrite:false}));
+      b.rotation.x=-Math.PI/2;b.scale.set(1,.85,1);b.castShadow=b.receiveShadow=false;b.userData.keep=true;b.position.set(rig.g.position.x,.018,rig.g.position.z);rig.g.parent.add(b);rig.g.userData.blob=b;}
+    return rig;
+  }
   function shadow(x: number,z: number,sx: number,sz: number,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
   const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots};
   const D_=createDecor(dctx);
@@ -277,9 +285,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   bake(scene);
   scene.traverse((o: any)=>{if(o.isLight)o.layers.enable(AVATAR_LAYER);});// else the sharp avatar pass draws it unlit
 
-  const player: Rig=buildAvatar(P,0,room==='private'?2:2.5,look),avatar=player.g;
+  const player: Rig=ground(buildAvatar(P,0,room==='private'?2:2.5,look)),avatar=player.g;
   // applyLook rebuilds the skull, hair and hat, and the new meshes start on layer 0 only
-  function reskin(l: Look){applyLook(P,player,l);restage();if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
+  function reskin(l: Look){applyLook(P,player,l);if(mode!=='edit')ground(player);restage();if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
   function setLook(l: Look){reskin(l);}
   // A name tag as a camera-facing sprite. Cheap to build, one texture per avatar.
   // Fixed screen size regardless of zoom (like the chat bubbles below) — never lets a name shrink below NAME_TAG_PX on a far-out camera.
@@ -337,6 +345,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // One host per public room: a barista behind the café counter, a gardener at the plant bar.
   const npc=room==='cafe'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'})
     :room==='garden'?buildAvatar(P,7.2,-9.3,{...lookFor(0xf4e4c9,null),skin:'caramel',hairColor:'ginger',trousers:'olive',headphones:false,bangs:'curly',back:'bob'},{apron:'#5f7f52'}):null;
+  if(npc)ground(npc);
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
   // Nearest tables to where the player starts get the first notes, so a new task is visible right away.
   taskSpots.sort((a,b)=>a.distanceTo(avatar.position)-b.distanceTo(avatar.position));
@@ -414,7 +423,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       },
       cancel(){w.route=[];if(w.pendingSeat)w.pendingSeat.taken=null;w.pendingSeat=null;},
       step(dt: number){
-        const pos=p.g.position,walking=w.route.length>0;
+        const pos=p.g.position,walking=w.route.length>0;p.g.userData.blob?.position.set(pos.x,.018,pos.z);
         if(walking){const n=w.route[0],dx=n.x-pos.x,dz=n.z-pos.z,d=Math.hypot(dx,dz),s=speed*dt;
           if(d<=s){pos.x=n.x;pos.z=n.z;w.route.shift();if(!w.route.length){if(w.pendingSeat){w.seated=w.pendingSeat;w.pendingSeat=null;w.standPoint={x:n.x,z:n.z};}hooks.onArrive?.(w.seated);}}
           else{pos.x+=dx/d*s;pos.z+=dz/d*s;}
@@ -463,7 +472,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const remotes=new Map<string, Remote>();
   function addRemote(id: string,info: RemoteInfo){
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
-    const p=buildAvatar(P,at.x,at.z,info.look??lookFor(info.color,info.hat)),w=walker(p,2.4);
+    const p=ground(buildAvatar(P,at.x,at.z,info.look??lookFor(info.color,info.hat))),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
     // Local decorative NPCs (a Twitch crowd) wander on their own; real players are driven by moveRemote instead — never both.
     const r: Remote={p,w,tag,bubble:null,todo:null,wander:!!info.wander,wait:1+Math.random()*3};remotes.set(id,r);restage();
@@ -488,11 +497,11 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(r.bubble){dropSprite(r.bubble);r.bubble=null;}
     if(state==='focus'||state==='pause'||state==='collective'){r.bubble=stateBubble(state==='pause'?'pause':'focus');r.p.g.add(r.bubble);}
   }
-  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,{...r.p.look,hat});restage();}
-  function setRemoteLook(id: string,look: Look){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,look);restage();}
+  function setRemoteHat(id: string,hat: string|null){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,{...r.p.look,hat});ground(r.p);}
+  function setRemoteLook(id: string,look: Look){const r=remotes.get(id);if(!r)return;applyLook(P,r.p,look);ground(r.p);}
   function removeRemote(id: string){
     const r=remotes.get(id);if(!r)return;
-    r.w.standUp();r.w.cancel();r.p.g.removeFromParent();
+    r.w.standUp();r.w.cancel();r.p.g.removeFromParent();r.p.g.userData.blob?.removeFromParent();
     r.p.g.traverse((o: any)=>{o.geometry?.dispose?.();});
     dropSprite(r.tag);if(r.bubble)dropSprite(r.bubble);if(r.todo)dropSprite(r.todo);dropBubbles(id);dropFloats(id);
     remotes.delete(id);restage();
@@ -627,6 +636,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function enterEditor(){
     if(mode==='edit')return;if(mode==='place')stopPlacing();mode='edit';
     savedView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};me.cancel();me.standUp();hoverTicket(null);dragging=false;
+    avatar.traverse((o: any)=>{if(o.isMesh)o.castShadow=true;});
     editYaw=cameraYaw;
     editAnim={t:0,z0:camera.zoom,z1:editZoom(),p0:camTarget.clone(),p1:editTarget()};
     dropBubbles('');dropFloats('');// a live chat, emote or float sprite would inherit the avatar layer and float in the sharp pass
@@ -637,7 +647,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function exitEditor(){
     if(mode!=='edit'||!savedView)return;
     avatar.traverse((o: any)=>o.layers.disable(AVATAR_LAYER));for(const o of hideWhileEditing())o.visible=true;
-    if(studio){scene.remove(studio);studio.dispose();studio=null;}restage();
+    if(studio){scene.remove(studio);studio.dispose();studio=null;}ground(player);restage();
     editAnim={t:0,z0:camera.zoom,z1:savedView.zoom,p0:camTarget.clone(),p1:savedView.target.clone()};
     zoom=savedView.zoom;follow=savedView.follow;pan.copy(savedView.pan);savedView=null;mode='walk';dragging=false;
     onState?.({editing:false,zoom,follow});
@@ -733,13 +743,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     dusk?.(evening);restage();
     return evening;
   }
-  // A walker only counts as stirring while it is on a route or still sliding onto a cushion; idle breathing moves it by less than a shadow texel.
-  const stirring=(w: any)=>w.route.length>0||(w.seated&&w.sitBlend<1)||w.working;// working: the host swings its arms at the counter
   function simulate(dt: number){
     me.step(dt);npcThink(dt);bar?.step(dt);remoteThink(dt);
-    let moving=stirring(me)||!!(bar&&stirring(bar));
-    for(const r of remotes.values()){r.w.step(dt);moving||=stirring(r.w);}
-    if(moving)stir=2;
+    for(const r of remotes.values())r.w.step(dt);
   }
   function setRatio(value: number){pixelRatio=value;renderer.setPixelRatio(value);resize();restage();}
   // Adaptive resolution: a smoothed frame time steps the ratio down when the GPU is drowning and back up when it is bored. The editor keeps its sharp avatar pass, so it never adapts.
@@ -804,6 +810,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     raf=requestAnimationFrame(animate);
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
+  if(import.meta.env.DEV)(window as any).__cafe={scene,renderer,camera};// dev only: lets a console profile the live scene
   return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
