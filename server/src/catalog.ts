@@ -1,7 +1,8 @@
 // Items built in the in-app editor: a recipe of primitives the client turns into meshes. Pure validation, no DB.
 
 export type PartKind = "box" | "cyl" | "ball" | "torus" | "shell";
-interface PartBase { kind: PartKind; x: number; y: number; z: number; rx: number; ry: number; rz: number; color: string }
+// op "cut": the part is carved out of the solid parts listed before it, and draws nothing itself.
+interface PartBase { kind: PartKind; x: number; y: number; z: number; rx: number; ry: number; rz: number; color: string; op?: "cut" }
 export type Part =
   | (PartBase & { kind: "box"; w: number; h: number; d: number; r: number })
   | (PartBase & { kind: "cyl"; rt: number; rb: number; h: number; n: number })
@@ -26,7 +27,7 @@ function sanitizePart(raw: unknown): Part | null {
   if (typeof p.color !== "string" || !COLOR.test(p.color)) return null;
   const base = { x: num(p.x, -8, 8, 0), y: num(p.y, -8, 8, 0), z: num(p.z, -8, 8, 0), rx: num(p.rx, -7, 7, 0), ry: num(p.ry, -7, 7, 0), rz: num(p.rz, -7, 7, 0) };
   if (Object.values(base).some((v) => v === null)) return null;
-  const b = base as { x: number; y: number; z: number; rx: number; ry: number; rz: number }, color = p.color;
+  const b = { ...(base as { x: number; y: number; z: number; rx: number; ry: number; rz: number }), ...(p.op === "cut" ? { op: "cut" as const } : {}) }, color = p.color;
   const dims = (spec: Record<string, [number, number, number | undefined]>): Record<string, number> | null => {
     const out: Record<string, number> = {};
     for (const [k, [lo, hi, dflt]] of Object.entries(spec)) { const v = num(p[k], lo, hi, dflt ?? NaN); if (v === null || Number.isNaN(v)) return null; out[k] = v; }

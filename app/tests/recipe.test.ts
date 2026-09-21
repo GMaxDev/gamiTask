@@ -39,3 +39,15 @@ test('a torus is one ring, a hollow box five walls open at the front, and a toru
   assert.ok(shell.children.every((w:any)=>w.position.z<=.001),'nothing closes the front');
   assert.deepEqual(captureRecipe(g)[0],{kind:'torus',x:0,y:.5,z:0,rx:1.57,ry:0,rz:0,rad:.3,tube:.05,n:24,arc:3.14,color:'#d2a754'});
 });
+test('a cutting part carves the solid parts before it and leaves no mesh of its own in the game',()=>{
+  const g=buildRecipe(P,[
+    {kind:'box',x:0,y:.5,z:0,rx:0,ry:0,rz:0,w:1,h:1,d:1,r:0,color:'#c9764f'},
+    {kind:'cyl',x:0,y:.5,z:0,rx:0,ry:0,rz:0,rt:.2,rb:.2,h:3,n:16,color:'#ffffff',op:'cut'},
+  ],root);
+  assert.equal(g.children.length,2);assert.equal(g.children[1].children.length,0);assert.ok(!(g.children[1] as any).isMesh);
+  g.updateWorldMatrix(true,true);const ray=new THREE.Raycaster();
+  ray.set(new THREE.Vector3(0,5,0).add(root.position),new THREE.Vector3(0,-1,0));assert.equal(ray.intersectObject(g.children[0]).length,0,'the hole goes through');
+  ray.set(new THREE.Vector3(.4,5,.4).add(root.position),new THREE.Vector3(0,-1,0));assert.ok(ray.intersectObject(g.children[0]).length>0,'the rest of the box is still there');
+  const ghosts=buildRecipe(P,[{kind:'box',x:0,y:.5,z:0,rx:0,ry:0,rz:0,w:1,h:1,d:1,r:0,color:'#c9764f',op:'cut'}],root,true);
+  assert.ok((ghosts.children[0] as any).isMesh&&(ghosts.children[0] as any).material.transparent,'the workshop shows cutters as ghosts');
+});

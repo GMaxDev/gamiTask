@@ -46,3 +46,7 @@ test("a torus and a hollow box are parts too", () => {
   assert.deepEqual(it.parts[1], { kind: "shell", x: 0, y: 0.5, z: 0, rx: 0, ry: 0, rz: 0, w: 0.8, h: 1, d: 0.4, t: 0.04, r: 0.02, color: "#d9aa72" });
   assert.equal(sanitizeItem({ ...ok, parts: [{ kind: "shell", x: 0, y: 0, z: 0, w: 0.8, h: 1, d: 0.4, t: 0.5, color: "#fff" }] }), null);// walls thicker than the box
 });
+test("a part may cut instead of fill", () => {
+  const it = sanitizeItem({ ...ok, parts: [part, { ...part, op: "cut" }, { ...part, op: "weird" }] })!;
+  assert.equal(it.parts[0].op, undefined); assert.equal(it.parts[1].op, "cut"); assert.equal(it.parts[2].op, undefined);
+});

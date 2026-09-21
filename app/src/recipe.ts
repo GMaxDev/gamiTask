@@ -1,17 +1,33 @@
 // Turns an editor recipe (a list of primitives) into one group, through the same toolkit the hand-written decor uses,
 // and reads a built group back into a recipe, so the coded pieces can be opened in the workshop.
 import * as THREE from 'three';
+import {Brush,Evaluator,SUBTRACTION} from 'three-bvh-csg';
 import type {Primitives} from './primitives.ts';
 import type {Part} from '@shared/catalog';
 
-export function buildRecipe(p:Primitives,parts:Part[],parent:any):any{
-  const g=new THREE.Group();parent.add(g);
+// One child per part, in order, so the workshop can map a clicked mesh back to its part. A cutting part is carved out
+// of every solid part before it; in the game it leaves an empty group, in the workshop a translucent ghost to grab.
+export function buildRecipe(p:Primitives,parts:Part[],parent:any,ghosts=false):any{
+  const g=new THREE.Group();parent.add(g);const solids:any[]=[];
   for(const q of parts){
     const m=q.kind==='box'?p.box(q.w,q.h,q.d,q.color,q.x,q.y,q.z,q.r,g):q.kind==='cyl'?p.cyl(q.rt,q.rb,q.h,q.color,q.x,q.y,q.z,g,q.n):q.kind==='ball'?p.ball(q.r,q.color,q.x,q.y,q.z,g,q.sx,q.sy,q.sz)
       :q.kind==='torus'?p.mesh(new THREE.TorusGeometry(q.rad,q.tube,8,q.n,q.arc),q.color,q.x,q.y,q.z,g):shell(p,q,g);
     m.rotation.set(q.rx,q.ry,q.rz);
+    const meshes:any[]=[];m.traverse((o:any)=>{if(o.isMesh)meshes.push(o);});
+    if(q.op!=='cut'){solids.push(...meshes);continue;}
+    g.updateWorldMatrix(true,true);for(const s of solids)for(const c of meshes)carve(s,c);
+    if(ghosts){for(const c of meshes){c.material=GHOST;c.castShadow=c.receiveShadow=false;c.renderOrder=1;}}
+    else{g.remove(m);m.traverse((o:any)=>o.geometry?.dispose?.());g.add(new THREE.Group());}
   }
   return g;
+}
+const GHOST=new THREE.MeshStandardMaterial({color:'#c94f4f',transparent:true,opacity:.35,depthWrite:false});
+let evaluator:Evaluator|null=null;
+function carve(target:any,cutter:any){
+  evaluator??=Object.assign(new Evaluator(),{useGroups:false});
+  const a=new Brush(target.geometry),b=new Brush(cutter.geometry);
+  target.matrixWorld.decompose(a.position,a.quaternion,a.scale);cutter.matrixWorld.decompose(b.position,b.quaternion,b.scale);a.updateMatrixWorld(true);b.updateMatrixWorld(true);
+  const out=evaluator.evaluate(a,b,SUBTRACTION);target.geometry.dispose();target.geometry=out.geometry;// the result sits in the target's own frame
 }
 // Back, two sides, bottom and top: the front stays open so shelves and things can sit inside.
 function shell(p:Primitives,q:Extract<Part,{kind:'shell'}>,parent:any){
