@@ -33,15 +33,14 @@ root.innerHTML=`
     <nav class="lp-nav" aria-label="Sections"><a href="#features">Fonctionnalités</a><a href="#streamers">Streamers</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a></nav>
     <a class="chip active" href="/app/" data-enter>Entrer au café ${icon('arrow-right')}</a>
   </header>
-  <main class="lp">
-    <section class="lp-hero">
-      <p class="eyebrow">UN CAFÉ 3D POUR TES SESSIONS DE TRAVAIL</p>
-      <h1>Le café des <em>petites victoires</em>.</h1>
-      <p class="lp-lead">Un pomodoro, des tâches qui deviennent des tickets sur ta table, et un personnage qui s’installe avec toi. Gratuit, sans compte pour commencer.</p>
-      <div class="lp-cta"><a class="primary" href="/app/" data-enter>${icon('coffee')}<span>Entrer au café, c’est gratuit</span></a><a class="chip" href="#demo">Essayer ici, tout de suite</a></div>
-    </section>
-    <section class="lp-demo world" id="demo" aria-label="Essai du café">
-      <div class="scene" id="scene"><div class="loading">Le café ouvre ses portes…</div></div>
+  <section class="lp-stage" id="demo" aria-label="Essai du café">
+    <div class="lp-side lp-side-left">
+      <div class="lp-hero">
+        <p class="eyebrow">UN CAFÉ 3D POUR TES SESSIONS DE TRAVAIL</p>
+        <h1>Le café des <em>petites victoires</em>.</h1>
+        <p class="lp-lead">Un pomodoro, des tâches qui deviennent des tickets sur ta table, et un personnage qui s’installe avec toi. Gratuit, sans compte pour commencer.</p>
+        <div class="lp-cta"><a class="primary" href="/app/" data-enter>${icon('coffee')}<span>Entrer au café, c’est gratuit</span></a></div>
+      </div>
       <div class="lp-card lp-timer" aria-label="Pomodoro">
         <div class="lp-card-head">${icon('timer')}<span>Pomodoro</span></div>
         <div class="chip-group lp-modes" role="group" aria-label="Type de session"><button class="chip" data-mode="focus">Focus</button><button class="chip" data-mode="short">Pause</button><button class="chip" data-mode="long">Longue</button></div>
@@ -49,16 +48,24 @@ root.innerHTML=`
         <div class="lp-timer-actions"><button id="lp-start" class="primary">${icon('play')}<span>C’est parti</span></button><button id="lp-reset" class="chip icon" aria-label="Réinitialiser">${icon('rotate-ccw')}</button></div>
         <p class="lp-timer-note" id="lp-sessions">Aucune session aujourd’hui, encore.</p>
       </div>
+    </div>
+    <div class="lp-demo world">
+      <div class="scene" id="scene"><div class="loading">Le café ouvre ses portes…</div></div>
+      <p class="lp-demo-hint">Clique au sol pour marcher, sur un siège pour t’asseoir · glisse pour tourner</p>
+      <div id="hint" class="hint" role="tooltip" hidden></div>
+      <div id="toast" class="toast" role="status"></div>
+    </div>
+    <div class="lp-side lp-side-right">
       <div class="lp-card lp-notes" aria-label="Notes">
         <div class="lp-card-head">${icon('sticky-note')}<span>Notes</span><span class="pill" id="lp-notes-count">0</span></div>
         <form id="lp-note-form" class="lp-note-form"><input id="lp-note" maxlength="80" placeholder="Une chose à faire…" autocomplete="off"/><button class="chip icon" type="submit" aria-label="Ajouter">${icon('plus')}</button></form>
         <ul id="lp-note-list" class="lp-note-list"></ul>
         <p class="lp-empty" id="lp-notes-empty">Chaque note devient un ticket posé sur ta table.</p>
       </div>
-      <p class="lp-demo-hint">Clique au sol pour marcher, sur un siège pour t’asseoir · glisse pour tourner</p>
-      <div id="hint" class="hint" role="tooltip" hidden></div>
-      <div id="toast" class="toast" role="status"></div>
-    </section>
+      <p class="lp-side-note">Tout ce que tu fais ici reste dans ton navigateur. En entrant au café, tes notes te suivent.</p>
+    </div>
+  </section>
+  <main class="lp">
     <section class="lp-section" id="features">
       <p class="eyebrow">CE QU’ON Y TROUVE</p><h2>Tout ce qu’il faut pour avancer, <em>et rien qui presse</em>.</h2>
       <div class="lp-grid">${FEATURES.map(f=>`<article class="lp-feature reveal"><figure class="lp-figure" data-vignette="${f.v}"></figure><h3>${icon(f.ic)}${f.title}</h3><p>${f.text}</p></article>`).join('')}</div>
@@ -192,6 +199,8 @@ async function mountRoom(){
   const look=loadLook(load('gamitask.look',null),PALETTE[0].hex,[]);
   cafe=createCafe($('#scene'),onSceneState,{room:'private',furniture:{plant:{c:1,r:6},lamp:{c:9,r:1},couch:{c:9,r:7},coffee:{c:1,r:1}},look});
   $('.loading')?.remove();cafe.setTasks(pendingNotes());
+  // The stage's centre column is narrower than the app's viewport: step back so the whole room fits.
+  const w=($('.lp-demo') as HTMLElement).clientWidth;if(w<1500)cafe.zoomOut();if(w<1000)cafe.zoomOut();
 }
 if('requestIdleCallback' in window)(window as any).requestIdleCallback(mountRoom,{timeout:800});else setTimeout(mountRoom,50);
 
