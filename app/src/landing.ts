@@ -206,6 +206,10 @@ if('requestIdleCallback' in window)(window as any).requestIdleCallback(mountRoom
 
 // ── Sections: reveal on scroll; feature pictures are drawn from the real pieces the first time they come into view. ──
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Three layouts of the stage to choose from (A three columns, B immersive, C workstation): ?v= or the switch below. Temporary.
+const stage=$('.lp-stage') as HTMLElement,variant=new URLSearchParams(location.search).get('v')??load('gamitask.landing.variant','a');
+stage.dataset.variant=variant;const sw=document.createElement('div');sw.className='lp-variants';sw.innerHTML=['a','b','c'].map(v=>`<button data-v="${v}" aria-pressed="${v===variant}">${v.toUpperCase()}</button>`).join('');document.body.appendChild(sw);
+sw.onclick=e=>{const b=(e.target as HTMLElement).closest('button');if(!b)return;save('gamitask.landing.variant',b.dataset.v);location.href='/?v='+b.dataset.v;};
 const revealer=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){e.target.classList.add('in');revealer.unobserve(e.target);}},{rootMargin:'0px 0px -10% 0px'});
 for(const el of root.querySelectorAll('.reveal')){if(reduced)el.classList.add('in');else revealer.observe(el);}
 let vignettes:Promise<{draw(kind:Vignette):string}>|null=null;
