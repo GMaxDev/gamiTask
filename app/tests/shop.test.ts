@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,GRID} from '../src/shop.ts';
+import {createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,GRID,setCatalog,FURNITURE,HATS,item,footprint} from '../src/shop.ts';
 
 test('cosmetics state sets owned hats and the worn one only if owned',()=>{
  const s=createShop();setCosmetics(s,{owned:['hat-party','ghost'],equippedHat:'hat-crown'});
@@ -28,4 +28,11 @@ test('local placement validation mirrors the room grid',()=>{
 test('a set is complete when every piece is owned',()=>{
  const s=createShop();setFurniture(s,{owned:['plant','cactus','lamp'],placed:[],positions:{}});
  assert.deepEqual(completeSets(s).map(x=>x.id),['jardin']);
+});
+test('custom items join the catalogue and leave when the server drops them',()=>{
+ const stool={id:'stool',kind:'furniture' as const,name:'Tabouret',emoji:'🪑',price:50,w:2,d:1,parts:[],anchors:[]},cone={...stool,id:'hat-cone',kind:'hat' as const,w:1};
+ setCatalog([stool,cone]);
+ assert.ok(FURNITURE.some(f=>f.id==='stool'));assert.ok(HATS.some(h=>h.id==='hat-cone'));assert.equal(item('stool')?.name,'Tabouret');assert.deepEqual(footprint('stool'),{w:2,d:1});
+ const s=createShop();setFurniture(s,{owned:['stool'],placed:['stool'],positions:{stool:{col:1,row:1}}});assert.deepEqual(s.placed.stool,{c:1,r:1});
+ setCatalog([]);assert.ok(!FURNITURE.some(f=>f.id==='stool'));assert.ok(!HATS.some(h=>h.id==='hat-cone'));assert.equal(item('stool'),null);assert.deepEqual(footprint('stool'),{w:1,d:1});
 });

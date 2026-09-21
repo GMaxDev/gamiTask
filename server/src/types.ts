@@ -359,6 +359,8 @@ export interface ClientToServerEvents {
     level: number;
   }) => void;
   "admin:announce": (payload: { message: string }) => void;
+  "catalog:save": (payload: { item: unknown }) => void;
+  "catalog:delete": (payload: { id: string }) => void;
   "profile:request": (payload: { socketId: string | null }) => void;
   "chat:typing": () => void;
   "chat:react": (payload: { msgTs: number; emoji: string }) => void;
@@ -380,6 +382,8 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   "me:state": (payload: { userId: string; role: "user" | "moderator" | "admin" }) => void;
   "auth:invalid": () => void;
+  "catalog:state": (payload: { items: import("./catalog.ts").CatalogItem[] }) => void;
+  "catalog:error": (payload: { message: string }) => void;
   "room-state": (players: Player[]) => void;
   "player-joined": (player: Player) => void;
   "player-moved": (payload: { id: string; col: number; row: number }) => void;

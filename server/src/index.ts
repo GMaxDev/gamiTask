@@ -32,7 +32,8 @@ import {
   type Look,
 } from "./types.js";
 import { sanitizeLook } from "./look.js";
-import { userIdFromToken, type Role } from "./auth.js";
+import { userIdFromToken, canEdit, type Role } from "./auth.js";
+import { sanitizeItem, type CatalogItem } from "./catalog.js";
 
 // Grid bound shared by every room. The 3D café is 24x20; 32 leaves room for bigger layouts.
 const MAX_GRID = 32;
@@ -205,6 +206,15 @@ db.exec(`
   );
 `);
 
+// ── Table Items (editor-made catalogue) ─────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS items (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL
+  )
+`);
+
 // ── Table Private Rooms ─────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS private_rooms (
@@ -283,6 +293,10 @@ const sql = {
     "UPDATE users SET email = ?, displayName = COALESCE(NULLIF(displayName, ''), ?) WHERE id = ?",
   ),
   setAdminFlag: db.prepare("UPDATE users SET isAdmin = 1, role = 'admin' WHERE id = ?"),
+  listItems: db.prepare("SELECT data FROM items ORDER BY updatedAt"),
+  getItem: db.prepare("SELECT data FROM items WHERE id = ?"),
+  upsertItem: db.prepare("INSERT INTO items (id, data, updatedAt) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt"),
+  deleteItem: db.prepare("DELETE FROM items WHERE id = ?"),
   saveDailyReset: db.prepare(
     "UPDATE users SET lastDailyResetAt = ?, degradation = ? WHERE id = ?",
   ),
@@ -429,6 +443,12 @@ function handleBossDefeat(
   }
 }
 
+// Editor-made items live in `items`; the built-in lists stay the code's. One lookup serves the shop, the room and the hats.
+const catalogItems = (): CatalogItem[] => (sql.listItems.all() as { data: string }[]).map((r) => JSON.parse(r.data) as CatalogItem);
+const catalogItem = (id: string): CatalogItem | null => { const r = sql.getItem.get(id) as { data: string } | undefined; return r ? (JSON.parse(r.data) as CatalogItem) : null; };
+const hatItem = (id: string) => SHOP_ITEMS.find((i) => i.id === id) ?? (catalogItem(id)?.kind === "hat" ? catalogItem(id) : null);
+const furnitureItem = (id: string) => FURNITURE_ITEMS.find((i) => i.id === id) ?? (catalogItem(id)?.kind === "furniture" ? catalogItem(id) : null);
+
 /** Construit le payload positions pour furniture:state (defaults FURNITURE_ITEMS + overrides DB) */
 function getFurniturePosPayload(
   furniturePosJson: string,
@@ -441,6 +461,7 @@ function getFurniturePosPayload(
   for (const item of FURNITURE_ITEMS) {
     out[item.id] = saved[item.id] ?? { col: item.col, row: item.row };
   }
+  for (const id of Object.keys(saved)) out[id] ??= saved[id];// editor-made pieces have no default spot
   return out;
 }
 
@@ -1224,6 +1245,7 @@ io.on("connection", (socket) => {
     // Announce assigned room to the client first (so client can correct UI)
     socket.emit("room:info", { roomId: targetRoomId });
     socket.emit("me:state", { userId, role: me.role });
+    socket.emit("catalog:state", { items: catalogItems() });// before any owned/placed list, so custom ids are known
     // Broadcast to existing occupants
     socket.to(targetRoomId).emit("player-joined", player);
     // Send existing players to the newcomer
@@ -1731,7 +1753,7 @@ io.on("connection", (socket) => {
   });
   // ── Acheter un meuble (Feng Shui) ────────────────────────────────────────────────────
   socket.on("furniture:buy", ({ userId, itemId }) => {
-    const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
+    const item = furnitureItem(itemId);
     if (!item) return;
     sql.upsertUser.run(userId);
     const user = sql.getUser.get(userId) as UserRow;
@@ -1781,7 +1803,7 @@ io.on("connection", (socket) => {
     if (!allow(socket.id, "furniture:move", 20, 5000)) return;
     const r = getRoom(socket.id);
     if (!r?.isPrivate || r.ownerId !== userId) return; // Placement uniquement dans sa propre room privée
-    const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
+    const item = furnitureItem(itemId);
     if (!item) return;
     if (col < 0 || col >= MAX_GRID || row < 0 || row >= MAX_GRID) return;
     sql.upsertUser.run(userId);
@@ -1857,7 +1879,7 @@ io.on("connection", (socket) => {
     if (!allow(socket.id, "furniture:place", 20, 5000)) return;
     const r = getRoom(socket.id);
     if (!r?.isPrivate || r.ownerId !== userId) return;
-    const item = FURNITURE_ITEMS.find((i) => i.id === itemId);
+    const item = furnitureItem(itemId);
     if (!item) return;
     if (col < 0 || col >= MAX_GRID || row < 0 || row >= MAX_GRID) return;
     sql.upsertUser.run(userId);
@@ -1907,7 +1929,7 @@ io.on("connection", (socket) => {
   });
   // ── Acheter un item dans le shop ─────────────────────────────────────────────
   socket.on("shop:buy", ({ userId, itemId }) => {
-    const item = SHOP_ITEMS.find((i) => i.id === itemId);
+    const item = hatItem(itemId);
     if (!item) return;
     sql.upsertUser.run(userId);
     const user = sql.getUser.get(userId) as UserRow;
@@ -2202,6 +2224,25 @@ io.on("connection", (socket) => {
         break;
       }
     }
+  });
+
+  // ── Catalogue editor ─────────────────────────────────────────────────────
+  function canEditCatalog(): boolean {
+    const uid = socketToUserId.get(socket.id);
+    const u = uid ? (sql.getUser.get(uid) as UserRow | undefined) : undefined;
+    return !!u && canEdit(u.role);
+  }
+  socket.on("catalog:save", ({ item }) => {
+    if (!canEditCatalog()) return;
+    const clean = sanitizeItem(item);
+    if (!clean) { socket.emit("catalog:error", { message: "Objet invalide." }); return; }
+    sql.upsertItem.run(clean.id, JSON.stringify(clean), Date.now());
+    io.emit("catalog:state", { items: catalogItems() });
+  });
+  socket.on("catalog:delete", ({ id }) => {
+    if (!canEditCatalog()) return;
+    sql.deleteItem.run(id);
+    io.emit("catalog:state", { items: catalogItems() });
   });
 
   socket.on("admin:announce", ({ message }) => {

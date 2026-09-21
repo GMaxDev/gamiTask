@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { createNavigator } from './navigation.ts';
-import { GRID, footprint, cellsOf } from './shop.ts';
+import { GRID, footprint, cellsOf, custom } from './shop.ts';
+import { buildRecipe } from './recipe.ts';
 import type { Cell } from './shop.ts';
 import { C, createPrimitives } from './primitives.ts';
 import { createDecor } from './decor.ts';
@@ -61,6 +62,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const cellCentre=(id: string,{c,r}: Cell): [number,number]=>{const f=footprint(id);return [-HW+c+f.w/2,-HD+r+f.d/2];};
   const furnitureObstacles: Record<string, number[]>={};// obstacle indices per placed piece, so a piece being moved does not block itself
   function buildPiece(id: string,x: number,z: number,rot=0){
+    const c=custom(id);if(c){const g=buildRecipe(P,c.parts,root);g.position.set(x,0,z);g.rotation.y=rot;obstacle(x,z,c.w*.95,c.d*.95);shadow(x,z,c.w*.5,c.d*.45);return;}
     (({plant:()=>{plant(x,z,1.3);obstacle(x,z,.75,.75);shadow(x,z,.5,.45);},cactus:()=>cactus(x,z),lamp:()=>lamp(x,z),bookshelf:()=>bookcase(x,z,0),coffee:()=>coffeeCorner(x,z),couch:()=>armchair(x,z,rot)}) as Record<string, ()=>void>)[id]?.();
   }
   function placeFurniture(id: string,cell: Cell){

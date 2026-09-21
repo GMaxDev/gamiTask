@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import {C,type Primitives} from './primitives.ts';
 import {type Look,defaultLook,skinHex,hairHex,trousersHex,shoesHex} from './look.ts';
+import {custom} from './shop.ts';
+import {buildRecipe} from './recipe.ts';
 export interface Rig{g:any;body:any;head:any;legL:any;legR:any;armL:any;armR:any;phase:number;look:Look;parts:{skull:any;hair:any;hat:any;hands:any[];torso:any;arms:any[];legParts:any[];skirt:any;collar:any}}
 export interface AvatarOpts{apron?:string|null}
 export const hexOf=(n:number)=>'#'+n.toString(16).padStart(6,'0');
@@ -76,6 +78,7 @@ function buildHair(p:Primitives,head:any,look:Look){
 // The halo's emissive material takes options, so `p.mat` mints a fresh one on every rebuild: cache it here, like the shared map does for plain colours, so `drop()` still frees geometries only.
 let haloMat:any;
 export function buildHat(p:Primitives,id:string,parent:any):any{
+  const c=custom(id);if(c)return buildRecipe(p,c.parts,parent);// editor-made hats are authored in head space
   const g=new THREE.Group();parent.add(g);
   switch(id){
     case 'hat-party':{const cone=p.cyl(0,.17,.4,C.terra,0,.7,0,g,12);for(let i=0;i<3;i++)p.cyl(0,.17-(i+.5)*.045,.02,C.cream,0,.6+i*.1,0,g,12);p.ball(.045,C.gold,0,.9,0,g);break;}

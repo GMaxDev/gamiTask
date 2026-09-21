@@ -14,7 +14,7 @@ import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
-import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
+import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import './style.css';
@@ -341,9 +341,9 @@ function renderShop(){
   $('#shop-coins').textContent=String(progress.coins);$('#shop-where').textContent=home?'— chez toi':'— à installer chez toi';
   $('#shop-hats').innerHTML=HATS.map(h=>{const owned=shop.hats.includes(h.id),worn=shop.hat===h.id;
     return `<li class="${owned?'owned':''}"><span class="shop-emoji">${h.emoji}</span><span class="shop-name">${h.name}<small>${owned?(worn?'Porté':'À toi'):`${h.price} pièces`}</small></span><span class="shop-actions">${owned?`<button data-hat="${h.id}">${worn?'Retirer':'Porter'}</button>`:`<button data-buy="${h.id}" ${progress.coins<h.price?'disabled':''}>Acheter</button>`}</span></li>`;}).join('');
-  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.furniture.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set)!;
+  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.furniture.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set);
     const action=!owned?`<button data-buy-furniture="${f.id}" ${progress.coins<f.price?'disabled':''}>Acheter</button>`:!home?'<small>chez toi</small>':placed?`<button data-move="${f.id}">Déplacer</button><button data-unplace="${f.id}" class="quiet">Ranger</button>`:`<button data-place="${f.id}">Placer</button>`;
-    return `<li class="${owned?'owned':''}"><span class="shop-emoji">${f.emoji}</span><span class="shop-name">${f.name}<small>${owned?(placed?'Installé':'Rangé'):`${f.price} pièces`} · set ${set.emoji}</small></span><span class="shop-actions">${action}</span></li>`;}).join('');
+    return `<li class="${owned?'owned':''}"><span class="shop-emoji">${f.emoji}</span><span class="shop-name">${f.name}<small>${owned?(placed?'Installé':'Rangé'):`${f.price} pièces`}${set?` · set ${set.emoji}`:''}</small></span><span class="shop-actions">${action}</span></li>`;}).join('');
   $('#shop-sets').innerHTML=SETS.map(s=>{const have=s.items.filter(id=>shop.furniture.includes(id)).length,full=done.includes(s);
     return `<li class="${full?'owned':''}"><span class="shop-emoji">${s.emoji}</span><span class="shop-name">${s.name}<small>${s.desc} · ${have}/${s.items.length}</small></span></li>`;}).join('');
 }
@@ -413,6 +413,8 @@ function bindServerEvents(){
     if(roomPomo.joined&&was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
     renderRoomPomo();});
   s.on('me:state',u=>{role=u.role;renderIdentity();});
+  s.on('catalog:state',({items})=>{setCatalog(items);renderShop();if(room==='private'&&furnitureSeen){try{mountRoom();syncScene();}catch(error){console.error(error);}}});// a changed recipe rebuilds the room it stands in
+  s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',forgetSession);
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice

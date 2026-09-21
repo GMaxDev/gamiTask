@@ -1,5 +1,6 @@
 // Pure shop model: catalogue, purchases, the hat you wear and the furniture placed in your own room.
-export interface CatalogueItem { id: string; name: string; price: number; emoji: string; set?: string }
+import type {CatalogItem} from '@shared/catalog';
+export interface CatalogueItem { id: string; name: string; price: number; emoji: string; set?: string; custom?: CatalogItem }
 export interface SetDef { id: string; name: string; emoji: string; items: string[]; desc: string; xpPomo?: number; coinsPomo?: number; coinsTask?: number }
 export const HATS: CatalogueItem[]=[
   {id:'hat-party',name:'Chapeau de fête',price:100,emoji:'🎉'},
@@ -21,13 +22,19 @@ export const SETS: SetDef[]=[
   {id:'salon',name:'Salon cosy',emoji:'🫖',items:['coffee','couch'],desc:'+10 pièces par pomodoro',coinsPomo:10},
   {id:'jardin',name:'Jardin zen',emoji:'🌿',items:['plant','cactus'],desc:'+4 pièces par tâche',coinsTask:4},
 ];
+// Editor-made items are spliced into the built-in lists, so every consumer sees one catalogue.
+const BUILT_IN={hats:HATS.length,furniture:FURNITURE.length};
+export function setCatalog(items: CatalogItem[]): void{
+  HATS.length=BUILT_IN.hats;FURNITURE.length=BUILT_IN.furniture;
+  for(const c of items)(c.kind==='hat'?HATS:FURNITURE).push({id:c.id,name:c.name,price:c.price,emoji:c.emoji,custom:c});
+}
+export const custom=(id: string): CatalogItem|null=>item(id)?.custom??null;
 export const GRID={cols:12,rows:10};// your room, one cell per floor tile
-export const footprint=(id: string)=>({w:1,d:id==='bookshelf'?2:1});
+export const footprint=(id: string)=>{const c=custom(id);return c?{w:c.w,d:c.d}:{w:1,d:id==='bookshelf'?2:1};};
 export interface Placed{c:number;r:number}
 export type Cell=Placed;
 export const cellsOf=(id: string,{c,r}: Placed): string[]=>{const f=footprint(id),cells: string[]=[];for(let i=0;i<f.w;i++)for(let j=0;j<f.d;j++)cells.push(`${c+i},${r+j}`);return cells;};
-const CATALOGUE=[...HATS,...FURNITURE];
-export const item=(id: unknown): CatalogueItem|null=>CATALOGUE.find(i=>i.id===id)??null;
+export const item=(id: unknown): CatalogueItem|null=>HATS.find(i=>i.id===id)??FURNITURE.find(i=>i.id===id)??null;
 export interface ShopState{hats:string[];hat:string|null;furniture:string[];placed:Record<string,Placed>}
 export const toServerCell=(cell:Placed)=>({col:cell.c,row:cell.r});
 const isHat=(id:string)=>HATS.some(h=>h.id===id),isFurniture=(id:string)=>FURNITURE.some(f=>f.id===id);
