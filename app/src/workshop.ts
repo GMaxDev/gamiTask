@@ -1,9 +1,11 @@
 // The object workshop: moderators assemble catalogue items out of boxes, cylinders and balls, in the café's own light.
 import * as THREE from 'three';
 import type {CatalogItem,PartKind,Anchor,AnchorKind} from '@shared/catalog';
-import {createPrimitives} from './primitives.ts';
-import {buildRecipe} from './recipe.ts';
-import {buildAvatar} from './avatar.ts';
+import {createPrimitives,C} from './primitives.ts';
+import {buildRecipe,captureRecipe} from './recipe.ts';
+import {buildAvatar,buildHat} from './avatar.ts';
+import {HATS,FURNITURE,isBuiltIn,withOriginals,footprint} from './shop.ts';
+import {createDecor,DECOR_PIECES} from './decor.ts';
 import {defaultLook,createHistory} from './look.ts';
 import {PALETTE} from './identity.ts';
 import {newItem,addPart,slugId,duplicate,setFunction} from './workshop-model.ts';
@@ -19,13 +21,16 @@ const DIMS:Record<PartKind,Field[]>={box:[['w','Largeur',.02,4,.01],['h','Hauteu
 const ANCHOR:Record<AnchorKind,{label:string;color:string}>={seat:{label:'Assise',color:'#657757'},surface:{label:'Surface',color:'#d2a754'},portable:{label:'Prise en main',color:'#c9764f'},wearable:{label:'Sur la tête',color:'#8aa6b8'}};
 const FUNCTIONS:[AnchorKind,string][]=[['seat','Asseyable'],['surface','Surface'],['portable','Portable'],['wearable','Porté sur la tête']];
 const ANCHOR_FIELDS:Field[]=[['x','X',-4,4,.01],['y','Y',-2,4,.01],['z','Z',-4,4,.01],['rot','Orientation',-3.14,3.14,.01]],SURFACE_FIELDS:Field[]=[['w','Largeur',.05,4,.01],['d','Profondeur',.05,4,.01]];
+// The coded pieces the workshop can open: shop hats and furniture plus the rooms' decor. Opening one captures its geometry.
+interface Native{id:string;name:string;emoji:string;price:number;kind:CatalogItem['kind']}
+const natives=():Native[]=>[...HATS.filter(h=>isBuiltIn(h.id)).map(h=>({...h,kind:'hat' as const})),...FURNITURE.filter(f=>isBuiltIn(f.id)).map(f=>({...f,kind:'furniture' as const})),...DECOR_PIECES.map(d=>({...d,emoji:'🪑',price:0,kind:'decor' as const}))];
 const KIND_LABEL:Record<PartKind,string>={box:'Cube',cyl:'Cylindre',ball:'Sphère'},KIND_ICON:Record<PartKind,string>={box:'box',cyl:'cylinder',ball:'circle'};
 
 const MARKUP=`<aside class="ws-side"><header class="ws-head"><h2><i data-lucide="hammer"></i>Atelier</h2><button id="ws-new" class="tool-btn"><i data-lucide="plus"></i>Nouvel objet</button></header><ul id="ws-items" class="ws-items"></ul></aside>
 <div class="ws-view"><canvas id="ws-canvas" tabindex="0" aria-label="Aperçu de l’objet"></canvas><span class="ws-hint">Glisser : tourner · Molette : zoom · Clic : choisir un bloc</span><div class="ws-guard" id="ws-guard" hidden><span>Modifications non enregistrées.</span><button id="ws-guard-save" class="primary">Enregistrer</button><button id="ws-guard-drop" class="ghost-btn">Abandonner</button><button id="ws-guard-stay" class="ghost-btn">Rester</button></div><div class="ws-view-actions"><button id="ws-undo" class="tool-btn" disabled><i data-lucide="undo-2"></i>Annuler</button><button id="ws-reset" class="tool-btn"><i data-lucide="locate-fixed"></i>Vue par défaut</button><button id="ws-exit" class="ghost-btn"><i data-lucide="x"></i>Quitter</button></div></div>
 <aside class="ws-side ws-panel">
   <section class="ws-meta"><label>Nom<input id="ws-name" maxlength="30" required/></label><div class="ws-row"><label>Emoji<input id="ws-emoji" maxlength="8"/></label><label>Prix<input id="ws-price" type="number" min="0" max="99999"/></label></div>
-    <div class="ws-row"><label>Type<select id="ws-kind"><option value="furniture">Mobilier</option><option value="hat">Chapeau</option></select></label><label class="ws-cells">Cases<input id="ws-w" type="number" min="1" max="4"/>×<input id="ws-d" type="number" min="1" max="4"/></label></div></section>
+    <div class="ws-row"><label>Type<select id="ws-kind"><option value="furniture">Mobilier</option><option value="hat">Chapeau</option><option value="decor" disabled>Décor</option></select></label><label class="ws-cells">Cases<input id="ws-w" type="number" min="1" max="4"/>×<input id="ws-d" type="number" min="1" max="4"/></label></div></section>
   <section class="ws-parts"><div class="ws-add"><span>Blocs</span><button data-add="box" title="Ajouter un cube"><i data-lucide="box"></i></button><button data-add="cyl" title="Ajouter un cylindre"><i data-lucide="cylinder"></i></button><button data-add="ball" title="Ajouter une sphère"><i data-lucide="circle"></i></button></div><ul id="ws-parts"></ul></section>
   <section class="ws-parts ws-fns"><div class="ws-add"><span>Fonctions</span></div><div id="ws-fns" class="ws-checks"></div><ul id="ws-anchors"></ul></section>
   <section class="ws-inspector" id="ws-inspector"></section>
@@ -55,6 +60,15 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
   const turntable=new THREE.Group();scene.add(turntable);
   const materials=new Map<string,any>(),extras:any[]=[];let root=new THREE.Group();turntable.add(root);
   const P=createPrimitives(()=>root,materials,extras);
+  const D=createDecor({p:P,scene,root:()=>root,previewing:()=>true,HD:0,obstacle(){},seat(){},taskSpot(){},hotspot:(o:any)=>o,shadow(){},steam:[],pendants:[],windows:[],taskSpots:[]});
+  const BUILDERS:Record<string,()=>any>={plant:()=>D.plant(0,0),cactus:()=>D.cactus(0,0),lamp:()=>D.lamp(0,0),bookshelf:()=>D.bookcase(0,0),coffee:()=>D.coffeeCorner(0,0),couch:()=>D.armchair(0,0,0),chair:()=>D.chair(0,0),sofa:()=>D.sofa(0,0),rug:()=>D.rug(0,0),'coffee-table':()=>D.coffeeTable(0,0),'square-table':()=>D.squareTable(0,0),'round-table':()=>D.roundTable(0,0),mug:()=>D.mug(0,0,0,C.white,root,false),book:()=>D.book(0,0,0)};
+  function captureNative(n:Native):CatalogItem{
+    const g=withOriginals(()=>n.kind==='hat'?buildHat(P,n.id,root):BUILDERS[n.id]());const parts=captureRecipe(g);g.traverse((o:any)=>o.geometry?.dispose?.());root.remove(g);
+    const f=footprint(n.id);return {id:n.id,kind:n.kind,name:n.name,emoji:n.emoji,price:n.price,w:f.w,d:f.d,parts,anchors:[]};
+  }
+  const isNative=()=>isBuiltIn(draft.id)||draft.kind==='decor';
+  const overridden=(id:string)=>deps.items().some(i=>i.id===id);
+  function openNative(n:Native){const o=deps.items().find(i=>i.id===n.id);load(o?structuredClone(o):captureNative(n));}
   const camera=new THREE.OrthographicCamera(-2,2,2,-2,.1,100),offset=new THREE.Vector3(13,12.5,16).normalize().multiplyScalar(30),target=new THREE.Vector3();
   let recipe:any=null,markers:any=null,outline:THREE.BoxHelper|null=null;
   // An anchor shows as a ring with an arrow the way it faces; a surface as the translucent slab things will sit on.
@@ -80,13 +94,15 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
 
   // Left column: what exists. Clicking loads a copy, so a half-done edit never leaks into the list.
   function renderItems(){
-    itemsEl.replaceChildren(...deps.items().map(it=>{
-      const li=document.createElement('li');const b=document.createElement('button');b.className='ws-item';b.setAttribute('aria-current',String(it.id===draft.id));
-      b.innerHTML=`<span class="ws-emoji">${it.emoji}</span><span>${it.name}<small>${it.kind==='hat'?'chapeau':`mobilier · ${it.w}×${it.d}`}</small></span>`;
-      b.onclick=()=>guard(()=>load(structuredClone(it)));li.appendChild(b);return li;
-    }));
+    const row=(it:{id:string;emoji:string;name:string},sub:string,open:()=>void)=>{const li=document.createElement('li');const b=document.createElement('button');b.className='ws-item';b.setAttribute('aria-current',String(it.id===draft.id));
+      b.innerHTML=`<span class="ws-emoji">${it.emoji}</span><span>${it.name}<small>${sub}</small></span>`;b.onclick=()=>guard(open);li.appendChild(b);return li;};
+    const heading=(t:string)=>{const li=document.createElement('li');li.className='ws-group';li.textContent=t;return li;};
+    const mine=deps.items().filter(it=>!isBuiltIn(it.id)&&it.kind!=='decor');
+    itemsEl.replaceChildren(heading('Mes objets'),...mine.map(it=>row(it,it.kind==='hat'?'chapeau':`mobilier · ${it.w}×${it.d}`,()=>load(structuredClone(it)))),
+      heading('Objets du jeu'),...natives().map(n=>row(n,(n.kind==='hat'?'chapeau':n.kind==='decor'?'décor':'mobilier')+(overridden(n.id)?' · modifié':''),()=>openNative(n))));
   }
-  function renderMeta(){nameIn.value=draft.name;emojiIn.value=draft.emoji;priceIn.value=String(draft.price);kindIn.value=draft.kind;wIn.value=String(draft.w);dIn.value=String(draft.d);(q('.ws-cells') as HTMLElement).hidden=draft.kind==='hat';delBtn.hidden=!draft.id||!deps.items().some(i=>i.id===draft.id);disarm();}
+  function renderMeta(){nameIn.value=draft.name;emojiIn.value=draft.emoji;priceIn.value=String(draft.price);kindIn.value=draft.kind;wIn.value=String(draft.w);dIn.value=String(draft.d);const nat=isNative();for(const i of [nameIn,emojiIn,priceIn,kindIn])i.disabled=nat;(q('.ws-cells') as HTMLElement).hidden=draft.kind!=='furniture'||nat;(q('.ws-fns') as HTMLElement).hidden=nat;// a coded piece keeps its own seats and metadata: only its shape is overridden
+    delBtn.hidden=!draft.id||!overridden(draft.id);disarm();}
   function renderParts(){
     partsEl.replaceChildren(...draft.parts.map((p,i)=>{
       const li=document.createElement('li');li.setAttribute('aria-current',String(i===sel));
@@ -139,7 +155,7 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
   function guard(action:()=>void){if(!dirty()){action();return;}pending=action;(q('#ws-guard') as HTMLElement).hidden=false;}
   function settle(run:boolean){(q('#ws-guard') as HTMLElement).hidden=true;const a=pending;pending=null;if(run&&a)a();}
   q('#ws-guard-stay').onclick=()=>settle(false);q('#ws-guard-drop').onclick=()=>settle(true);q('#ws-guard-save').onclick=()=>{if(save())settle(true);else settle(false);};
-  function disarm(){armed=false;delBtn.innerHTML='<i data-lucide="trash-2"></i>Supprimer';drawIcons();}
+  function disarm(){armed=false;delBtn.innerHTML=`<i data-lucide="trash-2"></i>${isNative()?'Rétablir l’original':'Supprimer'}`;drawIcons();}
 
   nameIn.oninput=()=>{draft.name=nameIn.value;nameIn.setCustomValidity('');};emojiIn.oninput=()=>{draft.emoji=emojiIn.value;};priceIn.oninput=()=>{draft.price=+priceIn.value||0;};
   for(const i of [nameIn,emojiIn,priceIn,wIn,dIn])i.onchange=mark;
@@ -154,9 +170,9 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
   }
   q('#ws-save').onclick=save;
   // Deleting takes two clicks: the first arms the button, the second fires, no blocking dialog.
-  delBtn.onclick=()=>{if(!armed){armed=true;delBtn.textContent='Sûr ? Supprimer';return;}deps.remove(draft.id);load(newItem());};
+  delBtn.onclick=()=>{if(!armed){armed=true;delBtn.textContent=isNative()?'Sûr ? Rétablir':'Sûr ? Supprimer';return;}const n=natives().find(x=>x.id===draft.id);deps.remove(draft.id);saved='';load(n?captureNative(n):newItem());};
   q('.ws-panel').addEventListener('click',(e:Event)=>{if(armed&&!delBtn.contains(e.target as Node))disarm();});
-  q('#ws-dup').onclick=()=>guard(()=>load(duplicate(draft,deps.items().map(i=>i.id))));
+  q('#ws-dup').onclick=()=>guard(()=>{const d=duplicate(draft,deps.items().map(i=>i.id));if(d.kind==='decor')d.kind='furniture';load(d);});// a copy of a coded piece is a new shop item
 
   // Turntable: drag spins the object, the wheel zooms, a still click picks the block under the cursor.
   let drag:{x:number;y:number;moved:boolean}|null=null;

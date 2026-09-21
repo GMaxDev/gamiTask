@@ -2239,6 +2239,12 @@ io.on("connection", (socket) => {
     sql.upsertItem.run(clean.id, JSON.stringify(clean), Date.now());
     io.emit("catalog:state", { items: catalogItems() });
   });
+  // A decor override changed under everyone's feet: the client rebuilds its room and asks who is still in it.
+  socket.on("room:refresh", () => {
+    const r = getRoom(socket.id);
+    if (!r) return;
+    socket.emit("room-state", Array.from(r.players.values()).filter((p) => p.id !== socket.id));
+  });
   socket.on("catalog:delete", ({ id }) => {
     if (!canEditCatalog()) return;
     sql.deleteItem.run(id);

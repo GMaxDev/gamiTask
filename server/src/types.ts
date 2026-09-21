@@ -361,6 +361,7 @@ export interface ClientToServerEvents {
   "admin:announce": (payload: { message: string }) => void;
   "catalog:save": (payload: { item: unknown }) => void;
   "catalog:delete": (payload: { id: string }) => void;
+  "room:refresh": () => void;
   "profile:request": (payload: { socketId: string | null }) => void;
   "chat:typing": () => void;
   "chat:react": (payload: { msgTs: number; emoji: string }) => void;

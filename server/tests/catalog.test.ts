@@ -12,7 +12,8 @@ test("a well-formed item passes through, with defaults filled in", () => {
 });
 test("ids are slugs, hats have no footprint", () => {
   assert.equal(sanitizeItem({ ...ok, id: "Bad Id!" }), null);
-  assert.equal(sanitizeItem({ ...ok, id: "plant" }), null);// never shadows a built-in
+  assert.equal(sanitizeItem({ ...ok, id: "plant" })!.id, "plant");// a built-in id is an override of the coded piece
+  const decor = sanitizeItem({ ...ok, id: "chair", kind: "decor", w: 3 })!;assert.equal(decor.kind, "decor");assert.equal(decor.w, 1);
   const hat = sanitizeItem({ ...ok, id: "hat-cone", kind: "hat", w: 3, d: 3 })!;
   assert.equal(hat.w, 1); assert.equal(hat.d, 1);
 });

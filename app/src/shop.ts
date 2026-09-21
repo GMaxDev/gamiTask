@@ -22,15 +22,20 @@ export const SETS: SetDef[]=[
   {id:'salon',name:'Salon cosy',emoji:'🫖',items:['coffee','couch'],desc:'+10 pièces par pomodoro',coinsPomo:10},
   {id:'jardin',name:'Jardin zen',emoji:'🌿',items:['plant','cactus'],desc:'+4 pièces par tâche',coinsTask:4},
 ];
-// Editor-made items are spliced into the built-in lists, so every consumer sees one catalogue.
-const BUILT_IN={hats:HATS.length,furniture:FURNITURE.length};
+// Editor-made items are spliced into the built-in lists, so every consumer sees one catalogue. An item under a
+// built-in id (shop piece or room decor) is an override: the code's metadata stays, only its recipe is read.
+const BUILT_IN={hats:HATS.length,furniture:FURNITURE.length},BUILT_IN_IDS=new Set([...HATS,...FURNITURE].map(i=>i.id));
+let CATALOG=new Map<string,CatalogItem>(),originals=false;
+export const isBuiltIn=(id: string)=>BUILT_IN_IDS.has(id);
 export function setCatalog(items: CatalogItem[]): void{
-  HATS.length=BUILT_IN.hats;FURNITURE.length=BUILT_IN.furniture;
-  for(const c of items)(c.kind==='hat'?HATS:FURNITURE).push({id:c.id,name:c.name,price:c.price,emoji:c.emoji,custom:c});
+  CATALOG=new Map(items.map(c=>[c.id,c]));HATS.length=BUILT_IN.hats;FURNITURE.length=BUILT_IN.furniture;
+  for(const c of items)if(!isBuiltIn(c.id)&&c.kind!=='decor')(c.kind==='hat'?HATS:FURNITURE).push({id:c.id,name:c.name,price:c.price,emoji:c.emoji,custom:c});
 }
-export const custom=(id: string): CatalogItem|null=>item(id)?.custom??null;
+export const custom=(id: string): CatalogItem|null=>originals?null:CATALOG.get(id)??null;
+// Builds inside run with overrides switched off: how the workshop captures a coded piece as it was written.
+export function withOriginals<T>(f: ()=>T): T{originals=true;try{return f();}finally{originals=false;}}
 export const GRID={cols:12,rows:10};// your room, one cell per floor tile
-export const footprint=(id: string)=>{const c=custom(id);return c?{w:c.w,d:c.d}:{w:1,d:id==='bookshelf'?2:1};};
+export const footprint=(id: string)=>{const c=isBuiltIn(id)?null:custom(id);return c?{w:c.w,d:c.d}:{w:1,d:id==='bookshelf'?2:1};};
 export interface Placed{c:number;r:number}
 export type Cell=Placed;
 export const cellsOf=(id: string,{c,r}: Placed): string[]=>{const f=footprint(id),cells: string[]=[];for(let i=0;i<f.w;i++)for(let j=0;j<f.d;j++)cells.push(`${c+i},${r+j}`);return cells;};

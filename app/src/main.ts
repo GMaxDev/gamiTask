@@ -418,7 +418,8 @@ function bindServerEvents(){
     if(roomPomo.joined&&was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
     renderRoomPomo();});
   s.on('me:state',u=>{role=u.role;renderIdentity();});
-  s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();if(room==='private'&&furnitureSeen){try{mountRoom();syncScene();}catch(error){console.error(error);}}});// a changed recipe rebuilds the room it stands in
+  s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
+    if(furnitureSeen){try{mountRoom();syncScene();net.socket.emit('room:refresh');}catch(error){console.error(error);}}});
   s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',forgetSession);
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête

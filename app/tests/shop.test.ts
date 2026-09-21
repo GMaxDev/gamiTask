@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,GRID,setCatalog,FURNITURE,HATS,item,footprint} from '../src/shop.ts';
+import {createShop,setCosmetics,setFurniture,canPlace,takenCells,completeSets,toServerCell,GRID,setCatalog,FURNITURE,HATS,item,footprint,custom,withOriginals,isBuiltIn} from '../src/shop.ts';
 
 test('cosmetics state sets owned hats and the worn one only if owned',()=>{
  const s=createShop();setCosmetics(s,{owned:['hat-party','ghost'],equippedHat:'hat-crown'});
@@ -35,4 +35,11 @@ test('custom items join the catalogue and leave when the server drops them',()=>
  assert.ok(FURNITURE.some(f=>f.id==='stool'));assert.ok(HATS.some(h=>h.id==='hat-cone'));assert.equal(item('stool')?.name,'Tabouret');assert.deepEqual(footprint('stool'),{w:2,d:1});
  const s=createShop();setFurniture(s,{owned:['stool'],placed:['stool'],positions:{stool:{col:1,row:1}}});assert.deepEqual(s.placed.stool,{c:1,r:1});
  setCatalog([]);assert.ok(!FURNITURE.some(f=>f.id==='stool'));assert.ok(!HATS.some(h=>h.id==='hat-cone'));assert.equal(item('stool'),null);assert.deepEqual(footprint('stool'),{w:1,d:1});
+});
+test('an override of a built-in keeps the shop lists as they are but answers custom()',()=>{
+  const plant={id:'plant',kind:'furniture' as const,name:'Plante',emoji:'🪴',price:80,w:1,d:1,parts:[],anchors:[]},chair={...plant,id:'chair',kind:'decor' as const};
+  setCatalog([plant,chair]);
+  assert.equal(FURNITURE.filter(f=>f.id==='plant').length,1);assert.ok(!FURNITURE.some(f=>f.id==='chair'));assert.ok(!HATS.some(h=>h.id==='chair'));
+  assert.equal(custom('plant'),plant);assert.equal(custom('chair'),chair);assert.equal(withOriginals(()=>custom('plant')),null);assert.equal(custom('plant'),plant);
+  assert.ok(isBuiltIn('plant'));assert.ok(!isBuiltIn('chair'));setCatalog([]);
 });

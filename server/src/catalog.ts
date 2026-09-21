@@ -1,5 +1,4 @@
 // Items built in the in-app editor: a recipe of primitives the client turns into meshes. Pure validation, no DB.
-import { SHOP_ITEMS, FURNITURE_ITEMS } from "./types.ts";
 
 export type PartKind = "box" | "cyl" | "ball";
 interface PartBase { kind: PartKind; x: number; y: number; z: number; rx: number; ry: number; rz: number; color: string }
@@ -10,10 +9,10 @@ export type Part =
 export type AnchorKind = "seat" | "surface" | "portable" | "wearable";
 // A surface also has a footprint: the area later inventory items may be set down on.
 export type Anchor = { kind: AnchorKind; x: number; y: number; z: number; rot: number; w?: number; d?: number };
-export interface CatalogItem { id: string; kind: "hat" | "furniture"; name: string; emoji: string; price: number; w: number; d: number; parts: Part[]; anchors: Anchor[] }
+// kind "decor": a piece of the rooms (chair, table…) that only exists as an override of the coded one, never in the shop.
+export interface CatalogItem { id: string; kind: "hat" | "furniture" | "decor"; name: string; emoji: string; price: number; w: number; d: number; parts: Part[]; anchors: Anchor[] }
 
 export const MAX_PARTS = 64;
-const BUILT_IN = new Set([...SHOP_ITEMS, ...FURNITURE_ITEMS].map((i) => i.id));
 const num = (v: unknown, lo: number, hi: number, dflt: number): number | null =>
   v === undefined ? dflt : typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v * 1000) / 1000 : null;
 const COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -48,13 +47,13 @@ function sanitizeAnchor(raw: unknown): Anchor | null {
 export function sanitizeItem(raw: unknown): CatalogItem | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  if (typeof r.id !== "string" || !/^[a-z0-9][a-z0-9-]{1,39}$/.test(r.id) || BUILT_IN.has(r.id)) return null;
-  if (r.kind !== "hat" && r.kind !== "furniture") return null;
+  if (typeof r.id !== "string" || !/^[a-z0-9][a-z0-9-]{1,39}$/.test(r.id)) return null;
+  if (r.kind !== "hat" && r.kind !== "furniture" && r.kind !== "decor") return null;
   const name = typeof r.name === "string" ? r.name.replace(/\s+/g, " ").trim().slice(0, 30) : "";
   if (!name) return null;
   const emoji = typeof r.emoji === "string" && r.emoji.trim() ? r.emoji.trim().slice(0, 8) : "📦";
   const price = typeof r.price === "number" && Number.isFinite(r.price) ? Math.max(0, Math.min(99999, Math.round(r.price))) : 0;
-  const cells = (v: unknown) => (r.kind === "hat" ? 1 : typeof v === "number" && Number.isFinite(v) ? Math.max(1, Math.min(4, Math.round(v))) : 1);
+  const cells = (v: unknown) => (r.kind !== "furniture" ? 1 : typeof v === "number" && Number.isFinite(v) ? Math.max(1, Math.min(4, Math.round(v))) : 1);
   if (!Array.isArray(r.parts) || r.parts.length === 0 || r.parts.length > MAX_PARTS) return null;
   const parts: Part[] = [];
   for (const p of r.parts) { const s = sanitizePart(p); if (!s) return null; parts.push(s); }
