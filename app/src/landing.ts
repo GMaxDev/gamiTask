@@ -2,7 +2,8 @@
 // The hero is a real room from the app running offline: a pomodoro, notes that become tickets, a character to walk.
 import './style.css';
 import './landing.css';
-import {createIcons,Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer} from 'lucide';
+import {createIcons,Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame} from 'lucide';
+import type {Vignette} from './vignettes.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,type TimerMode} from './timer.ts';
 import {loadLook} from './look.ts';
 import {PALETTE} from './identity.ts';
@@ -11,7 +12,15 @@ import type {Task} from '@shared/types';
 import type {SceneState} from './scene.ts';
 
 const icon=(name:string):string=>`<i data-lucide="${name}" aria-hidden="true"></i>`;
-const drawIcons=()=>createIcons({icons:{Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer},attrs:{'stroke-width':1.65}});
+const drawIcons=()=>createIcons({icons:{Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame},attrs:{'stroke-width':1.65}});
+const FEATURES:{v:Vignette;ic:string;title:string;text:string}[]=[
+  {v:'timer',ic:'timer',title:'Un pomodoro, seul ou avec la salle',text:'Vingt-cinq minutes de concentration, une vraie pause, et toute la salle peut suivre le même tempo. L’horloge au mur avance avec toi.'},
+  {v:'tasks',ic:'list-checks',title:'Des tâches qui deviennent des tickets',text:'Chaque chose à faire est un petit ticket posé sur ta table. Tu la coches, il disparaît. Les tâches du jour reviennent chaque matin.'},
+  {v:'avatar',ic:'smile',title:'Un personnage bien à toi',text:'Visage, coiffure, tenue, gabarit : tout se règle. Les pièces gagnées en session achètent chapeaux et mobilier.'},
+  {v:'room',ic:'home',title:'Ta pièce privée',text:'Un chez-toi à meubler case par case, où inviter qui tu veux d’un simple lien — et le mettre dehors si besoin.'},
+  {v:'twitch',ic:'twitch',title:'Twitch dans la salle',text:'Lie ta chaîne : tes viewers entrent dans ta pièce, leur chat s’affiche au-dessus de leur tête, et ils travaillent avec toi.'},
+  {v:'workshop',ic:'hammer',title:'L’atelier d’objets',text:'De nouveaux meubles et chapeaux s’assemblent dans l’app, cube par cube, et arrivent en boutique sans redéploiement.'},
+];
 function load(key:string,fallback:any):any{try{return JSON.parse(localStorage.getItem(key) as string)??fallback;}catch{return fallback;}}
 function save(key:string,value:any){try{localStorage.setItem(key,JSON.stringify(value));}catch{}}
 const today=()=>new Date().toLocaleDateString('sv-SE');
@@ -49,6 +58,26 @@ root.innerHTML=`
       <p class="lp-demo-hint">Clique au sol pour marcher, sur un siège pour t’asseoir · glisse pour tourner</p>
       <div id="hint" class="hint" role="tooltip" hidden></div>
       <div id="toast" class="toast" role="status"></div>
+    </section>
+    <section class="lp-section" id="features">
+      <p class="eyebrow">CE QU’ON Y TROUVE</p><h2>Tout ce qu’il faut pour avancer, <em>et rien qui presse</em>.</h2>
+      <div class="lp-grid">${FEATURES.map(f=>`<article class="lp-feature reveal"><figure class="lp-figure" data-vignette="${f.v}"></figure><h3>${icon(f.ic)}${f.title}</h3><p>${f.text}</p></article>`).join('')}</div>
+    </section>
+    <section class="lp-section lp-steps" id="how">
+      <p class="eyebrow">COMMENT ÇA MARCHE</p><h2>Trois pas, <em>et tu es installé</em>.</h2>
+      <ol class="lp-step-list">
+        <li class="reveal"><span class="lp-step-n">1</span><h3>Entre au café</h3><p>Sans compte pour commencer : un pseudo, une couleur, et tu es dans la salle avec les autres.</p></li>
+        <li class="reveal"><span class="lp-step-n">2</span><h3>Lance une session, pose tes tâches</h3><p>Un pomodoro au comptoir, tes tâches en tickets sur la table. Ton personnage s’assoit et se concentre avec toi.</p></li>
+        <li class="reveal"><span class="lp-step-n">3</span><h3>Gagne des pièces, aménage ta pièce</h3><p>Chaque session et chaque tâche rapportent. Chapeaux, meubles, une pièce à toi — et l’envie de revenir demain.</p></li>
+      </ol>
+    </section>
+    <section class="lp-section" id="streamers">
+      <div class="lp-band reveal">
+        <div class="lp-band-text"><p class="eyebrow">POUR LES STREAMERS</p><h2>Ta communauté, <em>dans ta pièce</em>.</h2>
+          <ul class="lp-band-list"><li>${icon('link-2')}<span>Lie ta chaîne Twitch depuis ton compte, en un clic.</span></li><li>${icon('users')}<span>Tes viewers apparaissent comme des personnages dans ta salle, en direct.</span></li><li>${icon('message-circle')}<span>Leur chat s’affiche au-dessus de leur tête, sans quitter le stream.</span></li><li>${icon('flame')}<span>Un pomodoro collectif : toute la salle se concentre au même rythme.</span></li></ul>
+          <a class="primary" href="/app/" data-enter>${icon('twitch')}<span>Lier ma chaîne dans le café</span></a></div>
+        <figure class="lp-figure lp-band-figure" data-vignette="twitch"></figure>
+      </div>
     </section>
   </main>`;
 drawIcons();
@@ -119,3 +148,12 @@ async function mountRoom(){
   $('.loading')?.remove();cafe.setTasks(pendingNotes());
 }
 if('requestIdleCallback' in window)(window as any).requestIdleCallback(mountRoom,{timeout:800});else setTimeout(mountRoom,50);
+
+// ── Sections: reveal on scroll; feature pictures are drawn from the real pieces the first time they come into view. ──
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const revealer=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){e.target.classList.add('in');revealer.unobserve(e.target);}},{rootMargin:'0px 0px -10% 0px'});
+for(const el of root.querySelectorAll('.reveal')){if(reduced)el.classList.add('in');else revealer.observe(el);}
+let vignettes:Promise<{draw(kind:Vignette):string}>|null=null;
+const painter=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){painter.unobserve(e.target);const fig=e.target as HTMLElement;
+  (vignettes??=import('./vignettes.ts').then(m=>m.createVignettes())).then(v=>{const img=new Image();img.alt='';img.src=v.draw(fig.dataset.vignette as Vignette);fig.replaceChildren(img);fig.classList.add('ready');});}},{rootMargin:'200px 0px'});
+for(const el of root.querySelectorAll('.lp-figure'))painter.observe(el);
