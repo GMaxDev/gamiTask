@@ -1,0 +1,13 @@
+/* Landing page: the app's palette and chips, laid out as a long, airy page. */
+body{background:#eee9df;color:#55624a;font-family:'DM Sans',sans-serif}
+.lp-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 28px;background:#eee9dfd9;backdrop-filter:blur(12px);border-bottom:1px solid #e3ddcd}
+.lp-bar .chip,.lp .chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 13px;border-radius:99px;background:#fbfcf3d9;border:1px solid #fff9;font-size:13px;font-weight:500;color:#66735c;text-decoration:none;white-space:nowrap}
+.lp-bar .chip.active{background:#657757;color:#fffdf2}.lp-bar .chip svg{width:15px;height:15px}
+.lp-bar .brand{padding:0 12px 0 3px;gap:8px;font-size:17px;font-weight:800;letter-spacing:-.6px;color:#44533e;font-family:Manrope,sans-serif}.lp-bar .brand-mark{width:28px;height:28px;border-radius:50%;background:#657658;color:#faf4de;display:grid;place-items:center}.lp-bar .brand-mark svg{width:15px;height:15px}
+.lp-nav{display:flex;gap:22px;font-size:14px}.lp-nav a{color:#7e8873;text-decoration:none}.lp-nav a:hover{color:#4d5b43}
+.lp{max-width:1120px;margin:0 auto;padding:0 28px}
+.lp-hero{padding:72px 0 40px;text-align:center;max-width:760px;margin:0 auto}
+.lp-hero h1{font-family:var(--serif);font-size:clamp(38px,6vw,64px);font-weight:400;line-height:1.05;letter-spacing:-1.8px;color:#4d5b43;margin:14px 0 18px}.lp-hero h1 em{font-style:italic;color:#657757}
+.lp-lead{font-size:18px;line-height:1.65;color:#7e8873;margin:0 auto 26px;max-width:600px}
+.lp-cta{display:flex;justify-content:center;gap:12px}.lp-cta .primary{text-decoration:none;padding:14px 22px;font-size:15px;border-radius:99px}.lp-cta .primary svg{width:16px;height:16px}
+@media(max-width:800px){.lp-nav{display:none}.lp{padding:0 16px}.lp-hero{padding:48px 0 28px}}

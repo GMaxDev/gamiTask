@@ -6,7 +6,7 @@ Un café 3D pour avancer sur ses tâches, ensemble.
 
 ```bash
 cd server && npm i && npm run dev      # Socket.io + SQLite sur :3001
-cd app && npm i && npm run dev         # Vite sur http://127.0.0.1:5173
+cd app && npm i && npm run dev         # Vite : landing sur http://127.0.0.1:5173/, café sur http://127.0.0.1:5173/app/
 ```
 
 Variables utiles :
@@ -15,6 +15,7 @@ Variables utiles :
 |---|---|---|---|
 | app | `VITE_API_URL` | `http://localhost:3001` | URL du serveur. **En production, obligatoire et non vide** : la valeur est figée dans le bundle au build (`docker compose build`). |
 | server | `PORT` | `3001` | Port HTTP / socket |
+| server | `APP_URL` | `http://localhost:5173` | Origine publique du front ; les retours OAuth Twitch renvoient vers `${APP_URL}/app/`. |
 | server | `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Origines autorisées (séparées par des virgules). **En production, doit lister l'origine publique du front** (ex. `https://gamitask.gmaxdev.com`), sinon la connexion socket est refusée. |
 | server | `ALLOW_GUEST_PRIVATE_ROOMS` | `true` | Rooms privées pour les invités (à passer à `false` avec l'auth) |
 | server | `GOOGLE_CLIENT_ID` | — | Client OAuth Google ; sans lui, `/auth/google` refuse et l'app reste en mode invité. |

@@ -690,7 +690,7 @@ app.get("/auth/twitch/start", (req, res): void => {
 app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
   const { code, state, error } = req.query as { code?: string; state?: string; error?: string };
   if (error || !code || !state) {
-    res.redirect(`${APP_URL}/?twitch=denied`);
+    res.redirect(`${APP_URL}/app/?twitch=denied`);
     return;
   }
   let userId: string;
@@ -699,7 +699,7 @@ app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
     if (decoded.purpose !== "twitch-link") throw new Error("wrong purpose");
     userId = decoded.userId;
   } catch {
-    res.redirect(`${APP_URL}/?twitch=expired`);
+    res.redirect(`${APP_URL}/app/?twitch=expired`);
     return;
   }
   try {
@@ -707,17 +707,17 @@ app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
     const twitchUser = await getTwitchUser(tokens.accessToken);
     const existing = sql.getUserByTwitchId.get(twitchUser.id) as UserRow | undefined;
     if (existing && existing.id !== userId) {
-      res.redirect(`${APP_URL}/?twitch=taken`);
+      res.redirect(`${APP_URL}/app/?twitch=taken`);
       return;
     }
     sql.linkTwitch.run(
       twitchUser.id, twitchUser.login, twitchUser.display_name,
       tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId,
     );
-    res.redirect(`${APP_URL}/?twitch=linked`);
+    res.redirect(`${APP_URL}/app/?twitch=linked`);
   } catch (err) {
     console.error("[auth/twitch/callback]", err);
-    res.redirect(`${APP_URL}/?twitch=error`);
+    res.redirect(`${APP_URL}/app/?twitch=error`);
   }
 });
 
