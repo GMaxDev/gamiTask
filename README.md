@@ -46,6 +46,12 @@ L'éditeur v2 règle le visage au détail (yeux, sourcils, nez, bouche, avec cur
 
 `/` est la page d'accueil (`app/index.html`, `src/landing.ts`, `src/landing.css`) : un héros jouable (la pièce privée de l'app hors ligne, pomodoro et notes en `localStorage` sous `gamitask.landing.*`, transférés dans le café à l'entrée via `gamitask.landing.handoff`), des fonctionnalités illustrées par des vignettes rendues à la volée depuis les vraies pièces (`src/vignettes.ts`), les étapes, un bloc streamers, les tarifs (Gratuit / Pro « bientôt »), des témoignages d'exemple à remplacer, une FAQ et un pied de page. Le formulaire Pro écrit dans la table `waitlist` via `POST /api/waitlist` (validation `server/src/waitlist.ts`, cinq envois par minute et par IP) ; aucun e-mail n'est envoyé.
 
+## Tâches
+
+Trois types, comme Habitica : **habitudes** (boutons + / −, cochables plusieurs fois par jour, compteurs remis à zéro chaque matin), **quotidiennes** (jours de la semaine, série, ratée = perte d'énergie) et **à-faire** (une fois, date butoir facultative, checklist qui augmente la récompense). Chaque tâche a une difficulté (Banal / Facile / Moyen / Difficile) et une valeur cachée qui monte quand on la tient et baisse quand on la rate : elle teinte la ligne et l'ardoise dans la pièce, et module les gains (`delta = 0,9747^valeur × difficulté`, plafonné à 3 ; pièces = 10·delta, XP = 15·delta, dégâts au boss = 5·delta). Les règles sont dans `server/src/scoring.ts`, partagé avec le client.
+
+L'**énergie** (0-50, jauge ☕ dans le HUD) remplace la dégradation : −3·delta par quotidienne ratée ou habitude « − » (immunité sous le niveau 3), +1 par tâche réussie, rechargée au level-up. À 0 : −30 % des pièces et un personnage épuisé jusqu'au lendemain. Le cron tourne à la première connexion du jour (`runRollover`, fuseau du client via `tzOffsetMinutes` dans `join`) et rejoue jusqu'à 30 jours manqués, perte plafonnée à 20.
+
 ## Comptes et rôles
 
 Sans connexion, tu es un invité : un identifiant local (`gamitask.identity` dans `localStorage`) envoyé tel quel au serveur. « Continuer avec Google » (dans « On se présente ? » ou le chip « Connexion ») échange le jeton Google contre un jeton de session ; `join` le transmet et le serveur en déduit qui tu es. Un compte Google ne peut plus être rejoint sans jeton valide (`auth:invalid` → retour en invité), donc l'identifiant seul ne suffit pas à l'usurper.
