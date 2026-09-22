@@ -155,11 +155,28 @@ Plan de `getTasks` : `SCAN tasks + TEMP B-TREE` → `SEARCH tasks USING INDEX ta
 
 Suite app 85/85 (test `recipe` adapté : pleine avant chargement, creusée après), typecheck OK. Gardé.
 
+## 6 ter. Appliqué le 2026-09-22 — E (démarrage de la scène)
+
+Marques `performance.mark` posées dans `createCafe` (`cafe:start … cafe:first-frame`, visibles dans DevTools → Performance → Timings, tableau en console en dev) et autour du premier `mountRoom` (`app:mount-start/end`). Elles restent dans le code : coût nul.
+
+Ce que la seconde contenait (dev, jardin) : ~10 ms de renderer, ~30 ms pour construire tout le jardin (1 268 `mesh()` en 8 ms), et **tout le reste dans `bake()`** — la fusion du décor statique en un mesh par matériau — proportionnel au nombre de sommets : 823 000, dont **432 000 pour les 480 dalles du sol** (`RoundedBoxGeometry` à 2 segments = 900 sommets par dalle pour un chanfrein de 1,5 cm invisible).
+
+Trois changements, mesurés un par un (`vite preview`, onglet en arrière-plan, 2 chargements) :
+
+| Changement | Phase salle (`cafe:start → player`) | `DOMContentLoaded` | Sommets de la scène |
+|---|---|---|---|
+| référence | 1 065 / 990 ms | 1 317 ms | 823 k |
+| 1. une géométrie par forme, partagée (`primitives.ts`) — 791 boîtes arrondies construites pour 60 formes | 648 / 610 ms | 871 / 763 ms | 823 k (bake inchangé) |
+| 2. dalles de sol en boîtes plates (`r = 0`) | bake 316 → 102 ms | — | 409 k |
+| 3. un segment d'arrondi sous 2 cm (lattes, montants) | bake 102 → 75 ms | — | 292 k |
+| **après 1+2+3** | **406 / 361 ms** | **589 / 489 ms** | **292 k** |
+
+Rendu comparé avant/après sur le sol, les montants de la verrière et les lattes : identique. Suite app 85/85, typecheck OK, aucune erreur console. Gardé. Effet secondaire attendu à chaque frame : −65 % de sommets envoyés au GPU pour le décor (non mesuré en FPS, onglet en arrière-plan).
+
 ## 7. Ordre recommandé (reste)
 
 | # | Action | Effort | Gain attendu | Mesure de vérification |
 |---|---|---|---|---|
-| E | marks dans `createCafe` puis décision | 1 h | inconnu (c'est le but) | `performance.measure` |
 | 5 | FPS + profil GPU au premier plan | 10 min | inconnu | DevTools Performance |
 
 Règle du skill appliquée : chaque changement mesuré seul, gardé seulement si l'écart dépasse le bruit, sinon annulé.

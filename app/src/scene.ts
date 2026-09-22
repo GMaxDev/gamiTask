@@ -103,7 +103,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   box(W+.35,.38,D+.35,C.edge,0,-.24,0,.12);
   box(W+.25,.20,D+.25,C.oak,0,-.05,0,.08);
   for(let iz=0;iz<D;iz++)for(let ix=0;ix<W;ix++) {
-    box(.98,.045,.98,FLOOR[(ix*3+iz*7)%4],ix-HW+.5,.025,iz-HD+.5,.015);
+    box(.98,.045,.98,FLOOR[(ix*3+iz*7)%4],ix-HW+.5,.025,iz-HD+.5,0);// flat: a .015 bevel on a floor tile is invisible and cost 900 vertices a tile
   }
   if(room!=='garden'){// the veranda glazes both walls itself, and a solid wall would hide the garden behind it
     box(W+.28,3.85,.20,C.cream,0,1.93,-HD-.07,.035);
