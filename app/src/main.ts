@@ -13,7 +13,7 @@ import {toCell,DIMS} from './coords.ts';
 import type {RoomKind} from './coords.ts';
 import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
-import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
+import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,setEnergy,setExhausted,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
 import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
@@ -93,18 +93,19 @@ $('#app').innerHTML=`
       <div id="tab-tasks" role="tabpanel">
       <section class="tasks-card">
         <div class="task-tabs" id="task-tabs" role="tablist" aria-label="Type de tâche">${(['habit','daily','todo'] as const).map(k=>`<button type="button" role="tab" data-kind="${k}" aria-selected="${k==='todo'}">${KIND_LABELS[k].many}<span class="tab-count" data-count="${k}"></span></button>`).join('')}</div>
+        <p class="task-help" id="task-help"><span id="task-help-text"></span><button type="button" class="icon-button" id="task-help-close" aria-label="Masquer l’aide">${icon('x')}</button></p>
         <form id="task-form" class="task-form" autocomplete="off">
-          <div class="task-row"><input id="task-text" maxlength="120" placeholder="Une chose à faire…" aria-label="Nouvelle tâche" /><button type="button" id="task-difficulty" class="pips" aria-label="Difficulté" title="Facile"><i></i><i></i><i></i><i></i></button><button type="submit" class="icon-button add-task" aria-label="Ajouter la tâche">${icon('plus')}</button></div>
-          <div class="task-options">
-            <div class="chips" id="task-cats" role="group" aria-label="Catégorie">${CATEGORIES.map(c=>`<button type="button" data-cat="${c.id}" style="--cat:${c.color}" aria-pressed="false">${c.label}</button>`).join('')}</div>
-            <div class="days" id="task-days" role="group" aria-label="Jours" hidden>${DAY_LABELS.map((d,i)=>`<button type="button" data-day="${i}" aria-pressed="true">${d}</button>`).join('')}</div>
-            <div class="chips" id="task-dirs" role="group" aria-label="Sens" hidden><button type="button" data-dir="up" aria-pressed="true">${icon('plus')} Bonne</button><button type="button" data-dir="down" aria-pressed="false">${icon('minus')} Mauvaise</button></div>
-            <label class="due-field" id="task-due-field" hidden>${icon('calendar')}<input type="date" id="task-due" aria-label="Date butoir" /></label>
+          <div class="task-row"><input id="task-text" maxlength="120" placeholder="Une chose à faire…" aria-label="Nouvelle tâche" /><button type="button" id="task-difficulty" class="diff-chip" aria-label="Difficulté" title="${DIFFICULTY_HINT}"></button><button type="button" id="task-more" class="icon-button" aria-expanded="false" aria-label="Options de la tâche" title="Catégorie, jours, sens, échéance">${icon('settings-2')}</button><button type="submit" class="icon-button add-task" aria-label="Ajouter la tâche">${icon('plus')}</button></div>
+          <div class="task-options" id="task-options" hidden>
+            <div class="opt"><span class="opt-label">Catégorie</span><div class="chips" id="task-cats" role="group" aria-label="Catégorie">${CATEGORIES.map(c=>`<button type="button" data-cat="${c.id}" style="--cat:${c.color}" aria-pressed="false">${c.label}</button>`).join('')}</div></div>
+            <div class="opt" id="task-days-opt" hidden><span class="opt-label">Jours</span><div class="days" id="task-days" role="group" aria-label="Jours">${DAY_LABELS.map((d,i)=>`<button type="button" data-day="${i}" aria-pressed="true">${d}</button>`).join('')}</div></div>
+            <div class="opt" id="task-dirs-opt" hidden><span class="opt-label">Sens</span><div class="chips" id="task-dirs" role="group" aria-label="Sens"><button type="button" data-dir="up" aria-pressed="true" title="On peut la cocher en +">${icon('plus')} Bonne</button><button type="button" data-dir="down" aria-pressed="false" title="On peut la cocher en −">${icon('minus')} Mauvaise</button></div></div>
+            <div class="opt" id="task-due-opt" hidden><span class="opt-label">Échéance</span><label class="due-field" id="task-due-field">${icon('calendar')}<input type="date" id="task-due" aria-label="Date butoir" /></label></div>
           </div>
         </form>
         <ul id="task-list" class="task-list"></ul>
         <p id="tasks-empty" class="tasks-empty">Rien pour l’instant. Une seule chose suffit pour commencer.</p>
-        <div class="task-filter" id="task-filter"><button type="button" data-filter="remaining" aria-pressed="true">Restantes</button><button type="button" data-filter="all" aria-pressed="false">Toutes</button></div>
+        <div class="task-foot"><button type="button" class="icon-button" id="task-help-toggle" aria-label="Comment ça marche ?" title="Comment ça marche ?">${icon('help-circle')}</button><div class="task-filter" id="task-filter"><button type="button" data-filter="remaining" aria-pressed="true">Restantes</button><button type="button" data-filter="all" aria-pressed="false">Toutes</button></div></div>
       </section>
       <p class="drawer-note">Chaque tâche devient une petite ardoise posée sur une table du café. Coche-la ici, ou clique dessus dans la salle pour la retrouver.</p>
       </div>
@@ -697,7 +698,7 @@ setInterval(()=>{renderTimer();renderRoomPomo();},250);document.addEventListener
 
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
 const tasks=createTasks();
-let newCategory: string|null=null,newDifficulty=1,newDays=127,newUp=true,newDown=false;
+let newCategory: string|null=null,newDifficulty=1,newDays=127,newUp=true,newDown=false,optionsOpen=false,helpHidden: boolean=load('gamitask.taskHelp',false);
 const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
 const esc=(v: string)=>v.replace(/[&<>"']/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'} as Record<string,string>)[c]);
 const pips=(n: number)=>`<span class="pips" aria-hidden="true">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
@@ -705,10 +706,13 @@ const dueLabel=(ts: number)=>new Date(ts).toLocaleDateString('fr-FR',{weekday:'s
 function syncScene(){cafe?.setTasks(pending(tasks));}
 function renderTaskForm(){
   const k=tasks.tab;($('#task-text') as HTMLInputElement).placeholder=KIND_LABELS[k].placeholder;
-  $('#task-days').hidden=k!=='daily';$('#task-dirs').hidden=k!=='habit';$('#task-due-field').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
+  $('#task-days-opt').hidden=k!=='daily';$('#task-dirs-opt').hidden=k!=='habit';$('#task-due-opt').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
+  $('#task-help').hidden=helpHidden;$('#task-help-text').textContent=KIND_LABELS[k].help;$('#task-help-toggle').hidden=!helpHidden;
+  $('#task-options').hidden=!optionsOpen;$('#task-more').setAttribute('aria-expanded',String(optionsOpen));
+  const tweaked=newCategory!==null||(k==='daily'&&newDays!==127)||(k==='habit'&&(newDown||!newUp))||(k==='todo'&&!!($('#task-due') as HTMLInputElement).value);$('#task-more').classList.toggle('tweaked',tweaked);// a dot on the toggle says "something is set in there"
   document.querySelectorAll('#task-days button').forEach((b: any)=>b.setAttribute('aria-pressed',String(!!(newDays&(1<<Number(b.dataset.day))))));
   document.querySelectorAll('#task-dirs button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.dir==='up'?newUp:newDown)));
-  const d=DIFFICULTIES[newDifficulty];$('#task-difficulty').title=d.label;$('#task-difficulty').innerHTML=pips(d.pips);
+  const d=DIFFICULTIES[newDifficulty];$('#task-difficulty').innerHTML=`${pips(d.pips)}<span>${d.label}</span>`;
   document.querySelectorAll('#task-tabs [role=tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.kind===k)));
   document.querySelectorAll('#task-filter button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.filter===tasks.filter)));
 }
@@ -718,11 +722,11 @@ function renderTasks(){
   list.innerHTML='';
   for(const t of visible(tasks,today)){
     const li=document.createElement('li');li.dataset.id=t.id;const cat=catOf(t.category),d=DIFFICULTIES.find(x=>x.id===t.difficulty)!;
-    li.className=`kind-${t.kind} tint-${tint(t.value)}${t.done?' done':''}${t.kind==='daily'&&!isDue(t,today)?' not-due':''}`;
+    const tn=tint(t.value);li.className=`kind-${t.kind} tint-${tn}${t.done?' done':''}${t.kind==='daily'&&!isDue(t,today)?' not-due':''}`;if(TINT_LABELS[tn])li.title=TINT_LABELS[tn];
     const dt=esc(decodeEntities(t.text));
     const text=`<span class="task-text" contenteditable="plaintext-only" spellcheck="false">${dt}</span>`;
-    const common=`<button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><button class="pips diff" title="Difficulté : ${d.label} (cliquer pour changer)" aria-label="Changer la difficulté">${pips(d.pips)}</button>`;
-    if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" aria-label="Mauvaise : ${dt}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui">${t.countUp}${t.down?` · ${t.countDown}`:''}</small>${t.up?`<button class="score-button up" data-dir="up" aria-label="Bonne : ${dt}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+    const common=`<button class="cat-dot${cat?'':' empty'}" style="--cat:${cat?cat.color:'#c9cdbd'}" title="Catégorie : ${cat?cat.label:'aucune'} — cliquer pour changer" aria-label="Changer la catégorie"></button><button class="pips diff" title="Difficulté : ${d.label} — cliquer pour changer. ${DIFFICULTY_HINT}" aria-label="Changer la difficulté">${pips(d.pips)}</button>`;
+    if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" title="J’ai craqué (−)" aria-label="Craquée : ${dt}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui : fois tenue / fois craquée">${t.up?`<b class="up">+${t.countUp}</b>`:''}${t.down?`<b class="down">−${t.countDown}</b>`:''}</small>${t.up?`<button class="score-button up" data-dir="up" title="Je l’ai tenue (+)" aria-label="Tenue : ${dt}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
     else if(t.kind==='daily')li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.streak>1?`<small class="streak-count" title="Série">${icon('flame')}${t.streak}</small>`:''}<small class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</small><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
     else{const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
       li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.dueAt?`<small class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</small>`:''}<button class="icon-button toggle-list" aria-expanded="false" aria-label="Étapes" title="Étapes">${icon('chevron-down')}${n?`<b>${k}/${n}</b>`:''}</button><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>
@@ -745,6 +749,10 @@ $('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)
 $('#task-days').onclick=(e: any)=>{const b=e.target.closest('[data-day]');if(!b)return;newDays=toggleDay(newDays,Number(b.dataset.day));renderTaskForm();};
 $('#task-dirs').onclick=(e: any)=>{const b=e.target.closest('[data-dir]');if(!b)return;if(b.dataset.dir==='up')newUp=!newUp;else newDown=!newDown;if(!newUp&&!newDown)newUp=true;renderTaskForm();};
 $('#task-difficulty').onclick=()=>{newDifficulty=(newDifficulty+1)%DIFFICULTIES.length;renderTaskForm();};
+$('#task-more').onclick=()=>{optionsOpen=!optionsOpen;renderTaskForm();};
+$('#task-due').onchange=()=>renderTaskForm();
+$('#task-help-close').onclick=()=>{helpHidden=true;save('gamitask.taskHelp',true);renderTaskForm();};
+$('#task-help-toggle').onclick=()=>{helpHidden=false;save('gamitask.taskHelp',false);renderTaskForm();};
 $('#task-form').onsubmit=(e: any)=>{e.preventDefault();const text=cleanText(($('#task-text') as HTMLInputElement).value);if(!text)return;
   const due=($('#task-due') as HTMLInputElement).value;const dueAt=due?new Date(due+'T12:00:00').getTime():null;
   net.socket.emit('task:add',{userId:identity.userId,...newTaskPayload(tasks.tab,text,{difficulty:DIFFICULTIES[newDifficulty].id,category:newCategory,up:newUp,down:newDown,days:newDays,dueAt})});($('#task-text') as HTMLInputElement).value='';($('#task-due') as HTMLInputElement).value='';};

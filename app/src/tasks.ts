@@ -8,7 +8,9 @@ export const CATEGORIES=[
   {id:'study',label:'Étude',color:'#8aa6b8'},
 ];
 export const DIFFICULTIES:{id:Difficulty;label:string;pips:number}[]=[{id:'trivial',label:'Banal',pips:1},{id:'easy',label:'Facile',pips:2},{id:'medium',label:'Moyen',pips:3},{id:'hard',label:'Difficile',pips:4}];
-export const KIND_LABELS:Record<TaskKind,{one:string;many:string;placeholder:string}>={habit:{one:'habitude',many:'Habitudes',placeholder:'Une habitude à tenir…'},daily:{one:'quotidienne',many:'Quotidiennes',placeholder:'Une chose à faire chaque jour…'},todo:{one:'à-faire',many:'À faire',placeholder:'Une chose à faire…'}};
+export const KIND_LABELS:Record<TaskKind,{one:string;many:string;placeholder:string;help:string}>={habit:{one:'habitude',many:'Habitudes',placeholder:'Une habitude à tenir…',help:'Se coche autant de fois qu’on veut dans la journée : + quand tu la tiens, − quand tu craques. Un − coûte de l’énergie.'},daily:{one:'quotidienne',many:'Quotidiennes',placeholder:'Une chose à faire chaque jour…',help:'Revient les jours choisis. Oubliée à minuit, elle coûte de l’énergie ; tenue, elle fait une série.'},todo:{one:'à-faire',many:'À faire',placeholder:'Une chose à faire…',help:'À faire une seule fois. Ajoute des étapes : chaque étape cochée augmente la récompense.'}};
+export const DIFFICULTY_HINT='La difficulté multiplie les gains… et les pertes.';
+export const TINT_LABELS=['Bien tenue','Tenue','','Négligée','Très négligée'];
 export const DAY_LABELS=['L','M','M','J','V','S','D'];
 const MAX_TEXT=120;
 export interface TasksState{list:Task[];tab:TaskKind;filter:'remaining'|'all'}
