@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
@@ -13,15 +13,16 @@ import {toCell,DIMS} from './coords.ts';
 import type {RoomKind} from './coords.ts';
 import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
-import {createTasks,setTasks,taskAdded,taskToggled,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES} from './tasks.ts';
-import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
+import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
+import {createProgress,setCoins,setXp,setStreak,setEnergy,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
+import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX};
+const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -90,16 +91,19 @@ $('#app').innerHTML=`
       <div class="drawer-tabs" role="tablist"><button data-tab="tasks" role="tab" aria-selected="true">${icon('list-checks')} Tâches</button><button data-tab="shop" role="tab" aria-selected="false">${icon('shopping-bag')} Boutique</button></div>
       <div id="tab-tasks" role="tabpanel">
       <section class="tasks-card">
+        <div class="task-tabs" id="task-tabs" role="tablist" aria-label="Type de tâche">${(['habit','daily','todo'] as const).map(k=>`<button type="button" role="tab" data-kind="${k}" aria-selected="${k==='todo'}">${KIND_LABELS[k].many}<span class="tab-count" data-count="${k}"></span></button>`).join('')}</div>
         <form id="task-form" class="task-form" autocomplete="off">
-          <input id="task-text" maxlength="120" placeholder="Une chose à faire…" aria-label="Nouvelle tâche" />
+          <div class="task-row"><input id="task-text" maxlength="120" placeholder="Une chose à faire…" aria-label="Nouvelle tâche" /><button type="button" id="task-difficulty" class="pips" aria-label="Difficulté" title="Facile"><i></i><i></i><i></i><i></i></button><button type="submit" class="icon-button add-task" aria-label="Ajouter la tâche">${icon('plus')}</button></div>
           <div class="task-options">
             <div class="chips" id="task-cats" role="group" aria-label="Catégorie">${CATEGORIES.map(c=>`<button type="button" data-cat="${c.id}" style="--cat:${c.color}" aria-pressed="false">${c.label}</button>`).join('')}</div>
-            <label class="daily-toggle" title="Revient chaque matin"><input type="checkbox" id="task-daily" />${icon('repeat')} Chaque jour</label>
-            <button type="submit" class="icon-button add-task" aria-label="Ajouter la tâche">${icon('plus')}</button>
+            <div class="days" id="task-days" role="group" aria-label="Jours" hidden>${DAY_LABELS.map((d,i)=>`<button type="button" data-day="${i}" aria-pressed="true">${d}</button>`).join('')}</div>
+            <div class="chips" id="task-dirs" role="group" aria-label="Sens" hidden><button type="button" data-dir="up" aria-pressed="true">${icon('plus')} Bonne</button><button type="button" data-dir="down" aria-pressed="false">${icon('minus')} Mauvaise</button></div>
+            <label class="due-field" id="task-due-field" hidden>${icon('calendar')}<input type="date" id="task-due" aria-label="Date butoir" /></label>
           </div>
         </form>
         <ul id="task-list" class="task-list"></ul>
         <p id="tasks-empty" class="tasks-empty">Rien pour l’instant. Une seule chose suffit pour commencer.</p>
+        <div class="task-filter" id="task-filter"><button type="button" data-filter="remaining" aria-pressed="true">Restantes</button><button type="button" data-filter="all" aria-pressed="false">Toutes</button></div>
       </section>
       <p class="drawer-note">Chaque tâche devient une petite ardoise posée sur une table du café. Coche-la ici, ou clique dessus dans la salle pour la retrouver.</p>
       </div>
@@ -404,8 +408,8 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
 });
 function onSceneState(state: SceneState){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
-    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
-      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.type==='daily'?' · chaque jour':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
+    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task as any,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
+      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
@@ -575,19 +579,20 @@ function bindServerEvents(){
     // Room-manage panel is for the owner only — a private room can now also be a friend's, visited via an invite link.
     ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
-  s.on('tasks:state',({tasks:list,coins})=>{setTasks(tasks,list);setCoins(progress,coins);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
+  s.on('tasks:state',({tasks:list,coins,energy})=>{setTasks(tasks,list);setCoins(progress,coins);setEnergy(progress,energy);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   // Notes and timer settings started on the landing page follow the visitor in, once.
   s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
-    for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,type:'task'});
+    for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,kind:'todo',difficulty:'easy'});
     if(h.durations){Object.assign(timer.durations,h.durations);resetTimer(timer);persistTimer();}
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
-  s.on('task:toggled',({taskId,done,coins})=>{const t=taskToggled(tasks,taskId,done);const before=progress.coins;setCoins(progress,coins);renderTasks();renderProgress();syncScene();
-    if(t&&done)toast(`${t.type==='daily'?'Fait pour aujourd’hui.':'C’est fait.'}${coins>before?` +${coins-before} pièces.`:''}`);});
-  s.on('task:updated',({taskId,text,category})=>{taskUpdated(tasks,taskId,text,category);renderTasks();syncScene();});
+  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);renderTasks();renderProgress();renderShop();syncScene();
+    const dc=coins-before;if(dc>0||xp>0){const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
+    else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
+  s.on('task:updated',t=>{taskUpdated(tasks,t);renderTasks();syncScene();});
   s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
   s.on('coins:update',({coins})=>{setCoins(progress,coins);renderProgress();renderShop();});
-  s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Le café te va de mieux en mieux.`),2600);}});
+  s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
@@ -683,32 +688,73 @@ setInterval(()=>{renderTimer();renderRoomPomo();},250);document.addEventListener
 
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
 const tasks=createTasks();
-let newCategory: string|null=null;
+let newCategory: string|null=null,newDifficulty=1,newDays=127,newUp=true,newDown=false;
 const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
+const esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
+const pips=(n: number)=>`<span class="pips" aria-hidden="true">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
+const dueLabel=(ts: number)=>new Date(ts).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
 function syncScene(){cafe?.setTasks(pending(tasks));}
+function renderTaskForm(){
+  const k=tasks.tab;($('#task-text') as HTMLInputElement).placeholder=KIND_LABELS[k].placeholder;
+  $('#task-days').hidden=k!=='daily';$('#task-dirs').hidden=k!=='habit';$('#task-due-field').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
+  document.querySelectorAll('#task-days button').forEach((b: any)=>b.setAttribute('aria-pressed',String(!!(newDays&(1<<Number(b.dataset.day))))));
+  document.querySelectorAll('#task-dirs button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.dir==='up'?newUp:newDown)));
+  const d=DIFFICULTIES[newDifficulty];$('#task-difficulty').title=d.label;$('#task-difficulty').innerHTML=pips(d.pips);
+  document.querySelectorAll('#task-tabs [role=tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.kind===k)));
+  document.querySelectorAll('#task-filter button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.filter===tasks.filter)));
+}
 function renderTasks(){
-  const list=$('#task-list'),todo=pending(tasks).length;list.innerHTML='';
-  for(const t of tasks.list){
-    const li=document.createElement('li');li.dataset.id=t.id;li.className=t.done?'done':'';const cat=catOf(t.category);
-    li.innerHTML=`<button class="check-button" aria-label="${t.done?'Reprendre':'Terminer'} : ${t.text}" aria-pressed="${t.done}">${icon('check')}</button><button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><span class="task-text" contenteditable="plaintext-only" spellcheck="false">${t.text.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c])}</span>${t.type==='daily'?`<span class="daily-badge" title="Chaque jour">${icon('repeat')}</span>`:''}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+  const list=$('#task-list'),today=new Date();
+  const open=new Set([...list.querySelectorAll('li.open')].map((l: any)=>l.dataset.id));
+  list.innerHTML='';
+  for(const t of visible(tasks,today)){
+    const li=document.createElement('li');li.dataset.id=t.id;const cat=catOf(t.category),d=DIFFICULTIES.find(x=>x.id===t.difficulty)!;
+    li.className=`kind-${t.kind} tint-${tint(t.value)}${t.done?' done':''}${t.kind==='daily'&&!isDue(t,today)?' not-due':''}`;
+    const text=`<span class="task-text" contenteditable="plaintext-only" spellcheck="false">${esc(t.text)}</span>`;
+    const common=`<button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><button class="pips diff" title="Difficulté : ${d.label} (cliquer pour changer)" aria-label="Changer la difficulté">${pips(d.pips)}</button>`;
+    if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" aria-label="Mauvaise : ${esc(t.text)}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui">${t.countUp}${t.down?` · ${t.countDown}`:''}</small>${t.up?`<button class="score-button up" data-dir="up" aria-label="Bonne : ${esc(t.text)}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+    else if(t.kind==='daily')li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${esc(t.text)}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.streak>1?`<small class="streak-count" title="Série">${icon('flame')}${t.streak}</small>`:''}<small class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</small><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+    else{const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
+      li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${esc(t.text)}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.dueAt?`<small class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</small>`:''}<button class="icon-button toggle-list" aria-expanded="false" aria-label="Étapes" title="Étapes">${icon('chevron-down')}${n?`<b>${k}/${n}</b>`:''}</button><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>
+      <ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(i.text)}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
     list.append(li);
   }
-  $('#tasks-empty').hidden=tasks.list.length>0;$('#tasks-count').textContent=todo?`${todo} à faire`:tasks.list.length?'Tout est fait':'';
+  for(const li of list.querySelectorAll('li[data-id]') as NodeListOf<HTMLElement>){
+    if(!open.has(li.dataset.id))continue;
+    li.classList.add('open');(li.querySelector('.checklist') as HTMLElement).hidden=false;li.querySelector('.toggle-list')!.setAttribute('aria-expanded','true');
+  }
+  $('#tasks-empty').hidden=visible(tasks,today).length>0;const left=remaining(tasks,today);$('#tasks-count').textContent=left?`${left} à faire`:tasks.list.length?'Tout est fait':'';
+  for(const k of ['habit','daily','todo'] as const){const n=k==='habit'?tasks.list.filter(t=>t.kind==='habit').length:tasks.list.filter(t=>t.kind===k&&!t.done&&(k==='todo'||isDue(t,today))).length;($(`[data-count=${k}]`) as HTMLElement).textContent=n?String(n):'';}
   document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
-  drawIcons();
+  renderTaskForm();drawIcons();
 }
+const emitUpdate=(id: string,patch: any)=>net.socket.emit('task:update',{userId:identity.userId,taskId:id,patch});
+$('#task-tabs').onclick=(e: any)=>{const b=e.target.closest('[data-kind]');if(!b)return;tasks.tab=b.dataset.kind;renderTasks();$('#task-text').focus();};
+$('#task-filter').onclick=(e: any)=>{const b=e.target.closest('[data-filter]');if(!b)return;tasks.filter=b.dataset.filter;renderTasks();};
 $('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
+$('#task-days').onclick=(e: any)=>{const b=e.target.closest('[data-day]');if(!b)return;newDays=toggleDay(newDays,Number(b.dataset.day));renderTaskForm();};
+$('#task-dirs').onclick=(e: any)=>{const b=e.target.closest('[data-dir]');if(!b)return;if(b.dataset.dir==='up')newUp=!newUp;else newDown=!newDown;if(!newUp&&!newDown)newUp=true;renderTaskForm();};
+$('#task-difficulty').onclick=()=>{newDifficulty=(newDifficulty+1)%DIFFICULTIES.length;renderTaskForm();};
 $('#task-form').onsubmit=(e: any)=>{e.preventDefault();const text=cleanText(($('#task-text') as HTMLInputElement).value);if(!text)return;
-  net.socket.emit('task:add',{userId:identity.userId,text,category:newCategory,type:($('#task-daily') as HTMLInputElement).checked?'daily':'task'});($('#task-text') as HTMLInputElement).value='';};
+  const due=($('#task-due') as HTMLInputElement).value;const dueAt=due?new Date(due+'T12:00:00').getTime():null;
+  net.socket.emit('task:add',{userId:identity.userId,...newTaskPayload(tasks.tab,text,{difficulty:DIFFICULTIES[newDifficulty].id,category:newCategory,up:newUp,down:newDown,days:newDays,dueAt})});($('#task-text') as HTMLInputElement).value='';($('#task-due') as HTMLInputElement).value='';};
 $('#task-list').addEventListener('click',(e: Event)=>{
-  const li=(e.target as HTMLElement).closest('li');if(!li)return;const id=li.dataset.id!;const target=e.target as HTMLElement;
-  if(target.closest('.check-button'))net.socket.emit('task:toggle',{userId:identity.userId,taskId:id});
-  else if(target.closest('.cat-dot')){const t=tasks.list.find(t=>t.id===id);if(!t)return;const i=CATEGORIES.findIndex(c=>c.id===t.category);net.socket.emit('task:update',{userId:identity.userId,taskId:id,text:t.text,category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
+  const target=e.target as HTMLElement,li=target.closest('li[data-id]') as HTMLElement|null;if(!li)return;const id=li.dataset.id!;const t=tasks.list.find(t=>t.id===id);if(!t)return;
+  const scoreBtn=target.closest('[data-dir]') as HTMLElement|null;
+  if(scoreBtn&&!target.closest('.checklist')){scoreBtn.setAttribute('disabled','');net.socket.emit('task:score',{userId:identity.userId,taskId:id,direction:scoreBtn.dataset.dir as 'up'|'down'});}
+  else if(target.closest('.cat-dot')){const i=CATEGORIES.findIndex(c=>c.id===t.category);emitUpdate(id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
+  else if(target.closest('.diff')){const i=DIFFICULTIES.findIndex(d=>d.id===t.difficulty);emitUpdate(id,{difficulty:DIFFICULTIES[(i+1)%DIFFICULTIES.length].id});}
+  else if(target.closest('.toggle-list')){const ul=li.querySelector('.checklist') as HTMLElement,b=li.querySelector('.toggle-list')!;ul.hidden=!ul.hidden;b.setAttribute('aria-expanded',String(!ul.hidden));li.classList.toggle('open',!ul.hidden);}
+  else if(target.closest('.checklist .check-button')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.map((i,j)=>j===idx?{...i,done:!i.done}:i)});}
+  else if(target.closest('.remove-item')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.filter((_,j)=>j!==idx)});}
   else if(target.closest('.remove-task'))net.socket.emit('task:delete',{userId:identity.userId,taskId:id});
 });
-$('#task-list').addEventListener('keydown',(e: any)=>{if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}});
-$('#task-list').addEventListener('focusout',(e: Event)=>{const el=e.target as HTMLElement;if(!el.matches('.task-text'))return;const id=el.closest('li')!.dataset.id!;const t=tasks.list.find(t=>t.id===id);const text=cleanText(el.textContent);
-  if(!t||!text){if(t)el.textContent=t.text;return;}if(text!==t.text)net.socket.emit('task:update',{userId:identity.userId,taskId:id,text,category:t.category});});
+$('#task-list').addEventListener('keydown',(e: any)=>{
+  if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}
+  if(e.target.matches('.add-item input')&&e.key==='Enter'){e.preventDefault();const li=e.target.closest('li[data-id]'),t=tasks.list.find(t=>t.id===li.dataset.id);const text=cleanChecklistItem(e.target.value);if(!t||!text)return;emitUpdate(t.id,{checklist:[...t.checklist,{text,done:false}]});e.target.value='';}
+});
+$('#task-list').addEventListener('focusout',(e: Event)=>{const el=e.target as HTMLElement;if(!el.matches('.task-text'))return;const id=(el.closest('li[data-id]') as HTMLElement).dataset.id!;const t=tasks.list.find(t=>t.id===id);const text=cleanText(el.textContent);
+  if(!t||!text){if(t)el.textContent=t.text;return;}if(text!==t.text)emitUpdate(id,{text});});
 renderTasks();
 
 // Optional generated rain: no remote audio, tracking, or autoplay.
