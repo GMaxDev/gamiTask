@@ -141,13 +141,24 @@ Si le FPS est déjà à 60 sur ta machine, ne pas toucher ; sinon commencer par 
 
 Plan de `getTasks` : `SCAN tasks + TEMP B-TREE` → `SEARCH tasks USING INDEX tasks_user_created`. Suite serveur 40/40. Gardé.
 
+## 6 bis. Appliqué le 2026-09-22 — F + G + D
+
+- **F, G** (`nginx/default.conf`) : `gzip` sur JS/CSS/SVG/JSON, `/assets/` en `Cache-Control: public, immutable` (1 an), les deux `index.html` en `no-cache`. Non testable en local (pas de nginx) : à vérifier au déploiement avec l'onglet Network (2ᵉ visite = `(memory cache)`).
+- **D** (`recipe.ts`) : three-bvh-csg + three-mesh-bvh en `import()` à la demande (`ensureCsg()`), chargés par le catalogue quand une pièce a une découpe et par l'atelier à l'ouverture ; une découpe non chargée rend la pièce pleine puis la salle est reconstruite au chargement.
+
+| Mesure | Avant | Après |
+|---|---|---|
+| chunk `avatar` (gzip) | 168 kB | 137 kB |
+| JS préchargé au démarrage de `/app/` (gzip) | ≈ 359 kB | ≈ 328 kB (chunk CSG de 36 kB hors préchargement) |
+| requêtes CSG au démarrage | 1 (dans avatar) | **0** |
+| chargement à la demande | — | 27 ms sur loopback |
+
+Suite app 85/85 (test `recipe` adapté : pleine avant chargement, creusée après), typecheck OK. Gardé.
+
 ## 7. Ordre recommandé (reste)
 
 | # | Action | Effort | Gain attendu | Mesure de vérification |
 |---|---|---|---|---|
-| G | cache immuable sur `/assets/` | 3 lignes nginx | rechargements sans réseau | onglet Network, 2ᵉ visite |
-| F | gzip/brotli nginx (si rien devant) | 2 lignes | 1,2 Mo → 360 kB en prod | taille transférée |
-| D | `import()` de three-bvh-csg dans `carve()` | 10 lignes | −30-50 kB gzip au démarrage | taille chunk `avatar` |
 | E | marks dans `createCafe` puis décision | 1 h | inconnu (c'est le but) | `performance.measure` |
 | 5 | FPS + profil GPU au premier plan | 10 min | inconnu | DevTools Performance |
 

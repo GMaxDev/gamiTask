@@ -7,6 +7,7 @@ import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,randomLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
 import {createWorkshop,WORKSHOP_ICONS} from './workshop.ts';
+import {ensureCsg,csgReady,needsCsg} from './recipe.ts';
 import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
 import {toCell,DIMS} from './coords.ts';
@@ -575,7 +576,9 @@ function bindServerEvents(){
     renderRoomPomo();});
   s.on('me:state',u=>{role=u.role;renderIdentity();});
   s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
-    if(furnitureSeen){try{mountRoom();syncScene();net.socket.emit('room:refresh');}catch(error){console.error(error);}}});
+    if(furnitureSeen){try{mountRoom();syncScene();net.socket.emit('room:refresh');}catch(error){console.error(error);}}
+    // Carved pieces need the boolean toolkit: fetch it once, then rebuild so the cuts show (they rendered solid meanwhile).
+    if(!csgReady()&&items.some(i=>needsCsg(i.parts)))ensureCsg().then(()=>{if(cafe){try{mountRoom();syncScene();}catch(error){console.error(error);}}});});
   s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',logout);// a Google account without a valid token starts over as a guest
   s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête

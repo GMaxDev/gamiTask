@@ -1,7 +1,7 @@
 // Turns an editor recipe (a list of primitives) into one group, through the same toolkit the hand-written decor uses,
 // and reads a built group back into a recipe, so the coded pieces can be opened in the workshop.
 import * as THREE from 'three';
-import {Brush,Evaluator,SUBTRACTION} from 'three-bvh-csg';
+import type {Evaluator} from 'three-bvh-csg';
 import type {Primitives} from './primitives.ts';
 import type {Part} from '@shared/catalog';
 
@@ -22,12 +22,19 @@ export function buildRecipe(p:Primitives,parts:Part[],parent:any,ghosts=false):a
   return g;
 }
 const GHOST=new THREE.MeshStandardMaterial({color:'#c94f4f',transparent:true,opacity:.35,depthWrite:false});
-let evaluator:Evaluator|null=null;
+// The boolean toolkit (three-bvh-csg + three-mesh-bvh, ~32 kB gzip) is fetched on demand: only recipes with a cut need it.
+// Until it lands, a cut is skipped and the piece renders solid; callers that know they carve await ensureCsg() and rebuild.
+type Csg=typeof import('three-bvh-csg');
+let csg:Csg|null=null,loading:Promise<void>|null=null,evaluator:Evaluator|null=null;
+export const csgReady=():boolean=>!!csg;
+export function ensureCsg():Promise<void>{return csg?Promise.resolve():(loading??=import('three-bvh-csg').then(m=>{csg=m;}));}
+export const needsCsg=(parts:Part[]):boolean=>parts.some(p=>p.op==='cut');
 function carve(target:any,cutter:any){
-  evaluator??=Object.assign(new Evaluator(),{useGroups:false});
-  const a=new Brush(target.geometry),b=new Brush(cutter.geometry);
+  if(!csg)return;
+  evaluator??=Object.assign(new csg.Evaluator(),{useGroups:false});
+  const a=new csg.Brush(target.geometry),b=new csg.Brush(cutter.geometry);
   target.matrixWorld.decompose(a.position,a.quaternion,a.scale);cutter.matrixWorld.decompose(b.position,b.quaternion,b.scale);a.updateMatrixWorld(true);b.updateMatrixWorld(true);
-  const out=evaluator.evaluate(a,b,SUBTRACTION);target.geometry.dispose();target.geometry=out.geometry;// the result sits in the target's own frame
+  const out=evaluator.evaluate(a,b,csg.SUBTRACTION);target.geometry.dispose();target.geometry=out.geometry;// the result sits in the target's own frame
 }
 // Back, two sides, bottom and top: the front stays open so shelves and things can sit inside.
 function shell(p:Primitives,q:Extract<Part,{kind:'shell'}>,parent:any){

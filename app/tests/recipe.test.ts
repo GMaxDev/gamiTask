@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {createPrimitives} from '../src/primitives.ts';
-import {buildRecipe,captureRecipe} from '../src/recipe.ts';
+import {buildRecipe,captureRecipe,ensureCsg,csgReady} from '../src/recipe.ts';
 
 const root=new THREE.Group(),P=createPrimitives(()=>root,new Map());
 test('a recipe becomes one group of meshes, placed, turned and coloured as written',()=>{
@@ -39,7 +39,13 @@ test('a torus is one ring, a hollow box five walls open at the front, and a toru
   assert.ok(shell.children.every((w:any)=>w.position.z<=.001),'nothing closes the front');
   assert.deepEqual(captureRecipe(g)[0],{kind:'torus',x:0,y:.5,z:0,rx:1.57,ry:0,rz:0,rad:.3,tube:.05,n:24,arc:3.14,color:'#d2a754'});
 });
-test('a cutting part carves the solid parts before it and leaves no mesh of its own in the game',()=>{
+test('a cutting part is skipped until the boolean toolkit is loaded, then carves for real',async()=>{
+  const parts=[
+    {kind:'box',x:0,y:.5,z:0,rx:0,ry:0,rz:0,w:1,h:1,d:1,r:0,color:'#c9764f'},
+    {kind:'cyl',x:0,y:.5,z:0,rx:0,ry:0,rz:0,rt:.2,rb:.2,h:3,n:16,color:'#ffffff',op:'cut'},
+  ] as any;
+  if(!csgReady()){const solid=buildRecipe(P,parts,root);solid.updateWorldMatrix(true,true);const r0=new THREE.Raycaster();r0.set(new THREE.Vector3(0,5,0).add(root.position),new THREE.Vector3(0,-1,0));assert.ok(r0.intersectObject(solid.children[0]).length>0,'before the toolkit lands the piece renders solid');root.remove(solid);}
+  await ensureCsg();assert.ok(csgReady());
   const g=buildRecipe(P,[
     {kind:'box',x:0,y:.5,z:0,rx:0,ry:0,rz:0,w:1,h:1,d:1,r:0,color:'#c9764f'},
     {kind:'cyl',x:0,y:.5,z:0,rx:0,ry:0,rz:0,rt:.2,rb:.2,h:3,n:16,color:'#ffffff',op:'cut'},

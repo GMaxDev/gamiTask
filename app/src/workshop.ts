@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import type {CatalogItem,PartKind,Anchor,AnchorKind} from '@shared/catalog';
 import {createPrimitives,C} from './primitives.ts';
-import {buildRecipe,captureRecipe} from './recipe.ts';
+import {buildRecipe,captureRecipe,ensureCsg} from './recipe.ts';
 import {buildAvatar,buildHat} from './avatar.ts';
 import {HATS,FURNITURE,isBuiltIn,withOriginals,footprint} from './shop.ts';
 import {createDecor,DECOR_PIECES} from './decor.ts';
@@ -224,7 +224,7 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
   drawIcons();
 
   return {
-    open(){if(opened)return;opened=true;el.classList.add('open');el.setAttribute('aria-hidden','false');load(newItem());resize();loop();nameIn.focus();},
+    open(){if(opened)return;opened=true;el.classList.add('open');el.setAttribute('aria-hidden','false');load(newItem());resize();loop();nameIn.focus();ensureCsg().then(()=>{if(opened)rebuild();});},// cuts carve for real once the toolkit is in
     close(){if(!opened)return;opened=false;cancelAnimationFrame(raf);el.classList.remove('open');el.setAttribute('aria-hidden','true');},
     isOpen:()=>opened,
     refresh(){if(opened){renderItems();renderMeta();}},
