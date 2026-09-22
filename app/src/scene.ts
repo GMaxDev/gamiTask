@@ -470,7 +470,14 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const BASE_SPEED=2.4;
   const nearestFreeSeat=()=>{const p=player.g.position;return seats.filter(s=>!s.taken).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0]??null;};
   function setEnergy(e: number,ex: boolean){energy=e;exhausted=ex;me.speed=exhausted||energy<10?BASE_SPEED*.7:BASE_SPEED;
-    const grey=exhausted?.55:1;player.g.traverse((o: any)=>{if(o.material?.color&&!o.userData.baseColor)o.userData.baseColor=o.material.color.clone();if(o.userData.baseColor)o.material.color.copy(o.userData.baseColor).multiplyScalar(grey).lerp(new THREE.Color('#9a9a94'),exhausted?.35:0);});
+    // Materials are pooled by colour (primitives.ts `mat()`) and shared with the barista and every remote player,
+    // so the player's rig needs its own clone before it can be greyed — mutating the pooled material would greige the whole room.
+    const grey=exhausted?.55:1;
+    player.g.traverse((o: any)=>{
+      const m=o.material;if(!m?.color)return;
+      if(m!==o.userData.ownMaterial){o.userData.ownMaterial?.dispose();o.userData.sharedColor=m.color.clone();o.material=m.clone();o.userData.ownMaterial=o.material;}
+      o.material.color.copy(o.userData.sharedColor).multiplyScalar(grey).lerp(new THREE.Color('#9a9a94'),exhausted?.35:0);
+    });
     if(exhausted&&!me.seated){const seat=nearestFreeSeat();if(seat)moveTo(seat,seat);}}
   // The host wanders between its work spots, free seats and random spots, pausing in between.
   const bar: any=npc&&walker(npc,1.9,{onArrive(){bar.working=bar.atWork;bar.wait=bar.seated?8+Math.random()*12:bar.working?6+Math.random()*10:1+Math.random()*4;}});if(bar)bar.wait=2;
@@ -764,10 +771,13 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function simulate(dt: number){
     me.step(dt);npcThink(dt);bar?.step(dt);remoteThink(dt);
-    if(!reducedMotion&&energy<25&&!me.seated&&!me.route.length){
+    // Yawning is pure flourish and respects reducedMotion; walking to a seat is the actual spec'd behaviour and must not be gated by it.
+    if(energy<25&&!me.seated&&!me.route.length){
       if(!idleSince)idleSince=time;
-      if(time>nextYawn){yawnUntil=time+.6;nextYawn=time+20+Math.random()*20;}
-      if(time<yawnUntil){const k=Math.sin((yawnUntil-time)/.6*Math.PI);player.head.rotation.x=-.35*k;player.armR.rotation.x=-2.2*k;}
+      if(!reducedMotion){
+        if(time>nextYawn){yawnUntil=time+.6;nextYawn=time+20+Math.random()*20;}
+        if(time<yawnUntil){const k=Math.sin((yawnUntil-time)/.6*Math.PI);player.head.rotation.x=-.35*k;player.armR.rotation.x=-2.2*k;}
+      }
       if(energy<10&&time-idleSince>8){const seat=nearestFreeSeat();if(seat){moveTo(seat,seat);idleSince=0;}}
     }else idleSince=0;
     for(const r of remotes.values())r.w.step(dt);
