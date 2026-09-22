@@ -2071,6 +2071,7 @@ io.on("connection", (socket) => {
     sql.setCoins.run(coins, userId);
     if (r.xp !== 0) emitXpUpdate(socket, userId, r.xp);
     const energy = r.energyDelta ? applyEnergy(socket, userId, r.energyDelta) : (sql.getEnergy.get(userId) as { energy: number }).energy;
+    coins = (sql.getCoins.get(userId) as UserRow).coins;
     const { xp } = sql.getXp.get(userId) as { xp: number };
     const newLevel = levelOf(xp);
     socket.emit("task:scored", {
