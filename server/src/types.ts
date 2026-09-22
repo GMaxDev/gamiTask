@@ -172,14 +172,35 @@ export const FURNITURE_SETS: FurnitureSet[] = [
   },
 ];
 
+export type TaskKind = "habit" | "daily" | "todo";
+export type Difficulty = "trivial" | "easy" | "medium" | "hard";
+export interface ChecklistItem {
+  text: string;
+  done: boolean;
+}
 export interface Task {
   id: string;
   userId: string;
   text: string;
-  done: boolean;
-  createdAt: number;
+  note: string;
+  kind: TaskKind;
+  difficulty: Difficulty;
+  /** Valeur cachée : monte quand on réussit, baisse quand on rate. Module les gains et la teinte. */
+  value: number;
   category: string | null;
-  type: "task" | "daily";
+  createdAt: number;
+  /** todo validée / daily cochée aujourd'hui. Toujours false pour une habitude. */
+  done: boolean;
+  up: boolean;
+  down: boolean;
+  countUp: number;
+  countDown: number;
+  /** daily : bitmask lundi = 1 … dimanche = 64 */
+  days: number;
+  streak: number;
+  dueAt: number | null;
+  checklist: ChecklistItem[];
+  completedAt: number | null;
 }
 
 export type PomodoroPhase = "focus" | "short-break" | "long-break";
