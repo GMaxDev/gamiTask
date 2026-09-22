@@ -130,12 +130,21 @@ Puis onglet Performance de DevTools, 10 s d'enregistrement en marchant dans le c
 
 Si le FPS est déjà à 60 sur ta machine, ne pas toucher ; sinon commencer par le mode d'ombre, une variable à la fois.
 
-## 6. Ordre recommandé
+## 6. Appliqué le 2026-09-22 — A + B (même script, même base)
+
+| Événement | Avant (p50 / p95) | Après (p50 / p95) |
+|---|---|---|
+| `join` (0 tâche) | 1,8 / 4,1 ms | 1,0 / 2,0 ms |
+| `join` (20 tâches) | 3,5 / 5,4 ms | 1,0 / 1,2 ms |
+| `task:add` | 7,7 / 12,3 ms | 0,6 / 0,7 ms |
+| `task:score` | 28,4 / 35,7 ms | **0,9 / 1,7 ms** |
+
+Plan de `getTasks` : `SCAN tasks + TEMP B-TREE` → `SEARCH tasks USING INDEX tasks_user_created`. Suite serveur 40/40. Gardé.
+
+## 7. Ordre recommandé (reste)
 
 | # | Action | Effort | Gain attendu | Mesure de vérification |
 |---|---|---|---|---|
-| A | `journal_mode=WAL` + `synchronous=NORMAL` | 2 lignes | `task:score` 28 → ~8 ms | script de latence (§1) |
-| B | index `tasks(userId, createdAt)` | 1 ligne | linéaire → indexé | `EXPLAIN QUERY PLAN` |
 | G | cache immuable sur `/assets/` | 3 lignes nginx | rechargements sans réseau | onglet Network, 2ᵉ visite |
 | F | gzip/brotli nginx (si rien devant) | 2 lignes | 1,2 Mo → 360 kB en prod | taille transférée |
 | D | `import()` de three-bvh-csg dans `carve()` | 10 lignes | −30-50 kB gzip au démarrage | taille chunk `avatar` |
