@@ -94,7 +94,7 @@ Légende : ✅ reprendre · 🔧 adapter · ⏭ plus tard · ❌ écarter
 | 4e colonne Récompenses perso | ⏭ | La boutique joue déjà ce rôle avec du mobilier tangible dans la pièce ; une récompense texte « une bière » est moins gamiTask. À revoir si les joueurs le demandent |
 | Difficulté à 4 niveaux | ✅ | Multiplicateur identique (0,1 / 1 / 1,5 / 2). Remplace les gains fixes. Se choisit à la création, modifiable ensuite |
 | Valeur cachée + couleur | ✅ | La couleur remplace avantageusement la jauge de dégradation invisible. Dans la DA gamiTask : teinte de l'ardoise (craie fraîche → craie effacée / rouille) plutôt que bleu → rouge |
-| PV | ✅ | Barre de vie dans le HUD, PV max 50, restaurés au level-up. Remplace `degradation`. À 0 PV : version douce (voir §5.4), pas la perte d'un objet |
+| PV | 🔧 | Même mécanique, habillée en **énergie du personnage** ☕ (0-50, restaurée au level-up) : une barre de vie rouge détonne dans un café. Remplace `degradation`. À 0 : version douce (voir §5.4), pas de « mort » |
 | XP et or modulés par `delta` | ✅ | Formules §5.3. Les bonus de mobilier existants restent des bonus additifs par-dessus |
 | Série (streak) des quotidiennes | ✅ | Compteur sur la carte, remis à 0 quand ratée. Achievement « 21 jours ». Le streak pomodoro existant reste séparé |
 | Planification : jours de la semaine | ✅ | 7 cases lu-di. Pas de « tous les N », pas de mensuel/annuel : le cron reste simple (`dueToday = days.includes(weekday)`) |
@@ -102,7 +102,7 @@ Légende : ✅ reprendre · 🔧 adapter · ⏭ plus tard · ❌ écarter
 | Checklist sur les à-faire | ✅ | C'est ce qui fait qu'un « projet » tient dans la colonne À faire. Bonus de `delta` par étape cochée |
 | Checklist sur les quotidiennes | ⏭ | Utile mais double le travail de UI ; on commence par les à-faire |
 | Compteurs +/− et remise à zéro des habitudes | 🔧 | Compteurs oui (ils donnent le sens de progression), remise à zéro **quotidienne seulement** au cron. Hebdo/mensuel = ❌ |
-| Habitude négative → perte de PV | ✅ | Sinon le « − » n'a aucun sens |
+| Habitude négative → perte d'énergie | ✅ | Sinon le « − » n'a aucun sens |
 | À-faire qui rougit avec le temps | ✅ | −1 de valeur par jour au cron, plafond. Sans date butoir obligatoire |
 | Date butoir des à-faire | 🔧 | Optionnelle, affichage seulement (badge « pour vendredi »). Pas de punition au dépassement en v1 |
 | Étiquettes libres | ❌ | On garde les 4 catégories, cohérentes avec la DA. Filtre par catégorie dans le panneau |
@@ -138,7 +138,7 @@ tasks
   checklist   JSON [{text, done}]
 
 users
-  hp          INTEGER, 50 par défaut, max 50
+  energy      INTEGER, 50 par défaut, max 50
   (degradation : conservée en base, plus lue ; supprimée plus tard)
 ```
 
@@ -156,36 +156,37 @@ Après une réussite : `value += delta` (borné). Après un échec (« − » ou
 
 Les nombres actuels (10 pièces par tâche, 25 par pomodoro, 50 XP par pomodoro, niveau = √(xp/50)) restent la référence pour ne pas dévaluer l'économie de la boutique.
 
-| Action | Pièces | XP | Boss | PV |
+| Action | Pièces | XP | Boss | Énergie |
 |---|---|---|---|---|
 | Réussite (habitude +, quotidienne, à-faire) | `round(10 × delta)` | `round(15 × delta)` | `round(5 × delta)` dégâts | — |
 | Habitude « − » | — | — | — | `−round(3 × delta)` |
 | Quotidienne due ratée (cron) | — | — | boss `+5` (existant) | `−round(3 × delta)` |
 | Pomodoro (inchangé) | 25 + bonus | 50 | 10 dégâts | — |
-| Level-up | — | — | — | PV = 50 |
+| Level-up | — | — | — | énergie = 50 |
 
-Ordre de grandeur : une tâche facile neuve = 10 pièces / 15 XP (comme aujourd'hui pour les pièces). Une tâche difficile négligée depuis 10 jours (`value ≈ −10`) = `delta ≈ 2,6` → 26 pièces, 39 XP, 13 dégâts, et 8 PV de perte si on la rate encore. Une tâche facile tenue 20 jours (`value ≈ 15`) = `delta ≈ 0,68` → 7 pièces. C'est exactement la pente d'Habitica : ce qu'on tient devient une routine qui paie peu, ce qu'on fuit devient l'affaire du jour.
+Ordre de grandeur : une tâche facile neuve = 10 pièces / 15 XP (comme aujourd'hui pour les pièces). Une tâche difficile négligée depuis 10 jours (`value ≈ −10`) = `delta ≈ 2,6` → 26 pièces, 39 XP, 13 dégâts, et 8 d'énergie en moins si on la rate encore. Une tâche facile tenue 20 jours (`value ≈ 15`) = `delta ≈ 0,68` → 7 pièces. C'est exactement la pente d'Habitica : ce qu'on tient devient une routine qui paie peu, ce qu'on fuit devient l'affaire du jour.
 
 Décocher une tâche annule le gain (comme aujourd'hui) et rend le `value`.
 
-### 5.4 PV et « mort »
+### 5.4 Énergie du personnage
 
-- Barre de PV dans le HUD à côté de la barre d'XP, 50 max.
-- Immunité débutant : pas de perte de PV avant le niveau 3 (l'existant met 5 pour la dégradation ; 5 niveaux = 1250 XP = 25 pomodoros, c'est long — à discuter).
-- **0 PV, version douce** : PV remis à 50, **−30 % des pièces**, le personnage arrive « fatigué » dans la pièce (animation d'assis, teinte grise) pendant la journée. Pas de perte de niveau ni d'objet : chez Habitica c'est le premier motif d'abandon cité par les joueurs, et gamiTask vend une ambiance café, pas un rogue-like.
-- La dégradation 0-5 disparaît. Si un effet visuel de pièce qui se dégrade existe dans les cartons, il se branche sur `hp / 50`.
+- Jauge ☕ « énergie » dans le HUD à côté de la barre d'XP, 50 max. C'est la barre de vie d'Habitica sans le vocabulaire RPG.
+- Elle se **voit sur le personnage** : sous 25 il baille de temps en temps, sous 10 il marche lentement et s'assoit dès qu'il peut. Remontée par les tâches réussies (+1 par réussite, en plus du level-up qui la remet à 50).
+- Immunité débutant : pas de perte d'énergie avant le niveau 3 (l'existant met 5 pour la dégradation ; 5 niveaux = 1250 XP = 25 pomodoros, c'est long — à discuter).
+- **Énergie à 0, version douce** : jauge remise à 50, **−30 % des pièces**, le personnage arrive « épuisé » dans la pièce (assis, teinte grise) pendant la journée. Pas de perte de niveau ni d'objet : chez Habitica c'est le premier motif d'abandon cité par les joueurs, et gamiTask vend une ambiance café, pas un rogue-like.
+- La dégradation 0-5 disparaît. Si un effet visuel de pièce qui se dégrade existe dans les cartons, il se branche sur `energy / 50`.
 
 ### 5.5 Le cron gamiTask
 
 Généralisation de `checkAndApplyDailyReset`, toujours déclenché à la première connexion du jour (pas de tâche planifiée serveur) :
 
-1. Pour chaque `daily` due la veille (`days` contient le jour d'hier) et non `doneToday` : `value -= delta`, `hp -= round(3 × delta)`, `streak = 0`, boss `+5`.
+1. Pour chaque `daily` due la veille (`days` contient le jour d'hier) et non `doneToday` : `value -= delta`, `energy -= round(3 × delta)`, `streak = 0`, boss `+5`.
 2. Toutes les `daily` : `doneToday = 0`.
 3. Toutes les `habit` : `countUp = countDown = 0`.
 4. Tous les `todo` non faits : `value -= 0.5` (elles rougissent lentement).
-5. Émission d'un seul événement `day:rollover` avec le récap (PV perdus, quotidiennes ratées) → toast « Hier : 2 quotidiennes oubliées, −6 PV ».
+5. Émission d'un seul événement `day:rollover` avec le récap (énergie perdue, quotidiennes ratées) → toast « Hier : 2 quotidiennes oubliées, −6 ☕ ».
 
-Cas à traiter : plusieurs jours d'absence (répéter l'étape 1 par jour manqué, plafonner les PV perdus à 20 par cron pour ne pas tuer quelqu'un qui revient de vacances).
+Cas à traiter : plusieurs jours d'absence (répéter l'étape 1 par jour manqué, plafonner l'énergie perdue à 20 par cron pour ne pas épuiser quelqu'un qui revient de vacances).
 
 ### 5.6 Le panneau de tâches
 
@@ -213,13 +214,13 @@ Trois onglets plutôt que trois colonnes : le panneau actuel est étroit (latér
 - **Commun** : point de catégorie cliquable (existant), texte éditable en place (existant), pastille de difficulté (▪ à ▪▪▪▪) cliquable pour changer, croix de suppression.
 - **Ajout** : champ texte + difficulté + (jours si quotidienne / ligne « + étape » si à-faire, dépliable). Pas de modale : gamiTask ajoute en une ligne, on garde ça.
 - **Teinte de la carte** : 5 paliers de `value` → couleur de fond de la ligne, du vert-craie (bien tenue) à la rouille (négligée). Même échelle sur l'ardoise 3D dans la pièce (`scene.ts` a déjà une ardoise par tâche et un badge doré pour les dailies).
-- **HUD** : barre PV ❤ au-dessus de la barre XP. Toast de gain enrichi : « +12 pièces · +18 XP · 6 dégâts au boss ».
+- **HUD** : jauge ☕ énergie au-dessus de la barre XP. Toast de gain enrichi : « +12 pièces · +18 XP · 6 dégâts au boss ».
 
 ### 5.7 Ce qui change dans l'existant
 
 - `task:add / toggle / update / delete` → un `task:*` par kind, ou un seul `task:score {taskId, direction: 'up'|'down'}` à la Habitica (recommandé : un seul point d'entrée pour toutes les règles de gain).
-- `tasks:state` envoie `hp` avec `coins`.
-- Achievements : `first-task`, `task-10`, `task-50` restent ; ajouter `streak-21` (quotidienne 21 jours), `habit-100` (100 « + »), `survivor` (revenir à 50 PV après être passé sous 10).
+- `tasks:state` envoie `energy` avec `coins`.
+- Achievements : `first-task`, `task-10`, `task-50` restent ; ajouter `streak-21` (quotidienne 21 jours), `habit-100` (100 « + »), `second-souffle` (revenir à 50 d'énergie après être passé sous 10).
 - Bonus mobilier (`coinsTask`, lampe) : deviennent des additifs après le calcul `delta`, inchangés sinon.
 - Les tâches importées de la landing (`gamitask.landing.handoff`) deviennent des `todo` faciles.
 
@@ -233,28 +234,28 @@ Ce qui a du sens à la sauce gamiTask, si on y va :
 
 | Idée | Se branche sur | Effort |
 |---|---|---|
-| **Mana = « énergie »** : +1 par tâche, +10 par jour, max `30 + 2 × niveau` | HUD (3e barre) | Faible |
+| **Mana = « inspiration »** (« énergie » est pris par la jauge de vie) : +1 par tâche, +10 par jour, max `30 + 2 × niveau` | HUD (3e barre) | Faible |
 | **Pas de classes, des « rôles » de café** choisis au niveau 10 : Barista (pièces +), Bibliothécaire (XP +), Jardinier (encaisse mieux), Videur (dégâts boss +) | Bonus passifs déjà gérés comme les sets de mobilier (`getSetBonuses`) | Faible : c'est un multiplicateur de plus |
-| **3 actions collectives payées en énergie**, communes à tous les rôles : « Tournée » (soigne 5 PV à toute la guilde), « Coup de main » (double le prochain gain d'un membre), « Dernier appel » (10 dégâts au boss) | Guilde existante, `guild:state` | Moyen : 3 événements serveur + 3 boutons |
+| **3 actions collectives payées en inspiration**, communes à tous les rôles : « Tournée » (+5 d'énergie à toute la guilde), « Coup de main » (double le prochain gain d'un membre), « Dernier appel » (10 dégâts au boss) | Guilde existante, `guild:state` | Moyen : 3 événements serveur + 3 boutons |
 | Sorts par classe façon Habitica | — | Élevé, et redondant avec la boutique/mobilier qui fait déjà office de build |
 
-Recommandation : **ne pas le mettre dans l'itération tâches**. Livrer d'abord types + difficulté + valeur + PV, mesurer si les joueurs tiennent leurs quotidiennes, puis ajouter énergie + rôles + actions collectives comme une itération « guilde ». Les rôles sont surtout intéressants si la guilde vit.
+Recommandation : **ne pas le mettre dans l'itération tâches**. Livrer d'abord types + difficulté + valeur + énergie, mesurer si les joueurs tiennent leurs quotidiennes, puis ajouter inspiration + rôles + actions collectives comme une itération « guilde ». Les rôles sont surtout intéressants si la guilde vit.
 
 ## 7. Risques et points ouverts
 
-- **Économie** : `delta` peut faire monter les pièces par tâche à ×2,6 pour une tâche difficile négligée. Les prix de la boutique (25-130 pièces) restent cohérents, mais à surveiller ; un plafond de `delta ≤ 3` est prudent.
+- **Économie** : `delta` peut monter à ≈ 3,8 pour une tâche difficile négligée au maximum (38 pièces d'un coup). Décision : **plafond `delta ≤ 3`**, une tâche ne rapporte jamais plus de trois fois le gain de base.
 - **Fuseau horaire** : le cron utilise l'heure du serveur (`setHours(0,0,0,0)`). Avec des joueurs hors France ça bascule à la mauvaise heure. Stocker un `timezoneOffset` client suffit pour la v1.
 - **Migration** : les tâches `daily` existantes reçoivent `days = 127`, `difficulty = 'easy'`, `value = 0`. Les `task` deviennent `todo`. Aucune perte.
 - **Plusieurs onglets ouverts** : `task:score` doit être idempotent par jour pour une quotidienne (déjà le cas de `toggle` grâce à `done`).
 - **Ardoise 3D** : `scene.ts` crée un mesh par tâche ; avec des habitudes cochées 10 fois par jour ça ne change rien (une ardoise par tâche, pas par coche), mais la teinte doit être mise à jour sans recréer le mesh.
-- **Question** : les habitudes ont-elles leur ardoise dans la pièce ? Proposition : oui, mais sans badge doré (réservé aux quotidiennes).
+- **Ardoises** : décision : une ardoise par tâche quel que soit le type, pas de nouvel objet 3D. Badge doré = quotidienne (existant), petit « ± » à la craie = habitude, teinte = valeur.
 
 ## 8. Découpage proposé
 
-1. **Modèle + règles serveur** : migration, `kind`, `difficulty`, `value`, `hp`, `task:score`, cron généralisé. Tests unitaires sur `delta` et le cron (jours manqués, immunité, plafond).
+1. **Modèle + règles serveur** : migration, `kind`, `difficulty`, `value`, `energy`, `task:score`, cron généralisé. Tests unitaires sur `delta` et le cron (jours manqués, immunité, plafond).
 2. **Panneau** : onglets, formulaire d'ajout par kind, habitudes +/−, jours, checklist, teintes.
-3. **HUD et retours** : barre PV, toast de gain détaillé, récap du matin, 0 PV « fatigué ».
+3. **HUD et retours** : jauge énergie + animations du perso, toast de gain détaillé, récap du matin, énergie à 0 « épuisé ».
 4. **Pièce 3D** : teinte des ardoises, ardoises pour les habitudes.
-5. **Plus tard** : récompenses perso, checklist sur quotidiennes, énergie + rôles + actions collectives, heure de bascule perso.
+5. **Plus tard** : récompenses perso, checklist sur quotidiennes, inspiration + rôles + actions collectives, heure de bascule perso.
 
 Chaque étape est livrable seule ; la 1 sans la 2 se teste au socket.
