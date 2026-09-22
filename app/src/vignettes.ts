@@ -38,5 +38,5 @@ export function createVignettes(){
     scene.remove(root);root=new THREE.Group();scene.add(root);builders[kind]();renderer.render(scene,camera);
     const url=renderer.domElement.toDataURL('image/png');cache.set(kind,url);root.traverse((o:any)=>o.geometry?.dispose?.());return url;
   }
-  return {draw,dispose(){materials.forEach(m=>m.dispose());extras.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();}};
+  return {draw,dispose(){P.disposeGeometries();materials.forEach(m=>m.dispose());extras.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();}};
 }

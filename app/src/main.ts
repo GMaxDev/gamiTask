@@ -425,7 +425,8 @@ function onSceneState(state: SceneState){
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
 try{
-  mountRoom();$('.loading')?.remove();($('#guests-button') as HTMLElement).hidden=room!=='private';
+  performance.mark('app:mount-start');// static imports (three, scene…) are all evaluated by now: this minus timeOrigin is the module cost
+  mountRoom();performance.mark('app:mount-end');$('.loading')?.remove();($('#guests-button') as HTMLElement).hidden=room!=='private';
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
 start();// the room is built behind the veil, then the server fills it
 

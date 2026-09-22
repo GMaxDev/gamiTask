@@ -228,6 +228,6 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
     close(){if(!opened)return;opened=false;cancelAnimationFrame(raf);el.classList.remove('open');el.setAttribute('aria-hidden','true');},
     isOpen:()=>opened,
     refresh(){if(opened){renderItems();renderMeta();}},
-    dispose(){this.close();document.removeEventListener('keydown',onKey);root.traverse((o:any)=>o.geometry?.dispose?.());materials.forEach(m=>m.dispose());extras.forEach(m=>m.dispose());renderer.dispose();el.remove();},
+    dispose(){this.close();document.removeEventListener('keydown',onKey);root.traverse((o:any)=>o.geometry?.dispose?.());P.disposeGeometries();materials.forEach(m=>m.dispose());extras.forEach(m=>m.dispose());renderer.dispose();el.remove();},
   };
 }

@@ -31,9 +31,11 @@ const LIGHT: Record<RoomKind,{day: LightSet; evening: LightSet}>={
 };
 export function createCafe(container: HTMLElement, onState: (state: SceneState) => void, {room='cafe',furniture={},look}: {room?: RoomKind; furniture?: Record<string, Cell>; look: Look}) {
   const scene=new THREE.Scene();
+  const tick=(n: string)=>performance.mark('cafe:'+n);let firstFrame=false;tick('start');
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
   const BASE_PR=Math.min(window.devicePixelRatio,2);let pixelRatio=BASE_PR;// adaptive: never above the base, never below .75 — 1.25 used to cap Retina screens well under native, blurring fine detail like bubble text
   renderer.setPixelRatio(pixelRatio);
+  tick('renderer');
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   // Shadows are rendered on demand. `stir` counts the frames still owed one; two frames cover a mover's last step and the pose it settles into.
   renderer.shadowMap.autoUpdate=false;let stir=3;
@@ -66,6 +68,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function shadow(x: number,z: number,sx: number,sz: number,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
   const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots};
+  tick('primitives');
   const D_=createDecor(dctx);
   const {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow}=D_;
   // Your room is a grid of floor tiles; a piece sits centred on its footprint.
@@ -261,7 +264,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   sofa(-3.6,-2.9,-Math.PI/2);shadow(-3.6,-2.8,1.85,.9);rug(-3.6,-1.6,Math.PI/2);coffeeTable(-3.6,-1.4,Math.PI/2);
   plant(-5.3,-4.3,1.2);obstacle(-5.3,-4.3,.7,.7);plant(5.3,4.2,1.35);obstacle(5.3,4.2,.75,.75);bookcase(5.4,-3.6);
   box(1.5,.022,.68,C.sage,3.0,.061,4.5,.08);// welcome mat
+  tick('room');
   for(const [id,slot] of Object.entries(furniture))placeFurniture(id,slot);// what you bought and put here
+  tick('furniture');
   for(const [x,z] of [[-3.6,-1.4],[2.6,1.2]]){
     cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.18,.43,.32,SHADE,x,2.92,z,root,24);cyl(.39,.39,.025,BULB,x,2.765,z);
     pool(x,2.6,z,scene,true);// both pendants at home are over the sofa and the desk, so both cast
@@ -288,6 +293,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   scene.traverse((o: any)=>{if(o.isLight)o.layers.enable(AVATAR_LAYER);});// else the sharp avatar pass draws it unlit
 
   const player: Rig=ground(buildAvatar(P,0,room==='private'?2:2.5,look)),avatar=player.g;
+  tick('player');
   // applyLook rebuilds the skull, hair and hat, and the new meshes start on layer 0 only
   function reskin(l: Look){applyLook(P,player,l);if(mode!=='edit')ground(player);restage();if(mode==='edit')avatar.traverse((o: any)=>o.layers.enable(AVATAR_LAYER));}
   function setLook(l: Look){reskin(l);}
@@ -348,6 +354,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const npc=room==='cafe'?buildAvatar(P,-7.5,-9.25,{...lookFor(0xf4e4c9,null),skin:'honey',hairColor:'black',trousers:'slate',headphones:false,bangs:'side',back:'short'},{apron:'#4d5b52'})
     :room==='garden'?buildAvatar(P,7.2,-9.3,{...lookFor(0xf4e4c9,null),skin:'caramel',hairColor:'ginger',trousers:'olive',headphones:false,bangs:'curly',back:'bob'},{apron:'#5f7f52'}):null;
   if(npc)ground(npc);
+  tick('npc');
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
   // Nearest tables to where the player starts get the first notes, so a new task is visible right away.
   taskSpots.sort((a,b)=>a.distanceTo(avatar.position)-b.distanceTo(avatar.position));
@@ -425,6 +432,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const marker=mesh(new THREE.RingGeometry(.13,.19,32),new THREE.MeshBasicMaterial({color:'#fff5dc',transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}),0,.085,0);marker.rotation.x=-Math.PI/2;marker.castShadow=false;
 
   const navigation=createNavigator(obstacles,.25,{minX:-HW+.5,maxX:HW-.5,minZ:-HD+.5,maxZ:HD-.5});
+  tick('navigation');
   let time=0,zoom=1,follow=true,dragging=false,dragStart: any=null,moved=false,glowing: any=null,glowTime=0;
   // Walking, sitting and limb animation shared by the player and the barista.
   function walker(p: any,speed: number,hooks: any={}){
@@ -724,6 +732,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   const observer=new ResizeObserver(resize);observer.observe(container);resize();
   renderer.compile(blur.scene,blur.cam);// compile the blur shader while the room mounts, so opening the editor does not hitch
+  tick('compile');
   // The editor owns the camera; the view buttons must not fight editAnim. setZoom covers zoomIn, zoomOut and the wheel.
   function setZoom(value: number){if(mode==='edit')return;zoom=THREE.MathUtils.clamp(value,.72,4);camera.zoom=zoom;camera.updateProjectionMatrix();onState?.({zoom,follow});}
   function recenter(){if(mode==='edit')return;follow=true;pan.set(0,0,0);setZoom(1);onState?.({zoom,follow});}
@@ -795,6 +804,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   let previous=performance.now(),raf: number;
   function animate(now: number){
+    if(!firstFrame){firstFrame=true;tick('first-frame');if(import.meta.env.DEV){const t=performance.getEntriesByType('mark').filter(m=>m.name.startsWith('cafe:'));console.table(Object.fromEntries(t.map((m,i)=>[m.name.slice(5),Math.round(m.startTime-(i?t[i-1].startTime:0))+' ms'])));}}
     const dt=Math.min((now-previous)/1000,.05);previous=now;time+=dt;adapt(dt);
     simulate(dt);
     {const col=Math.min(W-1,Math.max(0,Math.floor(avatar.position.x+HW))),row=Math.min(D-1,Math.max(0,Math.floor(avatar.position.z+HD))),k=`${col},${row}`,arrived=me.route.length===0&&!me.pendingSeat;
@@ -845,9 +855,10 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(mode==='edit')drawEditing();else renderer.render(scene,camera);
     raf=requestAnimationFrame(animate);
   }
+  tick('ready');// the whole construction, phase by phase, is readable in DevTools → Performance → Timings (and logged once in dev)
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
   if(import.meta.env.DEV)(window as any).__cafe={scene,renderer,camera};// dev only: lets a console profile the live scene
   return {setTasks,setClock,setEnergy,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
-    renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
+    P.disposeGeometries();renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

@@ -94,7 +94,7 @@ function createThumbs(){
     root.traverse((o:any)=>o.geometry?.dispose?.());
     return url;
   }
-  return {draw,dispose(){root.traverse((o:any)=>o.geometry?.dispose?.());materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();}};
+  return {draw,dispose(){root.traverse((o:any)=>o.geometry?.dispose?.());P.disposeGeometries();materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();}};
 }
 
 const MARKUP=`<div class="editor-topbar">
