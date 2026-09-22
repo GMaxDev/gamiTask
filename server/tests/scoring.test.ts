@@ -154,3 +154,9 @@ test("validators fall back to defaults", () => {
   assert.equal(cleanChecklist([{ text: "y".repeat(100), done: false }])[0].text.length, 80);
   assert.equal(cleanNote("  <b>hi</b>  "), "&lt;b&gt;hi&lt;/b&gt;"); assert.equal(cleanNote("z".repeat(300)).length, 200);
 });
+
+test("cleanNote truncates the raw string before escaping, never leaving a dangling entity", () => {
+  const result = cleanNote("z".repeat(199) + "<b>");
+  assert.ok(result.endsWith("&lt;"));
+  assert.equal(result, "z".repeat(199) + "&lt;");
+});

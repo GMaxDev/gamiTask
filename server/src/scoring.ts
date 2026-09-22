@@ -170,7 +170,7 @@ export const cleanChecklist = (v: unknown): ChecklistItem[] =>
     .slice(0, 20);
 export const cleanNote = (v: unknown): string =>
   String(v ?? "")
-    .replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] ?? c)
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 200);
+    .slice(0, 200)
+    .replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
