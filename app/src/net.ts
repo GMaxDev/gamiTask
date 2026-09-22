@@ -12,7 +12,7 @@ export function createNet(identity:Identity,initialRoom:string,socket:NetSocket)
   const set=(s:NetStatus)=>{status=s;listeners.forEach(cb=>cb(s));};
   socket.on('connect',()=>{
     if(status==='replaced')return;
-    socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:room,...(identity.token?{token:identity.token}:{})});set('online');
+    socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:room,tzOffsetMinutes:new Date().getTimezoneOffset(),...(identity.token?{token:identity.token}:{})});set('online');
   });
   socket.on('disconnect',()=>{if(status!=='replaced')set('offline');});
   socket.on('room:info',({roomId}:{roomId:string})=>{room=roomId;});

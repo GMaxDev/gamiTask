@@ -14,7 +14,7 @@ import type {RoomKind} from './coords.ts';
 import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
 import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
-import {createProgress,setCoins,setXp,setStreak,setEnergy,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
+import {createProgress,setCoins,setXp,setStreak,setEnergy,setExhausted,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
 import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
@@ -49,6 +49,7 @@ $('#app').innerHTML=`
           <button id="progress-chip" class="chip progress" aria-label="Ma progression" title="Ma progression">
             <span class="coins">${icon('coins')}<strong id="coins">0</strong></span><span class="level-badge" id="level-badge">Niveau 0</span><span class="streak" id="streak" hidden>${icon('flame')}<span id="streak-count">0</span></span>
             <span class="xp-bar" role="progressbar" aria-label="Expérience" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="xp-fill"></span></span>
+            <span class="energy-bar" role="progressbar" aria-label="Énergie" aria-valuemin="0" aria-valuemax="50" aria-valuenow="50" title="Énergie"><span id="energy-fill"></span></span>
           </button>
         </div></div>
         <div class="hud-zone hud-right">
@@ -119,6 +120,7 @@ $('#app').innerHTML=`
   <dialog id="progress-dialog" class="card card-honey"><header class="card-head"><span class="card-icon">${icon('trophy')}</span><span class="card-eyebrow">MA PROGRESSION</span><h2>Petit à petit.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
     <div class="progress-summary"><span class="coins">${icon('coins')}<strong id="coins-big">0</strong> pièces</span><span class="level-badge" id="level-big">Niveau 0</span></div>
     <div class="xp-bar" aria-hidden="true"><span id="xp-fill-big"></span></div><div class="xp-label" id="xp-label">0 / 50 XP</div>
+    <div class="energy-row"><span class="energy-icon">${icon('coffee')}</span><span>Énergie</span><div class="energy-bar big" aria-hidden="true"><span id="energy-fill-big"></span></div><span class="energy-label" id="energy-label">50 / 50</span></div>
     <div class="day-stats"><div><strong id="sessions">0</strong><span>sessions aujourd’hui</span></div><span class="stat-divider"></span><div><strong><span id="minutes">0</span><small> min</small></strong><span>rien que pour toi</span></div></div>
     <div class="session-dots"><span class="filled"></span><span></span><span></span><span></span><small id="cycle-label">Un pas après l’autre</small></div>
     <section><h3>Succès <span class="pill" id="achievements-count">0/7</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
@@ -241,6 +243,7 @@ async function start(){
   if(fresh){await askIdentity();look={...look,shirt:identity.color};saveLook();cafe?.setLook(look);}// the colour just chosen is the avatar's shirt
   if(room==='private'&&!inviteRoomId)pendingHome=true;// an invite link overrides « chez moi »'s own-room resolution — we're headed to someone else's room
   net=connect(API_URL,identity,room==='garden'?PUBLIC_IDS.garden:PUBLIC_IDS.cafe);// a saved garden joins the garden straight away; « chez moi » goes through the café while its room is resolved
+  if(import.meta.env.DEV)(window as any).net=net;
   if(inviteRoomId)net.socket.once('room:info',()=>net.socket.emit('room:switch',{roomId:inviteRoomId}));// wait for the initial join to land before asking to move again
   net.onStatus(s=>{
     if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
@@ -525,6 +528,8 @@ function renderProgress(){
   $('#xp-fill').style.width=`${pct}%`;$('.xp-bar').setAttribute('aria-valuenow',pct);$('#xp-label').textContent=`${into} / ${span} XP`;
   $('#streak').hidden=progress.streak<2;$('#streak-count').textContent=progress.streak;
   $('#achievements-count').textContent=`${progress.achievements.length}/${ACHIEVEMENTS.length}`;
+  const ep=Math.round(progress.energy/50*100);$('#energy-fill').style.width=`${ep}%`;$('#energy-fill-big').style.width=`${ep}%`;$('.energy-bar').setAttribute('aria-valuenow',String(progress.energy));$('#energy-label').textContent=`${progress.energy} / 50`;
+  document.body.classList.toggle('low-energy',progress.energy<25);document.body.classList.toggle('exhausted',progress.exhausted);
 }
 function rewardPomodoro(){net.socket.emit('pomodoro:complete',{userId:identity.userId});}
 renderProgress();
@@ -579,26 +584,30 @@ function bindServerEvents(){
     // Room-manage panel is for the owner only — a private room can now also be a friend's, visited via an invite link.
     ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
-  s.on('tasks:state',({tasks:list,coins,energy})=>{setTasks(tasks,list);setCoins(progress,coins);setEnergy(progress,energy);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
+  s.on('tasks:state',({tasks:list,coins,energy})=>{setTasks(tasks,list);setCoins(progress,coins);setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   // Notes and timer settings started on the landing page follow the visitor in, once.
   s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
     for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,kind:'todo',difficulty:'easy'});
     if(h.durations){Object.assign(timer.durations,h.durations);resetTimer(timer);persistTimer();}
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
-  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);renderTasks();renderProgress();renderShop();syncScene();
+  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);renderTasks();renderProgress();renderShop();syncScene();
     const dc=coins-before;if(dc>0||xp>0){const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
     else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
   s.on('task:updated',t=>{taskUpdated(tasks,t);renderTasks();syncScene();});
   s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
   s.on('coins:update',({coins})=>{setCoins(progress,coins);renderProgress();renderShop();});
+  s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
+  s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
+  s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);setExhausted(progress,false);renderProgress();cafe?.setEnergy?.(progress.energy,false);
+    if(missed.length)later(()=>toast(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}. ${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`),0);});
   s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
   s.on('room:full',()=>{if(ready.room){if(room!==prevRoom)enterRoom(prevRoom);// the iris already moved us: the server kept us where we were
       toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil
-    showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId()}),5000);});
+    showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId(),tzOffsetMinutes:new Date().getTimezoneOffset()}),5000);});
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
     if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}

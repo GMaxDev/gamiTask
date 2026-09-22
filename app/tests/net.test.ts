@@ -16,7 +16,7 @@ const me={userId:'u1',name:'Max',color:0x819478,token:null};
 test('joins on connect and again on every reconnect, with the current room',()=>{
   const s=fakeSocket(),net=createNet(me,'ocean',s);const seen:string[]=[];net.onStatus(x=>seen.push(x));
   assert.equal(net.status(),'connecting');
-  s.fire('connect');assert.deepEqual(s.sent[0],['join',{name:'Max',color:0x819478,col:0,row:0,userId:'u1',roomId:'ocean'}]);assert.equal(net.status(),'online');
+  s.fire('connect');assert.deepEqual(s.sent[0],['join',{name:'Max',color:0x819478,col:0,row:0,userId:'u1',roomId:'ocean',tzOffsetMinutes:new Date().getTimezoneOffset()}]);assert.equal(net.status(),'online');
   s.fire('room:info',{roomId:'room-42'});assert.equal(net.roomId(),'room-42');
   s.fire('disconnect');assert.equal(net.status(),'offline');
   s.fire('connect');assert.deepEqual(s.sent[1][1],{...s.sent[0][1] as object,roomId:'room-42'});
