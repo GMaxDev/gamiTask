@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelOf,levelInfo,ACHIEVEMENTS} from '../src/progress.ts';
+import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelOf,levelInfo,ACHIEVEMENTS,setEnergy,setExhausted} from '../src/progress.ts';
 
 test('level curve matches the server',()=>{
  assert.equal(levelOf(0),0);assert.equal(levelOf(50),1);assert.equal(levelOf(199),1);assert.equal(levelOf(200),2);assert.equal(levelOf(1250),5);
@@ -17,4 +17,7 @@ test('achievements unlock once and unknown keys are ignored',()=>{
 });
 test('the catalogue lists the eight server achievements',()=>{
  assert.deepEqual(ACHIEVEMENTS.map(a=>a.key),['first-task','task-10','task-50','first-pomo','streak-5','coins-100','coins-500','first-collective']);
+});
+test('energy is clamped to 0..50 and exhaustion is a flag',()=>{
+ const p=createProgress();assert.equal(p.energy,50);setEnergy(p,70);assert.equal(p.energy,50);setEnergy(p,-3);assert.equal(p.energy,0);setEnergy(p,12.6);assert.equal(p.energy,13);setExhausted(p,true);assert.equal(p.exhausted,true);
 });
