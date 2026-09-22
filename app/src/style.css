@@ -57,7 +57,7 @@
 .login-sep::before,.login-sep::after{content:'';flex:1;height:1px;background:#e6e8dc}
 #login-guest{width:100%;background:transparent;border:1px solid #dce1d0;color:#657757;padding:13px 18px;border-radius:9px;font-size:14px;font-weight:500}
 #login-guest:hover{background:#f2f3ea}
-#logout-button,#account-button{background:#fbfcf3d9;border:1px solid #fff9;border-radius:50%}#logout-button:hover,#account-button:hover{background:#f2f3ea}
+
 .secondary{width:100%;margin-top:10px;background:transparent;border:1px solid #dce1d0;color:#657757;padding:13px 18px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:9px;font-size:14px;font-weight:500}
 .secondary:hover{background:#f2f3ea}.secondary svg{width:14px;height:14px}
 .secondary[hidden],dialog .primary[hidden]{display:none}
