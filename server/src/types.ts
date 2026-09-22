@@ -324,6 +324,7 @@ export interface ClientToServerEvents {
     userId: string;
     roomId: RoomId;
     token?: string;
+    tzOffsetMinutes?: number;
   }) => void;
   "room:switch": (payload: { roomId: RoomId }) => void;
   "room:create-private": (payload: { name: string }) => void;
@@ -337,15 +338,21 @@ export interface ClientToServerEvents {
   "task:add": (payload: {
     userId: string;
     text: string;
+    kind?: TaskKind;
+    difficulty?: Difficulty;
     category: string | null;
-    type?: "task" | "daily";
+    note?: string;
+    up?: boolean;
+    down?: boolean;
+    days?: number;
+    dueAt?: number | null;
+    checklist?: ChecklistItem[];
   }) => void;
-  "task:toggle": (payload: { userId: string; taskId: string }) => void;
+  "task:score": (payload: { userId: string; taskId: string; direction: "up" | "down" }) => void;
   "task:update": (payload: {
     userId: string;
     taskId: string;
-    text: string;
-    category: string | null;
+    patch: Partial<Pick<Task, "text" | "note" | "difficulty" | "category" | "up" | "down" | "days" | "dueAt" | "checklist">>;
   }) => void;
   "task:delete": (payload: { userId: string; taskId: string }) => void;
   "pomodoro:complete": (payload: { userId: string }) => void;
@@ -359,9 +366,8 @@ export interface ClientToServerEvents {
   "debug:unlock": (payload: { userId: string; key: string }) => void;
   "debug:grant-xp": (payload: { userId: string; amount: number }) => void;
   "debug:reset-xp": (payload: { userId: string }) => void;
-  "debug:set-degradation": (payload: { userId: string; level: number }) => void;
+  "debug:set-energy": (payload: { userId: string; energy: number }) => void;
   "debug:grant-coins": (payload: { userId: string; amount: number }) => void;
-  "room:clean": (payload: { levels: number }) => void;
   "shop:buy": (payload: { userId: string; itemId: string }) => void;
   "cosmetic:equip": (payload: { userId: string; hatId: string | null }) => void;
   "look:update": (payload: { userId: string; look: Look }) => void;
@@ -387,10 +393,6 @@ export interface ClientToServerEvents {
     amount: number;
   }) => void;
   "admin:give-xp": (payload: { targetUserId: string; xp: number }) => void;
-  "admin:set-degradation": (payload: {
-    targetUserId: string;
-    level: number;
-  }) => void;
   "admin:announce": (payload: { message: string }) => void;
   "catalog:save": (payload: { item: unknown }) => void;
   "catalog:delete": (payload: { id: string }) => void;
@@ -440,18 +442,22 @@ export interface ServerToClientEvents {
     text: string;
     ts: number;
   }) => void;
-  "tasks:state": (payload: { tasks: Task[]; coins: number }) => void;
+  "tasks:state": (payload: { tasks: Task[]; coins: number; energy: number }) => void;
   "task:added": (task: Task) => void;
-  "task:toggled": (payload: {
-    taskId: string;
-    done: boolean;
+  "task:scored": (payload: {
+    task: Task;
     coins: number;
+    xp: number;
+    level: number;
+    xpToNext: number;
+    levelUp: boolean;
+    energy: number;
+    bossDamage: number;
   }) => void;
-  "task:updated": (payload: {
-    taskId: string;
-    text: string;
-    category: string | null;
-  }) => void;
+  "task:updated": (task: Task) => void;
+  "day:rollover": (payload: { missed: Task[]; energy: number; energyDelta: number }) => void;
+  "energy:update": (payload: { energy: number }) => void;
+  "energy:exhausted": (payload: { coins: number }) => void;
   "task:deleted": (payload: { taskId: string }) => void;
   "coins:update": (payload: { coins: number }) => void;
   "streak:update": (payload: { streak: number; bonus: number }) => void;
@@ -519,7 +525,6 @@ export interface ServerToClientEvents {
     color: number;
     level: number;
   }) => void;
-  "degradation:update": (payload: { level: number }) => void;
   "cosmetics:state": (payload: {
     owned: string[];
     equippedHat: string | null;
@@ -551,7 +556,7 @@ export interface ServerToClientEvents {
     xpToNext: number;
     coins: number;
     streak: number;
-    degradation: number;
+    energy: number;
     achievements: string[];
     isAdmin: boolean;
   }) => void;

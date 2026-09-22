@@ -23,6 +23,7 @@ import {
   type PublicRoomId,
   type Player,
   type Task,
+  type ChecklistItem,
   type SharedPomoState,
   type PomodoroPhase,
   type VideoState,
@@ -31,6 +32,33 @@ import {
   type GuildData,
   type Look,
 } from "./types.js";
+import {
+  score,
+  rollover,
+  rewards,
+  energyLoss,
+  levelOf,
+  tint,
+  isDue,
+  dayBit,
+  startOfDay,
+  clampValue,
+  cleanKind,
+  cleanDifficulty,
+  cleanDays,
+  cleanChecklist,
+  cleanNote,
+  PRIORITY,
+  VALUE_MIN,
+  VALUE_MAX,
+  DELTA_CAP,
+  ENERGY_MAX,
+  IMMUNITY_LEVEL,
+  CRON_ENERGY_CAP,
+  MAX_ROLLOVER_DAYS,
+  KINDS,
+  DIFFICULTIES,
+} from "./scoring.js";
 import { sanitizeLook } from "./look.js";
 import { userIdFromToken, canEdit, type Role } from "./auth.js";
 import { sanitizeItem, type CatalogItem } from "./catalog.js";
@@ -58,7 +86,6 @@ interface UserRow {
   streak: number;
   lastPomoAt: number;
   xp: number;
-  degradation: number;
   lastDailyResetAt: number;
   ownedItems: string;
   equippedHat: string | null;
@@ -78,15 +105,30 @@ interface UserRow {
   twitchAccessToken: string | null;
   twitchRefreshToken: string | null;
   twitchTokenExpiresAt: number;
+  energy: number;
+  exhaustedUntil: number;
+  tzOffset: number;
 }
 interface TaskRow {
   id: string;
   userId: string;
   text: string;
+  note: string;
+  kind: string;
+  difficulty: string;
+  value: number;
   done: number;
   createdAt: number;
   category: string | null;
-  type: string;
+  up: number;
+  down: number;
+  countUp: number;
+  countDown: number;
+  days: number;
+  streak: number;
+  dueAt: number | null;
+  checklist: string;
+  completedAt: number | null;
 }
 
 const db = new Database(process.env.DB_PATH ?? "./data.db");
@@ -137,6 +179,31 @@ try {
     `ALTER TABLE users ADD COLUMN degradation INTEGER NOT NULL DEFAULT 0`,
   );
 } catch {}
+for (const col of [
+  "tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'todo'",
+  "tasks ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'easy'",
+  "tasks ADD COLUMN value REAL NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN note TEXT NOT NULL DEFAULT ''",
+  "tasks ADD COLUMN up INTEGER NOT NULL DEFAULT 1",
+  "tasks ADD COLUMN down INTEGER NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN countUp INTEGER NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN countDown INTEGER NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN days INTEGER NOT NULL DEFAULT 127",
+  "tasks ADD COLUMN streak INTEGER NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN dueAt INTEGER",
+  "tasks ADD COLUMN checklist TEXT NOT NULL DEFAULT '[]'",
+  "tasks ADD COLUMN completedAt INTEGER",
+  "users ADD COLUMN energy INTEGER NOT NULL DEFAULT 50",
+  "users ADD COLUMN exhaustedUntil INTEGER NOT NULL DEFAULT 0",
+  "users ADD COLUMN tzOffset INTEGER NOT NULL DEFAULT 0",
+]) {
+  try {
+    db.exec(`ALTER TABLE ${col}`);
+  } catch {}
+}
+// Les anciennes tâches : 'daily' reste daily, tout le reste devient un à-faire.
+db.exec(`UPDATE tasks SET kind = 'daily' WHERE type = 'daily' AND kind = 'todo'`);
+db.exec(`UPDATE tasks SET completedAt = createdAt WHERE kind = 'todo' AND done = 1 AND completedAt IS NULL`);
 try {
   db.exec(
     `ALTER TABLE users ADD COLUMN lastDailyResetAt INTEGER NOT NULL DEFAULT 0`,
@@ -281,7 +348,7 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, degradation, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName FROM users WHERE id = ?",
+    "SELECT id, coins, col, row, streak, lastPomoAt, xp, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName, energy, exhaustedUntil, tzOffset FROM users WHERE id = ?",
   ),
   setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
@@ -295,30 +362,21 @@ const sql = {
     "SELECT * FROM tasks WHERE userId = ? ORDER BY createdAt ASC",
   ),
   insertTask: db.prepare(
-    "INSERT INTO tasks (id, userId, text, done, createdAt, category, type) VALUES (?, ?, ?, 0, ?, ?, ?)",
+    "INSERT INTO tasks (id, userId, text, note, kind, difficulty, value, done, createdAt, category, up, down, countUp, countDown, days, streak, dueAt, checklist, completedAt) VALUES (@id, @userId, @text, @note, @kind, @difficulty, @value, @done, @createdAt, @category, @up, @down, @countUp, @countDown, @days, @streak, @dueAt, @checklist, @completedAt)",
   ),
-  getTask: db.prepare(
-    "SELECT id, userId, done FROM tasks WHERE id = ? AND userId = ?",
+  getTaskRow: db.prepare("SELECT * FROM tasks WHERE id = ? AND userId = ?"),
+  updateTask: db.prepare(
+    "UPDATE tasks SET text = @text, note = @note, difficulty = @difficulty, value = @value, done = @done, category = @category, up = @up, down = @down, countUp = @countUp, countDown = @countDown, days = @days, streak = @streak, dueAt = @dueAt, checklist = @checklist, completedAt = @completedAt WHERE id = @id AND userId = @userId",
   ),
-  updateTaskDone: db.prepare("UPDATE tasks SET done = ? WHERE id = ?"),
-  updateTaskText: db.prepare(
-    "UPDATE tasks SET text = ?, category = ? WHERE id = ? AND userId = ?",
-  ),
+  getEnergy: db.prepare("SELECT energy, exhaustedUntil FROM users WHERE id = ?"),
+  setEnergy: db.prepare("UPDATE users SET energy = ?, exhaustedUntil = ? WHERE id = ?"),
   deleteTask: db.prepare("DELETE FROM tasks WHERE id = ? AND userId = ?"),
   savePosition: db.prepare("UPDATE users SET col = ?, row = ? WHERE id = ?"),
   getXp: db.prepare("SELECT xp FROM users WHERE id = ?"),
   addXp: db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?"),
   countDoneTasks: db.prepare(
-    "SELECT COUNT(*) as cnt FROM tasks WHERE userId = ? AND done = 1",
+    "SELECT COUNT(*) as cnt FROM tasks WHERE userId = ? AND done = 1 AND kind != 'habit'",
   ),
-  countUncompletedDailies: db.prepare(
-    "SELECT COUNT(*) as cnt FROM tasks WHERE userId = ? AND type = 'daily' AND done = 0",
-  ),
-  resetDailies: db.prepare(
-    "UPDATE tasks SET done = 0 WHERE userId = ? AND type = 'daily'",
-  ),
-  getDegradation: db.prepare("SELECT degradation FROM users WHERE id = ?"),
-  setDegradation: db.prepare("UPDATE users SET degradation = ? WHERE id = ?"),
   setOwnedItems: db.prepare("UPDATE users SET ownedItems = ? WHERE id = ?"),
   setEquippedHat: db.prepare("UPDATE users SET equippedHat = ? WHERE id = ?"),
   setOwnedFurniture: db.prepare(
@@ -364,9 +422,7 @@ const sql = {
   clearTwitchTokens: db.prepare(
     "UPDATE users SET twitchAccessToken = NULL, twitchRefreshToken = NULL, twitchTokenExpiresAt = 0 WHERE id = ?",
   ),
-  saveDailyReset: db.prepare(
-    "UPDATE users SET lastDailyResetAt = ?, degradation = ? WHERE id = ?",
-  ),
+  saveDailyReset: db.prepare("UPDATE users SET lastDailyResetAt = ?, tzOffset = ? WHERE id = ?"),
   checkAchievement: db.prepare(
     "SELECT 1 FROM achievements WHERE userId = ? AND key = ?",
   ),
@@ -423,16 +479,53 @@ const sql = {
   unbanFromRoom: db.prepare("DELETE FROM room_bans WHERE roomId = ? AND userId = ?"),
 };
 
+function rowToTask(r: TaskRow): Task {
+  let checklist: ChecklistItem[] = [];
+  try {
+    checklist = cleanChecklist(JSON.parse(r.checklist || "[]"));
+  } catch {}
+  return {
+    id: r.id,
+    userId: r.userId,
+    text: r.text,
+    note: r.note ?? "",
+    kind: cleanKind(r.kind),
+    difficulty: cleanDifficulty(r.difficulty),
+    value: r.value ?? 0,
+    category: r.category ?? null,
+    createdAt: r.createdAt,
+    done: !!r.done,
+    up: !!r.up,
+    down: !!r.down,
+    countUp: r.countUp ?? 0,
+    countDown: r.countDown ?? 0,
+    days: r.days ?? 127,
+    streak: r.streak ?? 0,
+    dueAt: r.dueAt ?? null,
+    checklist,
+    completedAt: r.completedAt ?? null,
+  };
+}
+function taskToRow(t: Task): TaskRow {
+  return {
+    ...t,
+    done: t.done ? 1 : 0,
+    up: t.up ? 1 : 0,
+    down: t.down ? 1 : 0,
+    checklist: JSON.stringify(t.checklist),
+  };
+}
+function userTasks(userId: string): Task[] {
+  return (sql.getTasks.all(userId) as TaskRow[]).map(rowToTask);
+}
+/** Ce que les autres voient sur les ardoises : à-faire ouverts, quotidiennes pas encore cochées, toutes les habitudes. */
+const isPending = (t: Task): boolean => t.kind === "habit" || !t.done;
+
 interface PrivateRoomRow {
   id: string;
   name: string;
   ownerId: string;
   createdAt: number;
-}
-
-/** Calcule le niveau à partir des XP totaux. Formule : level = floor(sqrt(xp / 50)) */
-function computeLevel(xp: number): number {
-  return Math.floor(Math.sqrt(xp / 50));
 }
 
 interface GuildRow {
@@ -795,49 +888,13 @@ app.get("/twitch/chatters", async (req, res): Promise<void> => {
   }
 });
 
-/**
- * Vérifie si un nouveau jour a commencé depuis le dernier reset des dailies.
- * Si oui, compte les dailies non complétées, applique la dégradation, et remet les dailies à 0.
- * Émet toujours un degradation:update au socket appelant.
- */
+/** Stub : la Task 4 réécrit le rollover quotidien (energy, streaks, missed) via scoring.ts. */
 function checkAndApplyDailyReset(
   socket: Socket<ClientToServerEvents, ServerToClientEvents>,
   userId: string,
 ): void {
-  const user = sql.getUser.get(userId) as UserRow;
-  const todayMidnight = new Date();
-  todayMidnight.setHours(0, 0, 0, 0);
-  const todayMs = todayMidnight.getTime();
-  const lastReset = user.lastDailyResetAt ?? 0;
-
-  if (lastReset < todayMs) {
-    // Nouveau jour : compter les dailies non complétées (les ratées)
-    const { cnt } = sql.countUncompletedDailies.get(userId) as { cnt: number };
-    // Immunité débutant : pas de dégradation avant le niveau 5
-    const playerLevel = computeLevel(user.xp ?? 0);
-    const newDegradation =
-      playerLevel < 5
-        ? (user.degradation ?? 0) // immunité active — on garde le niveau actuel sans augmenter
-        : Math.min(5, (user.degradation ?? 0) + cnt);
-    sql.resetDailies.run(userId);
-    sql.saveDailyReset.run(todayMs, newDegradation, userId);
-    socket.emit("degradation:update", { level: newDegradation });
-    // Boss de guilde : contre-attaque (+5 HP par daily ratée, capped à bossMaxHp)
-    if (cnt > 0) {
-      const memberGuild = sql.getUserGuild.get(userId) as GuildRow | undefined;
-      if (memberGuild) {
-        const attackHp = Math.min(
-          memberGuild.bossMaxHp,
-          memberGuild.bossHp + cnt * 5,
-        );
-        sql.updateBossHp.run(attackHp, memberGuild.id);
-        emitGuildState(io, socketToUserId, memberGuild.id);
-      }
-    }
-  } else {
-    // Même jour : envoyer le niveau actuel
-    socket.emit("degradation:update", { level: user.degradation ?? 0 });
-  }
+  void socket;
+  void userId;
 }
 
 /** Émet un xp:update à un socket après avoir mis à jour les XP du joueur */
@@ -864,10 +921,10 @@ function emitXpUpdate(
 ): void {
   sql.addXp.run(xpGained, userId);
   const { xp } = sql.getXp.get(userId) as { xp: number };
-  const level = computeLevel(xp);
+  const level = levelOf(xp);
   const xpForNextLevel = 50 * (level + 1) * (level + 1);
   const xpToNext = xpForNextLevel - xp;
-  const prevLevel = computeLevel(xp - xpGained);
+  const prevLevel = levelOf(xp - xpGained);
   const levelUp = level > prevLevel;
   socket.emit("xp:update", { xp, level, xpToNext, levelUp });
   if (levelUp) {
@@ -1177,13 +1234,6 @@ function pomoTick(
             if (coins >= 500) tryUnlock(io, sock, userId, "coins-500");
             emitXpUpdate(sock, userId, 75);
           }
-          const currentDeg =
-            (sql.getUser.get(userId) as UserRow).degradation ?? 0;
-          if (currentDeg > 0) {
-            const newDeg = currentDeg - 1;
-            sql.setDegradation.run(newDeg, userId);
-            io.to(sid).emit("degradation:update", { level: newDeg });
-          }
           const memberGuild = sql.getUserGuild.get(userId) as
             | GuildRow
             | undefined;
@@ -1388,7 +1438,7 @@ io.on("connection", (socket) => {
   // Envoi initial de la liste des rooms (utile pour l'écran de sélection avant join)
   socket.emit("rooms:list", { rooms: buildRoomSummaries() });
 
-  socket.on("join", ({ name, color, userId: claimedId, roomId, token }) => {
+  socket.on("join", ({ name, color, userId: claimedId, roomId, token, tzOffsetMinutes }) => {
     // A Google account is only ever joined through its token; the bare userId is trusted for guests alone.
     const tokenId = userIdFromToken(token, JWT_SECRET);
     const userId = tokenId ?? claimedId;
@@ -1470,9 +1520,7 @@ io.on("connection", (socket) => {
     const furniturePositionsPayload = getFurniturePosPayload(
       user.furniturePositions ?? "{}",
     );
-    const pendingTaskIds = (sql.getTasks.all(userId) as TaskRow[])
-      .filter((r) => !r.done)
-      .map((r) => r.id);
+    const pendingTaskIds = userTasks(userId).filter(isPending).map((t) => t.id);
     const player: Player = {
       id: socket.id,
       name,
@@ -1533,16 +1581,9 @@ io.on("connection", (socket) => {
     console.log(`[join] ${name} → room:${targetRoomId} @ (${spawnCol},${spawnRow})`);
 
     // Per-user initial state (independent of room)
-    const rows = sql.getTasks.all(userId) as TaskRow[];
-    const tasks: Task[] = rows.map((r) => ({
-      ...r,
-      done: !!r.done,
-      category: r.category ?? null,
-      type: (r.type as "task" | "daily") ?? "task",
-    }));
-    socket.emit("tasks:state", { tasks, coins: user.coins });
+    socket.emit("tasks:state", { tasks: userTasks(userId), coins: user.coins, energy: user.energy ?? ENERGY_MAX });
     const xp = user.xp ?? 0;
-    const level = computeLevel(xp);
+    const level = levelOf(xp);
     const xpToNext = 50 * (level + 1) * (level + 1) - xp;
     socket.emit("xp:update", { xp, level, xpToNext, levelUp: false });
     const ownedList = (user.ownedItems ?? "").split(",").filter(Boolean);
@@ -1882,101 +1923,42 @@ io.on("connection", (socket) => {
   });
 
   // ── Tâches ───────────────────────────────────────────────────────────────
-  socket.on("task:add", ({ userId, text, category, type }) => {
+  socket.on("task:add", (payload) => {
     if (!allow(socket.id, "task:add", 10, 10000)) return;
-    const safe = sanitize(text);
+    const { userId } = payload;
+    const safe = sanitize(payload.text);
     if (!safe.trim()) return;
-    const safeCategory = VALID_CATEGORIES.has(category as string)
-      ? category
-      : null;
-    const safeType: "task" | "daily" = type === "daily" ? "daily" : "task";
     sql.upsertUser.run(userId);
-    const id = randomUUID();
-    const createdAt = Date.now();
-    sql.insertTask.run(id, userId, safe, createdAt, safeCategory, safeType);
+    const kind = cleanKind(payload.kind);
     const task: Task = {
-      id,
+      id: randomUUID(),
       userId,
       text: safe,
+      note: cleanNote(payload.note),
+      kind,
+      difficulty: cleanDifficulty(payload.difficulty),
+      value: 0,
+      category: VALID_CATEGORIES.has(payload.category as string) ? payload.category : null,
+      createdAt: Date.now(),
       done: false,
-      createdAt,
-      category: safeCategory,
-      type: safeType,
+      up: kind === "habit" ? payload.up !== false : true,
+      down: kind === "habit" ? !!payload.down : false,
+      countUp: 0,
+      countDown: 0,
+      days: kind === "daily" ? cleanDays(payload.days) : 127,
+      streak: 0,
+      dueAt: kind === "todo" && Number.isFinite(payload.dueAt) ? Math.floor(payload.dueAt as number) : null,
+      checklist: kind === "todo" ? cleanChecklist(payload.checklist) : [],
+      completedAt: null,
     };
+    if (task.kind === "habit" && !task.up && !task.down) task.up = true;
+    sql.insertTask.run(taskToRow(task));
     socket.emit("task:added", task);
     const p = getPlayer(socket.id);
     if (p) {
-      p.pendingTaskIds = [...(p.pendingTaskIds ?? []), id];
-      broadcastToOwnRoom(socket,"tasks:public-update", {
-        socketId: socket.id,
-        taskIds: p.pendingTaskIds,
-      });
+      p.pendingTaskIds = [...(p.pendingTaskIds ?? []), task.id];
+      broadcastToOwnRoom(socket, "tasks:public-update", { socketId: socket.id, taskIds: p.pendingTaskIds });
     }
-  });
-
-  socket.on("task:toggle", ({ userId, taskId }) => {
-    if (!allow(socket.id, "task:toggle", 20, 10000)) return;
-    const row = sql.getTask.get(taskId, userId) as TaskRow | undefined;
-    if (!row) return;
-    const newDone = row.done ? 0 : 1;
-    sql.updateTaskDone.run(newDone, taskId);
-    const userRow = sql.getCoins.get(userId) as UserRow;
-    let coins = userRow.coins;
-    if (newDone === 1) {
-      sql.addCoins.run(10, userId);
-      coins += 10;
-      // Bonus Feng Shui : +2🪙 par plante, +2🪙 par étagère
-      const furnitureRow = sql.getFurniture.get(userId) as {
-        ownedFurniture: string;
-        placedFurniture: string;
-      };
-      const ownedFurniture = getEffectivePlaced(
-        furnitureRow?.placedFurniture ?? "",
-        furnitureRow?.ownedFurniture ?? "",
-      );
-      let fengBonus = 0;
-      if (ownedFurniture.includes("plant")) fengBonus += 2;
-      if (ownedFurniture.includes("bookshelf")) fengBonus += 2;
-      if (ownedFurniture.includes("cactus")) fengBonus += 1;
-      // Bonus Set Feng Shui
-      const taskSetB = getSetBonuses(ownedFurniture);
-      fengBonus += taskSetB.coinsTask;
-      if (fengBonus > 0) {
-        sql.addCoins.run(fengBonus, userId);
-        coins += fengBonus;
-      }
-      if (ownedFurniture.includes("lamp")) {
-        emitXpUpdate(socket, userId, 5); // +5 XP bonus par tâche avec lampe
-      }
-      const taskCount = (sql.countDoneTasks.get(userId) as { cnt: number }).cnt;
-      if (taskCount === 1) tryUnlock(io, socket, userId, "first-task");
-      if (taskCount >= 10) tryUnlock(io, socket, userId, "task-10");
-      if (taskCount >= 50) tryUnlock(io, socket, userId, "task-50");
-      if (coins >= 100) tryUnlock(io, socket, userId, "coins-100");
-      if (coins >= 500) tryUnlock(io, socket, userId, "coins-500");
-    } else {
-      const newCoins = Math.max(0, coins - 10);
-      sql.setCoins.run(newCoins, userId);
-      coins = newCoins;
-    }
-    socket.emit("task:toggled", { taskId, done: !!newDone, coins });
-    if (newDone === 1) {
-      broadcastToOwnRoom(socket,"task:completed-public", { socketId: socket.id });
-    }
-    const p = getPlayer(socket.id);
-    if (p) {
-      p.coins = coins;
-      if (newDone === 1) {
-        p.pendingTaskIds = (p.pendingTaskIds ?? []).filter((id) => id !== taskId);
-      } else {
-        p.pendingTaskIds = [...(p.pendingTaskIds ?? []), taskId];
-      }
-      broadcastToOwnRoom(socket,"tasks:public-update", {
-        socketId: socket.id,
-        taskIds: p.pendingTaskIds,
-      });
-    }
-    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   socket.on("task:delete", ({ userId, taskId }) => {
@@ -1993,17 +1975,27 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("task:update", ({ userId, taskId, text, category }) => {
-    if (!allow(socket.id, "task:update", 10, 10000)) return;
-    const safe = sanitize(text);
-    if (!safe.trim()) return;
-    const row = sql.getTask.get(taskId, userId) as { id: string } | undefined;
-    if (!row) return;
-    const safeCategory = VALID_CATEGORIES.has(category as string)
-      ? category
-      : null;
-    sql.updateTaskText.run(safe, safeCategory, taskId, userId);
-    socket.emit("task:updated", { taskId, text: safe, category: safeCategory });
+  socket.on("task:update", ({ userId, taskId, patch }) => {
+    if (!allow(socket.id, "task:update", 20, 10000)) return;
+    const row = sql.getTaskRow.get(taskId, userId) as TaskRow | undefined;
+    if (!row || !patch || typeof patch !== "object") return;
+    const t = rowToTask(row);
+    if (typeof patch.text === "string") { const s = sanitize(patch.text); if (s.trim()) t.text = s; }
+    if ("note" in patch) t.note = cleanNote(patch.note);
+    if ("difficulty" in patch) t.difficulty = cleanDifficulty(patch.difficulty);
+    if ("category" in patch) t.category = VALID_CATEGORIES.has(patch.category as string) ? (patch.category as string) : null;
+    if (t.kind === "habit") {
+      if ("up" in patch) t.up = !!patch.up;
+      if ("down" in patch) t.down = !!patch.down;
+      if (!t.up && !t.down) t.up = true;
+    }
+    if (t.kind === "daily" && "days" in patch) t.days = cleanDays(patch.days);
+    if (t.kind === "todo") {
+      if ("dueAt" in patch) t.dueAt = Number.isFinite(patch.dueAt) ? Math.floor(patch.dueAt as number) : null;
+      if ("checklist" in patch) t.checklist = cleanChecklist(patch.checklist);
+    }
+    sql.updateTask.run(taskToRow(t));
+    socket.emit("task:updated", t);
   });
 
   socket.on("position:save", ({ userId, col, row }) => {
@@ -2043,40 +2035,6 @@ io.on("connection", (socket) => {
     socket.emit("xp:update", { xp: 0, level: 0, xpToNext: 50, levelUp: false });
   });
 
-  // ── Debug : forcer un niveau de dégradation ──────────────────────────────
-  socket.on("debug:set-degradation", ({ userId, level }) => {
-    sql.upsertUser.run(userId);
-    const clamped = Math.max(0, Math.min(5, level));
-    sql.setDegradation.run(clamped, userId);
-    socket.emit("degradation:update", { level: clamped });
-  });
-
-  // ── Nettoyer la room (dépenser 50 pièces par niveau de dégradation) ───────
-  socket.on("room:clean", ({ levels }) => {
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    const user = sql.getUser.get(userId) as UserRow;
-    const level = user.degradation ?? 0;
-    if (level === 0) return;
-    const lvls = Math.max(1, Math.min(levels ?? 1, level)); // entre 1 et le niveau actuel
-    // Feng Shui : Canapé réduit le coût de base de 10
-    const cleanFurniture = getEffectivePlaced(
-      user.placedFurniture ?? "",
-      user.ownedFurniture ?? "",
-    );
-    const baseCost = cleanFurniture.includes("couch") ? 40 : 50;
-    const cost = baseCost * lvls;
-    if (user.coins < cost) return;
-    sql.addCoins.run(-cost, userId);
-    const newCoins = Math.max(0, user.coins - cost);
-    const newDegradation = level - lvls;
-    sql.setDegradation.run(newDegradation, userId);
-    socket.emit("degradation:update", { level: newDegradation });
-    socket.emit("coins:update", { coins: newCoins });
-    const p = getPlayer(socket.id);
-    if (p) p.coins = newCoins;
-    broadcastLeaderboardForSocket(io, socket.id);
-  });
   // ── Acheter un meuble (Feng Shui) ────────────────────────────────────────────────────
   socket.on("furniture:buy", ({ userId, itemId }) => {
     const item = furnitureItem(itemId);
@@ -2361,13 +2319,6 @@ io.on("connection", (socket) => {
     if (pFurniture.includes("lamp")) emitXpUpdate(socket, userId, 10);
     // Bonus Set Feng Shui XP
     if (setB.xpPomo > 0) emitXpUpdate(socket, userId, setB.xpPomo);
-    // Dégradation : un pomo nettoit un niveau
-    const currentDeg = (sql.getUser.get(userId) as UserRow).degradation ?? 0;
-    if (currentDeg > 0) {
-      const newDeg = currentDeg - 1;
-      sql.setDegradation.run(newDeg, userId);
-      socket.emit("degradation:update", { level: newDeg });
-    }
     // Boss de guilde : un pomo personnel inflige 10 dégâts au boss
     const memberGuild = sql.getUserGuild.get(userId) as GuildRow | undefined;
     if (memberGuild) {
@@ -2544,19 +2495,6 @@ io.on("connection", (socket) => {
     sql.addXp.run(amount, targetUserId);
   });
 
-  socket.on("admin:set-degradation", ({ targetUserId, level }) => {
-    if (!isAdmin()) return;
-    const lvl = Math.max(0, Math.min(5, level));
-    sql.upsertUser.run(targetUserId);
-    sql.setDegradation.run(lvl, targetUserId);
-    for (const [sid, uid] of socketToUserId.entries()) {
-      if (uid === targetUserId) {
-        io.to(sid).emit("degradation:update", { level: lvl });
-        break;
-      }
-    }
-  });
-
   // ── Catalogue editor ─────────────────────────────────────────────────────
   function canEditCatalog(): boolean {
     const uid = socketToUserId.get(socket.id);
@@ -2614,7 +2552,7 @@ io.on("connection", (socket) => {
       sql.getUserAchievements.all(targetUserId) as { key: string }[]
     ).map((r) => r.key);
     const xp = user.xp ?? 0;
-    const lvl = computeLevel(xp);
+    const lvl = levelOf(xp);
     const xpForThisLevel = 50 * lvl * lvl;
     const xpForNextLevel = 50 * (lvl + 1) * (lvl + 1);
     socket.emit("profile:data", {
@@ -2628,7 +2566,7 @@ io.on("connection", (socket) => {
       xpToNext: xpForNextLevel - xpForThisLevel,
       coins: user.coins ?? 0,
       streak: user.streak ?? 0,
-      degradation: user.degradation ?? 0,
+      energy: user.energy ?? ENERGY_MAX,
       achievements: achievementKeys,
       isAdmin: !!user.isAdmin,
     });
