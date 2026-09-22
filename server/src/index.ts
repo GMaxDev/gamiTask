@@ -888,13 +888,58 @@ app.get("/twitch/chatters", async (req, res): Promise<void> => {
   }
 });
 
-/** Stub : la Task 4 réécrit le rollover quotidien (energy, streaks, missed) via scoring.ts. */
-function checkAndApplyDailyReset(
+/**
+ * Applique une variation d'énergie. À 0 : épuisement — jauge remise à 50, −30 % des pièces,
+ * personnage « épuisé » jusqu'au prochain minuit. Renvoie l'énergie finale.
+ */
+function applyEnergy(
   socket: Socket<ClientToServerEvents, ServerToClientEvents>,
   userId: string,
+  delta: number,
+): number {
+  const row = sql.getEnergy.get(userId) as { energy: number; exhaustedUntil: number };
+  let energy = Math.min(ENERGY_MAX, (row?.energy ?? ENERGY_MAX) + delta);
+  let exhaustedUntil = row?.exhaustedUntil ?? 0;
+  if (energy <= 0) {
+    energy = ENERGY_MAX;
+    const user = sql.getUser.get(userId) as UserRow;
+    const coins = Math.floor(user.coins * 0.7);
+    sql.setCoins.run(coins, userId);
+    exhaustedUntil = startOfDay(Date.now(), user.tzOffset ?? 0) + 86_400_000;
+    socket.emit("energy:exhausted", { coins });
+    socket.emit("coins:update", { coins });
+    const p = getPlayer(socket.id);
+    if (p) p.coins = coins;
+  }
+  sql.setEnergy.run(energy, exhaustedUntil, userId);
+  return energy;
+}
+
+/** Cron : rejoue les jours manqués depuis la dernière connexion. Appelé au join. */
+function runRollover(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
+  userId: string,
+  tzOffsetMinutes: number,
 ): void {
-  void socket;
-  void userId;
+  const user = sql.getUser.get(userId) as UserRow;
+  const tz = Number.isFinite(tzOffsetMinutes) ? Math.max(-840, Math.min(840, Math.round(tzOffsetMinutes))) : (user.tzOffset ?? 0);
+  const now = Date.now();
+  // Même journée locale déjà traitée : rien à faire (un rollover > 30 jours renvoie aussi days = 0 mais doit écrire ses remises à zéro, d'où le test sur les minuits et pas sur r.days).
+  if ((user.lastDailyResetAt ?? 0) > 0 && startOfDay(user.lastDailyResetAt, tz) === startOfDay(now, tz)) { sql.saveDailyReset.run(startOfDay(now, tz), tz, userId); return; }
+  const r = rollover(userTasks(userId), user.lastDailyResetAt ?? 0, now, tz, levelOf(user.xp ?? 0));
+  sql.saveDailyReset.run(startOfDay(now, tz), tz, userId);
+  const write = db.transaction((tasks: Task[]) => { for (const t of tasks) sql.updateTask.run(taskToRow(t)); });
+  write(r.tasks);
+  const energy = r.energyDelta ? applyEnergy(socket, userId, r.energyDelta) : (user.energy ?? ENERGY_MAX);
+  if (r.missed.length > 0) {
+    const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
+    if (guild) {
+      sql.updateBossHp.run(Math.min(guild.bossMaxHp, guild.bossHp + r.missed.length * 5), guild.id);
+      emitGuildState(io, socketToUserId, guild.id);
+    }
+  }
+  socket.emit("day:rollover", { missed: r.missed, energy, energyDelta: r.energyDelta });
+  socket.emit("tasks:state", { tasks: r.tasks, coins: (sql.getCoins.get(userId) as UserRow).coins, energy });
 }
 
 /** Émet un xp:update à un socket après avoir mis à jour les XP du joueur */
@@ -928,6 +973,8 @@ function emitXpUpdate(
   const levelUp = level > prevLevel;
   socket.emit("xp:update", { xp, level, xpToNext, levelUp });
   if (levelUp) {
+    sql.setEnergy.run(ENERGY_MAX, 0, userId);
+    socket.emit("energy:update", { energy: ENERGY_MAX });
     const p = getPlayer(socket.id);
     broadcastToOwnRoom(socket, "level-up:public", {
       socketId: socket.id,
@@ -1598,7 +1645,7 @@ io.on("connection", (socket) => {
       placed: placedFurnitureList,
       positions: furniturePositionsPayload,
     });
-    checkAndApplyDailyReset(socket, userId);
+    runRollover(socket, userId, tzOffsetMinutes ?? 0);
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
 
@@ -1998,6 +2045,70 @@ io.on("connection", (socket) => {
     socket.emit("task:updated", t);
   });
 
+  socket.on("task:score", ({ userId, taskId, direction }) => {
+    if (!allow(socket.id, "task:score", 30, 10000)) return;
+    if (direction !== "up" && direction !== "down") return;
+    const row = sql.getTaskRow.get(taskId, userId) as TaskRow | undefined;
+    if (!row) return;
+    const user = sql.getUser.get(userId) as UserRow;
+    const level = levelOf(user.xp ?? 0);
+    const r = score(rowToTask(row), direction, level);
+    if (!r) return;
+    sql.updateTask.run(taskToRow(r.task));
+    // Pièces : gain de la coche + bonus mobilier existants (additifs), plancher 0 en cas de retrait.
+    let coins = user.coins;
+    let coinsDelta = r.coins;
+    if (r.coins > 0) {
+      const furnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
+      const placed = getEffectivePlaced(furnitureRow?.placedFurniture ?? "", furnitureRow?.ownedFurniture ?? "");
+      if (placed.includes("plant")) coinsDelta += 2;
+      if (placed.includes("bookshelf")) coinsDelta += 2;
+      if (placed.includes("cactus")) coinsDelta += 1;
+      coinsDelta += getSetBonuses(placed).coinsTask;
+      if (placed.includes("lamp")) emitXpUpdate(socket, userId, 5);
+    }
+    coins = Math.max(0, coins + coinsDelta);
+    sql.setCoins.run(coins, userId);
+    if (r.xp !== 0) emitXpUpdate(socket, userId, r.xp);
+    const energy = r.energyDelta ? applyEnergy(socket, userId, r.energyDelta) : (sql.getEnergy.get(userId) as { energy: number }).energy;
+    const { xp } = sql.getXp.get(userId) as { xp: number };
+    const newLevel = levelOf(xp);
+    socket.emit("task:scored", {
+      task: r.task, coins, xp, level: newLevel,
+      xpToNext: 50 * (newLevel + 1) * (newLevel + 1) - xp,
+      levelUp: newLevel > level, energy, bossDamage: r.bossDamage,
+    });
+    if (r.bossDamage > 0) {
+      const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
+      if (guild) {
+        const fresh = sql.getGuild.get(guild.id) as GuildRow;
+        const hp = Math.max(0, fresh.bossHp - r.bossDamage);
+        sql.updateBossHp.run(hp, fresh.id);
+        if (hp <= 0) handleBossDefeat(io, fresh);
+        else {
+          socket.emit("guild:boss-attacked", { damage: r.bossDamage, newHp: hp, maxHp: fresh.bossMaxHp });
+          emitGuildState(io, socketToUserId, fresh.id);
+        }
+      }
+    }
+    if (r.coins > 0) {
+      const taskCount = (sql.countDoneTasks.get(userId) as { cnt: number }).cnt;
+      if (taskCount === 1) tryUnlock(io, socket, userId, "first-task");
+      if (taskCount >= 10) tryUnlock(io, socket, userId, "task-10");
+      if (taskCount >= 50) tryUnlock(io, socket, userId, "task-50");
+      if (coins >= 100) tryUnlock(io, socket, userId, "coins-100");
+      if (coins >= 500) tryUnlock(io, socket, userId, "coins-500");
+      if (r.task.kind !== "habit") broadcastToOwnRoom(socket, "task:completed-public", { socketId: socket.id });
+    }
+    const p = getPlayer(socket.id);
+    if (p) {
+      p.coins = coins;
+      p.pendingTaskIds = userTasks(userId).filter(isPending).map((t) => t.id);
+      broadcastToOwnRoom(socket, "tasks:public-update", { socketId: socket.id, taskIds: p.pendingTaskIds });
+    }
+    broadcastLeaderboardForSocket(io, socket.id);
+  });
+
   socket.on("position:save", ({ userId, col, row }) => {
     sql.upsertUser.run(userId);
     sql.savePosition.run(col, row, userId);
@@ -2026,6 +2137,14 @@ io.on("connection", (socket) => {
     sql.addCoins.run(amount, userId);
     const coins = (sql.getCoins.get(userId) as UserRow).coins;
     socket.emit("coins:update", { coins });
+  });
+
+  // ── Debug : forcer l'énergie ──────────────────────────────────────────────
+  socket.on("debug:set-energy", ({ userId, energy }) => {
+    sql.upsertUser.run(userId);
+    const e = Math.max(1, Math.min(ENERGY_MAX, Math.round(energy)));
+    sql.setEnergy.run(e, 0, userId);
+    socket.emit("energy:update", { energy: e });
   });
 
   // ── Debug : remettre les XP à zéro ───────────────────────────────────────
