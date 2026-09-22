@@ -13,8 +13,9 @@ import { DIMS } from './coords.ts';
 import type { RoomKind } from './coords.ts';
 import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
+import { tint } from '../../server/src/scoring.ts';
 
-export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; type: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
+export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; kind: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective'; wander?: boolean }
 interface LightSet { hemi: [string,string,number]; sun: [string,number]; fill: number; lamps: number }
 // Daylight and evening per room, read both when the lights are created and every time `toggleLight` flips them.
@@ -363,10 +364,9 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const hit=ray.intersectObjects([...[...tickets.values()].map(g=>g.userData.card),...hotspots])[0];return hit?((hit.object as any).userData.note??hit.object):null;
   }
   // A task is a little chalk slate on a wooden easel, the kind cafés put on tables for the day's special.
-  function ticket(task: any){
-    const cat=task.category?({work:'#b85530',perso:'#7a8e4a',urgent:'#a04050',study:'#8aa6b8'} as Record<string,string>)[task.category]:null;
-    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=176;const ctx=canvas.getContext('2d') as CanvasRenderingContext2D;
-    ctx.fillStyle='#3d4a44';ctx.fillRect(0,0,256,176);
+  const TINTS=['#3a5040','#3d4a44','#3d4a44','#4a4238','#553a34'];// chalk board: kept → neglected
+  function paintTicket(ctx: CanvasRenderingContext2D,task: any){
+    ctx.clearRect(0,0,256,176);ctx.fillStyle=TINTS[tint(task.value??0)];ctx.fillRect(0,0,256,176);
     ctx.fillStyle='#ffffff10';for(let i=0;i<40;i++)ctx.fillRect(Math.random()*256,Math.random()*176,Math.random()*30,2);// chalk dust
     ctx.fillStyle='#f4eedd';ctx.font='500 27px "DM Sans", sans-serif';ctx.textBaseline='alphabetic';
     const words=task.text.split(' '),lines=[];let line='';// wrap on three lines, then an ellipsis
@@ -374,6 +374,12 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(line)lines.push(line);if(lines.length>3){lines.length=3;lines[2]=lines[2].slice(0,14)+'…';}
     const top=88-(lines.length-1)*17;lines.forEach((l,i)=>ctx.fillText(l,20,top+i*34));
     ctx.fillStyle='#f4eedd80';ctx.fillRect(20,top+lines.length*34-18,58,2);// a little chalk underline
+    if(task.kind==='habit'){ctx.fillStyle='#f4eeddb0';ctx.font='600 30px "DM Sans", sans-serif';ctx.fillText('±',214,40);}// habits carry a chalk ± in the corner
+  }
+  function ticket(task: any){
+    const cat=task.category?({work:'#b85530',perso:'#7a8e4a',urgent:'#a04050',study:'#8aa6b8'} as Record<string,string>)[task.category]:null;
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=176;const ctx=canvas.getContext('2d') as CanvasRenderingContext2D;
+    paintTicket(ctx,task);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
     const material=new THREE.MeshStandardMaterial({map:texture,roughness:1,emissive:'#fff1d6',emissiveIntensity:0});
     const g=new THREE.Group();g.rotation.y=cameraYaw;scene.add(g);
@@ -383,16 +389,23 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     for(const dx of [-.16,.16]){const leg=box(.035,.34,.035,C.edge,dx,-.17,-.09,.006,g);leg.rotation.x=.42;}// easel legs
     box(.36,.045,.2,C.edge,0,.022,-.02,.01,g);// foot
     if(cat)box(.2,.07,.03,cat,-.26,.31,.02,.012,board);// category tag clipped to the frame
-    if(task.type==='daily'){const bean=mesh(new THREE.SphereGeometry(.035,10,8),mat(C.gold,{emissive:C.gold,emissiveIntensity:.5}),.3,.34,.02,board);bean.scale.set(1,.75,1);bean.castShadow=false;}
+    if(task.kind==='daily'){const bean=mesh(new THREE.SphereGeometry(.035,10,8),mat(C.gold,{emissive:C.gold,emissiveIntensity:.5}),.3,.34,.02,board);bean.scale.set(1,.75,1);bean.castShadow=false;}
     const n=7,seeds=Float32Array.from({length:n*3},()=>Math.random());// sparkles: each one drifts up on its own loop
     const sparks=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*3),3)),new THREE.PointsMaterial({color:'#ffbd4a',size:4,sizeAttenuation:false,transparent:true,opacity:.9,depthWrite:false}));
     g.add(sparks);
-    g.userData={material,texture,card,sparks,seeds,task,phase:Math.random()*7};return g;
+    g.userData={material,texture,canvas,ctx,card,sparks,seeds,task,phase:Math.random()*7};return g;
   }
   function setTasks(tasks: any[]){
     const keep=new Set<string>();
     for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
-    for(const task of tasks){keep.add(task.id);if(tickets.has(task.id))continue;const g=ticket(task);tickets.set(task.id,g);}
+    for(const task of tasks){keep.add(task.id);
+      const g=tickets.get(task.id);
+      if(g){const old=g.userData.task;
+        if(old.category!==task.category){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(task.id);}
+        else{if(old.text!==task.text||old.value!==task.value){paintTicket(g.userData.ctx,task);g.userData.texture.needsUpdate=true;}g.userData.task=task;continue;}
+      }
+      const created=ticket(task);tickets.set(task.id,created);
+    }
     restage();
     let i=0;for(const g of tickets.values()){const n=taskSpots.length,spot=taskSpots[i%n],round=Math.floor(i/n);g.userData.base=spot.clone().add(new THREE.Vector3(round*.12,round*.34,round*.12));i++;}
   }
@@ -414,7 +427,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   let time=0,zoom=1,follow=true,dragging=false,dragStart: any=null,moved=false,glowing: any=null,glowTime=0;
   // Walking, sitting and limb animation shared by the player and the barista.
   function walker(p: any,speed: number,hooks: any={}){
-    const w: any={route:[],pendingSeat:null,seated:null,standPoint:null,sitBlend:0,
+    const w: any={route:[],pendingSeat:null,seated:null,standPoint:null,sitBlend:0,speed,
       standUp(){if(!w.seated)return;p.g.position.set(w.standPoint.x,.08,w.standPoint.z);w.seated.taken=null;w.seated=null;w.sitBlend=0;hooks.onStand?.();},
       go(target: any,seat: any=null){// seat: sit down on arrival. Returns false when there is no way there.
         if(!target||target.x<-HW-.5||target.x>HW+.5||target.z<-HD-.5||target.z>HD+.5)return false;
@@ -424,7 +437,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       cancel(){w.route=[];if(w.pendingSeat)w.pendingSeat.taken=null;w.pendingSeat=null;},
       step(dt: number){
         const pos=p.g.position,walking=w.route.length>0;p.g.userData.blob?.position.set(pos.x,.018,pos.z);
-        if(walking){const n=w.route[0],dx=n.x-pos.x,dz=n.z-pos.z,d=Math.hypot(dx,dz),s=speed*dt;
+        if(walking){const n=w.route[0],dx=n.x-pos.x,dz=n.z-pos.z,d=Math.hypot(dx,dz),s=w.speed*dt;
           if(d<=s){pos.x=n.x;pos.z=n.z;w.route.shift();if(!w.route.length){if(w.pendingSeat){w.seated=w.pendingSeat;w.pendingSeat=null;w.standPoint={x:n.x,z:n.z};}hooks.onArrive?.(w.seated);}}
           else{pos.x+=dx/d*s;pos.z+=dz/d*s;}
           if(d>.01){const desired=Math.atan2(dx,dz),delta=Math.atan2(Math.sin(desired-p.g.rotation.y),Math.cos(desired-p.g.rotation.y));p.g.rotation.y+=delta*Math.min(1,dt*13);}
@@ -453,6 +466,12 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     return w;
   }
   const me=walker(player,2.4,{onArrive(seat: any){glow(null);onState?.({walking:false});if(seat)onState?.({seated:true});},onStand(){onState?.({seated:false});}});
+  let energy=50,exhausted=false,nextYawn=0,yawnUntil=0,idleSince=0;
+  const BASE_SPEED=2.4;
+  const nearestFreeSeat=()=>{const p=player.g.position;return seats.filter(s=>!s.taken).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0]??null;};
+  function setEnergy(e: number,ex: boolean){energy=e;exhausted=ex;me.speed=exhausted||energy<10?BASE_SPEED*.7:BASE_SPEED;
+    const grey=exhausted?.55:1;player.g.traverse((o: any)=>{if(o.material?.color&&!o.userData.baseColor)o.userData.baseColor=o.material.color.clone();if(o.userData.baseColor)o.material.color.copy(o.userData.baseColor).multiplyScalar(grey).lerp(new THREE.Color('#9a9a94'),exhausted?.35:0);});
+    if(exhausted&&!me.seated){const seat=nearestFreeSeat();if(seat)moveTo(seat,seat);}}
   // The host wanders between its work spots, free seats and random spots, pausing in between.
   const bar: any=npc&&walker(npc,1.9,{onArrive(){bar.working=bar.atWork;bar.wait=bar.seated?8+Math.random()*12:bar.working?6+Math.random()*10:1+Math.random()*4;}});if(bar)bar.wait=2;
   const workSpots=room==='garden'?[{x:6.0,z:-9.2},{x:8.4,z:-9.2},{x:.5,z:-9.2},{x:-10.9,z:-3.2}]:[{x:-7.5,z:-9.25},{x:-4.5,z:-9.25},{x:-2.5,z:-9.25}];
@@ -745,6 +764,12 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function simulate(dt: number){
     me.step(dt);npcThink(dt);bar?.step(dt);remoteThink(dt);
+    if(!reducedMotion&&energy<25&&!me.seated&&!me.route.length){
+      if(!idleSince)idleSince=time;
+      if(time>nextYawn){yawnUntil=time+.6;nextYawn=time+20+Math.random()*20;}
+      if(time<yawnUntil){const k=Math.sin((yawnUntil-time)/.6*Math.PI);player.head.rotation.x=-.35*k;player.armR.rotation.x=-2.2*k;}
+      if(energy<10&&time-idleSince>8){const seat=nearestFreeSeat();if(seat){moveTo(seat,seat);idleSince=0;}}
+    }else idleSince=0;
     for(const r of remotes.values())r.w.step(dt);
   }
   function setRatio(value: number){pixelRatio=value;renderer.setPixelRatio(value);resize();restage();}
@@ -811,7 +836,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
   if(import.meta.env.DEV)(window as any).__cafe={scene,renderer,camera};// dev only: lets a console profile the live scene
-  return {setTasks,setClock,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
+  return {setTasks,setClock,setEnergy,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

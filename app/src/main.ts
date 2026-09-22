@@ -411,7 +411,7 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
 });
 function onSceneState(state: SceneState){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
-    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task as any,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
+    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
       h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='mirror')openEditor();
