@@ -1,4 +1,5 @@
 // Règles des tâches : pures, sans base ni socket. index.ts lit, appelle, écrit, émet.
+// Bundled by the client too (app imports it relatively): keep imports type-only.
 import type { Task, Difficulty, TaskKind, ChecklistItem } from "./types.js";
 
 export const PRIORITY: Record<Difficulty, number> = { trivial: 0.1, easy: 1, medium: 1.5, hard: 2 };
@@ -34,6 +35,11 @@ export function rewards(d: number): { coins: number; xp: number; bossDamage: num
 
 export function energyLoss(d: number, level: number): number {
   return level < IMMUNITY_LEVEL ? 0 : Math.round(3 * d);
+}
+
+/** Bonus mobilier appliqué signé : positif sur un gain, négatif (symétrique) sur un retrait. */
+export function coinsDelta(base: number, bonus: number): number {
+  return base === 0 ? 0 : base + Math.sign(base) * Math.max(0, bonus);
 }
 
 /** Niveau à partir des XP totaux : floor(sqrt(xp / 50)). */
@@ -162,15 +168,19 @@ export const cleanDays = (v: unknown): number => {
   const n = typeof v === "number" && Number.isFinite(v) ? Math.floor(v) & 127 : 127;
   return n === 0 ? 127 : n;
 };
+const ENTITIES: Record<string, string> = { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" };
+const escapeHtml = (s: string): string => s.replace(/[<>&"']/g, (c) => ENTITIES[c] ?? c);
+const unescapeHtml = (s: string): string =>
+  s.replace(/&(?:lt|gt|amp|quot|#39);/g, (m) => ({ "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&#39;": "'" })[m] ?? m);
 export const cleanChecklist = (v: unknown): ChecklistItem[] =>
   (Array.isArray(v) ? v : [])
     .filter((i) => i && typeof i === "object" && typeof (i as { text?: unknown }).text === "string")
-    .map((i) => ({ text: String((i as { text: string }).text).replace(/\s+/g, " ").trim().slice(0, 80), done: !!(i as { done?: unknown }).done }))
+    .map((i) => ({
+      // Normalise avant d'échapper (idempotent) : le client renvoie parfois le texte déjà échappé (toggle d'un item).
+      text: escapeHtml(unescapeHtml(String((i as { text: string }).text).replace(/\s+/g, " ").trim().slice(0, 80))),
+      done: !!(i as { done?: unknown }).done,
+    }))
     .filter((i) => i.text)
     .slice(0, 20);
 export const cleanNote = (v: unknown): string =>
-  String(v ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200)
-    .replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+  escapeHtml(String(v ?? "").replace(/\s+/g, " ").trim().slice(0, 200));

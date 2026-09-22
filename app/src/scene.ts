@@ -14,6 +14,7 @@ import type { RoomKind } from './coords.ts';
 import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
 import { tint } from '../../server/src/scoring.ts';
+import { decodeEntities } from './chat.ts';
 
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; kind: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective'; wander?: boolean }
@@ -369,7 +370,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     ctx.clearRect(0,0,256,176);ctx.fillStyle=TINTS[tint(task.value??0)];ctx.fillRect(0,0,256,176);
     ctx.fillStyle='#ffffff10';for(let i=0;i<40;i++)ctx.fillRect(Math.random()*256,Math.random()*176,Math.random()*30,2);// chalk dust
     ctx.fillStyle='#f4eedd';ctx.font='500 27px "DM Sans", sans-serif';ctx.textBaseline='alphabetic';
-    const words=task.text.split(' '),lines=[];let line='';// wrap on three lines, then an ellipsis
+    const words=decodeEntities(task.text).split(' '),lines=[];let line='';// wrap on three lines, then an ellipsis
     for(const w of words){const t=line?line+' '+w:w;if(ctx.measureText(t).width>216&&line){lines.push(line);line=w;}else line=t;}
     if(line)lines.push(line);if(lines.length>3){lines.length=3;lines[2]=lines[2].slice(0,14)+'…';}
     const top=88-(lines.length-1)*17;lines.forEach((l,i)=>ctx.fillText(l,20,top+i*34));

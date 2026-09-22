@@ -5,7 +5,7 @@ import {
   DELTA_CAP, VALUE_MIN, VALUE_MAX,
 } from "../src/scoring.ts";
 import type { Task } from "../src/types.ts";
-import { score, isDue, dayBit, startOfDay, rollover, cleanKind, cleanDifficulty, cleanDays, cleanChecklist, cleanNote, CRON_ENERGY_CAP } from "../src/scoring.ts";
+import { score, isDue, dayBit, startOfDay, rollover, cleanKind, cleanDifficulty, cleanDays, cleanChecklist, cleanNote, coinsDelta, CRON_ENERGY_CAP } from "../src/scoring.ts";
 
 export const task = (extra: Partial<Task> = {}): Task => ({
   id: "t", userId: "u", text: "Tâche", note: "", kind: "todo", difficulty: "easy",
@@ -153,6 +153,18 @@ test("validators fall back to defaults", () => {
   assert.equal(cleanChecklist(Array.from({ length: 30 }, () => ({ text: "x", done: false }))).length, 20);
   assert.equal(cleanChecklist([{ text: "y".repeat(100), done: false }])[0].text.length, 80);
   assert.equal(cleanNote("  <b>hi</b>  "), "&lt;b&gt;hi&lt;/b&gt;"); assert.equal(cleanNote("z".repeat(300)).length, 200);
+});
+
+test("cleanChecklist escapes item text and is idempotent (no double-escape on a re-sent checklist)", () => {
+  assert.equal(cleanChecklist([{ text: "<b>", done: false }])[0].text, "&lt;b&gt;");
+  assert.equal(cleanChecklist([{ text: "&lt;b&gt;", done: false }])[0].text, "&lt;b&gt;");
+});
+
+test("coinsDelta applies the bonus signed, floors bonus at 0, and is a no-op on a zero base", () => {
+  assert.equal(coinsDelta(10, 2), 12);
+  assert.equal(coinsDelta(-10, 2), -12);
+  assert.equal(coinsDelta(0, 2), 0);
+  assert.equal(coinsDelta(10, -5), 10);
 });
 
 test("cleanNote truncates the raw string before escaping, never leaving a dangling entity", () => {

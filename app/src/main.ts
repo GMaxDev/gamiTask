@@ -411,8 +411,8 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
 });
 function onSceneState(state: SceneState){
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
-    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category),esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
-      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(t.text)}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
+    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category);
+      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
@@ -584,7 +584,7 @@ function bindServerEvents(){
     // Room-manage panel is for the owner only — a private room can now also be a friend's, visited via an invite link.
     ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
-  s.on('tasks:state',({tasks:list,coins,energy})=>{setTasks(tasks,list);setCoins(progress,coins);setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
+  s.on('tasks:state',({tasks:list,coins,energy,exhausted})=>{setTasks(tasks,list);setCoins(progress,coins);setEnergy(progress,energy);setExhausted(progress,!!exhausted);cafe?.setEnergy?.(progress.energy,progress.exhausted);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
   // Notes and timer settings started on the landing page follow the visitor in, once.
   s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
     for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,kind:'todo',difficulty:'easy'});
@@ -599,7 +599,7 @@ function bindServerEvents(){
   s.on('coins:update',({coins})=>{setCoins(progress,coins);renderProgress();renderShop();});
   s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
   s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
-  s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);setExhausted(progress,false);renderProgress();cafe?.setEnergy?.(progress.energy,false);
+  s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);
     if(missed.length)later(()=>toast(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}. ${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`),0);});
   s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
@@ -699,7 +699,7 @@ setInterval(()=>{renderTimer();renderRoomPomo();},250);document.addEventListener
 const tasks=createTasks();
 let newCategory: string|null=null,newDifficulty=1,newDays=127,newUp=true,newDown=false;
 const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
-const esc=(v: string)=>v.replace(/[&<>]/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
+const esc=(v: string)=>v.replace(/[&<>"']/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'} as Record<string,string>)[c]);
 const pips=(n: number)=>`<span class="pips" aria-hidden="true">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
 const dueLabel=(ts: number)=>new Date(ts).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
 function syncScene(){cafe?.setTasks(pending(tasks));}
@@ -719,13 +719,14 @@ function renderTasks(){
   for(const t of visible(tasks,today)){
     const li=document.createElement('li');li.dataset.id=t.id;const cat=catOf(t.category),d=DIFFICULTIES.find(x=>x.id===t.difficulty)!;
     li.className=`kind-${t.kind} tint-${tint(t.value)}${t.done?' done':''}${t.kind==='daily'&&!isDue(t,today)?' not-due':''}`;
-    const text=`<span class="task-text" contenteditable="plaintext-only" spellcheck="false">${esc(t.text)}</span>`;
+    const dt=esc(decodeEntities(t.text));
+    const text=`<span class="task-text" contenteditable="plaintext-only" spellcheck="false">${dt}</span>`;
     const common=`<button class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}" title="Catégorie : ${cat?cat.label:'aucune'} (cliquer pour changer)" aria-label="Changer la catégorie"></button><button class="pips diff" title="Difficulté : ${d.label} (cliquer pour changer)" aria-label="Changer la difficulté">${pips(d.pips)}</button>`;
-    if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" aria-label="Mauvaise : ${esc(t.text)}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui">${t.countUp}${t.down?` · ${t.countDown}`:''}</small>${t.up?`<button class="score-button up" data-dir="up" aria-label="Bonne : ${esc(t.text)}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
-    else if(t.kind==='daily')li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${esc(t.text)}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.streak>1?`<small class="streak-count" title="Série">${icon('flame')}${t.streak}</small>`:''}<small class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</small><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+    if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" aria-label="Mauvaise : ${dt}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui">${t.countUp}${t.down?` · ${t.countDown}`:''}</small>${t.up?`<button class="score-button up" data-dir="up" aria-label="Bonne : ${dt}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
+    else if(t.kind==='daily')li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.streak>1?`<small class="streak-count" title="Série">${icon('flame')}${t.streak}</small>`:''}<small class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</small><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
     else{const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
-      li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${esc(t.text)}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.dueAt?`<small class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</small>`:''}<button class="icon-button toggle-list" aria-expanded="false" aria-label="Étapes" title="Étapes">${icon('chevron-down')}${n?`<b>${k}/${n}</b>`:''}</button><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>
-      <ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(i.text)}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
+      li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.dueAt?`<small class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</small>`:''}<button class="icon-button toggle-list" aria-expanded="false" aria-label="Étapes" title="Étapes">${icon('chevron-down')}${n?`<b>${k}/${n}</b>`:''}</button><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>
+      <ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(decodeEntities(i.text))}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
     list.append(li);
   }
   for(const li of list.querySelectorAll('li[data-id]') as NodeListOf<HTMLElement>){

@@ -48,6 +48,7 @@ import {
   cleanDays,
   cleanChecklist,
   cleanNote,
+  coinsDelta,
   PRIORITY,
   VALUE_MIN,
   VALUE_MAX,
@@ -919,10 +920,13 @@ function applyEnergy(
 function runRollover(
   socket: Socket<ClientToServerEvents, ServerToClientEvents>,
   userId: string,
-  tzOffsetMinutes: number,
+  tzOffsetMinutes: number | undefined,
 ): void {
   const user = sql.getUser.get(userId) as UserRow;
-  const tz = Number.isFinite(tzOffsetMinutes) ? Math.max(-840, Math.min(840, Math.round(tzOffsetMinutes))) : (user.tzOffset ?? 0);
+  const tz =
+    typeof tzOffsetMinutes === "number" && Number.isFinite(tzOffsetMinutes)
+      ? Math.max(-840, Math.min(840, Math.round(tzOffsetMinutes)))
+      : (user.tzOffset ?? 0);
   const now = Date.now();
   // Même journée locale déjà traitée : rien à faire (un rollover > 30 jours renvoie aussi days = 0 mais doit écrire ses remises à zéro, d'où le test sur les minuits et pas sur r.days).
   if ((user.lastDailyResetAt ?? 0) > 0 && startOfDay(user.lastDailyResetAt, tz) === startOfDay(now, tz)) { sql.saveDailyReset.run(startOfDay(now, tz), tz, userId); return; }
@@ -939,7 +943,13 @@ function runRollover(
     }
   }
   socket.emit("day:rollover", { missed: r.missed, energy, energyDelta: r.energyDelta });
-  socket.emit("tasks:state", { tasks: r.tasks, coins: (sql.getCoins.get(userId) as UserRow).coins, energy });
+  const freshUser = sql.getUser.get(userId) as UserRow;
+  socket.emit("tasks:state", {
+    tasks: r.tasks,
+    coins: freshUser.coins,
+    energy,
+    exhausted: (freshUser.exhaustedUntil ?? 0) > Date.now(),
+  });
 }
 
 /** Émet un xp:update à un socket après avoir mis à jour les XP du joueur */
@@ -1628,7 +1638,12 @@ io.on("connection", (socket) => {
     console.log(`[join] ${name} → room:${targetRoomId} @ (${spawnCol},${spawnRow})`);
 
     // Per-user initial state (independent of room)
-    socket.emit("tasks:state", { tasks: userTasks(userId), coins: user.coins, energy: user.energy ?? ENERGY_MAX });
+    socket.emit("tasks:state", {
+      tasks: userTasks(userId),
+      coins: user.coins,
+      energy: user.energy ?? ENERGY_MAX,
+      exhausted: (user.exhaustedUntil ?? 0) > Date.now(),
+    });
     const xp = user.xp ?? 0;
     const level = levelOf(xp);
     const xpToNext = 50 * (level + 1) * (level + 1) - xp;
@@ -1645,7 +1660,7 @@ io.on("connection", (socket) => {
       placed: placedFurnitureList,
       positions: furniturePositionsPayload,
     });
-    runRollover(socket, userId, tzOffsetMinutes ?? 0);
+    runRollover(socket, userId, tzOffsetMinutes);
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
 
@@ -2055,19 +2070,19 @@ io.on("connection", (socket) => {
     const r = score(rowToTask(row), direction, level);
     if (!r) return;
     sql.updateTask.run(taskToRow(r.task));
-    // Pièces : gain de la coche + bonus mobilier existants (additifs), plancher 0 en cas de retrait.
+    // Pièces : gain de la coche + bonus mobilier appliqué signé (symétrique tick/untick), plancher 0.
     let coins = user.coins;
-    let coinsDelta = r.coins;
-    if (r.coins > 0) {
+    let bonus = 0;
+    if (r.coins !== 0) {
       const furnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
       const placed = getEffectivePlaced(furnitureRow?.placedFurniture ?? "", furnitureRow?.ownedFurniture ?? "");
-      if (placed.includes("plant")) coinsDelta += 2;
-      if (placed.includes("bookshelf")) coinsDelta += 2;
-      if (placed.includes("cactus")) coinsDelta += 1;
-      coinsDelta += getSetBonuses(placed).coinsTask;
-      if (placed.includes("lamp")) emitXpUpdate(socket, userId, 5);
+      if (placed.includes("plant")) bonus += 2;
+      if (placed.includes("bookshelf")) bonus += 2;
+      if (placed.includes("cactus")) bonus += 1;
+      bonus += getSetBonuses(placed).coinsTask;
+      if (r.coins > 0 && placed.includes("lamp")) emitXpUpdate(socket, userId, 5);
     }
-    coins = Math.max(0, coins + coinsDelta);
+    coins = Math.max(0, coins + coinsDelta(r.coins, bonus));
     sql.setCoins.run(coins, userId);
     if (r.xp !== 0) emitXpUpdate(socket, userId, r.xp);
     const energy = r.energyDelta ? applyEnergy(socket, userId, r.energyDelta) : (sql.getEnergy.get(userId) as { energy: number }).energy;

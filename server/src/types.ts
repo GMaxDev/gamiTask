@@ -442,7 +442,7 @@ export interface ServerToClientEvents {
     text: string;
     ts: number;
   }) => void;
-  "tasks:state": (payload: { tasks: Task[]; coins: number; energy: number }) => void;
+  "tasks:state": (payload: { tasks: Task[]; coins: number; energy: number; exhausted: boolean }) => void;
   "task:added": (task: Task) => void;
   "task:scored": (payload: {
     task: Task;
