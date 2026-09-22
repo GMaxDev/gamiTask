@@ -173,10 +173,23 @@ Trois changements, mesurés un par un (`vite preview`, onglet en arrière-plan, 
 
 Rendu comparé avant/après sur le sol, les montants de la verrière et les lattes : identique. Suite app 85/85, typecheck OK, aucune erreur console. Gardé. Effet secondaire attendu à chaque frame : −65 % de sommets envoyés au GPU pour le décor (non mesuré en FPS, onglet en arrière-plan).
 
+## 6 quater. Mesuré le 2026-09-22 — rendu 3D au premier plan (§5)
+
+Machine de dev, écran 1920×855 CSS, `devicePixelRatio` 1, `requestAnimationFrame` échantillonné 4-5 s :
+
+| Situation | fps | p50 | p95 | max | frames > 20 ms |
+|---|---|---|---|---|---|
+| immobile | 60 | 16,7 ms | 16,9 ms | 17,1 ms | 0 |
+| en marchant | 60 | 16,7 ms | 16,9 ms | 17,2 ms | 0 |
+| en marchant, panneau ouvert | 60 | 16,7 ms | 16,9 ms | 17,0 ms | 0 |
+
+**Mais** le canvas rendait en 1440×641 pour 1920×855 CSS : la résolution adaptative était descendue à son minimum (0,75) en ~6 s, sur n'importe quelle machine. Cause : `adapt()` jugeait l'intervalle entre deux frames (`frameMs > 14` = lent), or le vsync le fixe à 16,7 ms à 60 Hz — la condition « lent » était toujours vraie et « rapide » (< 9 ms) jamais. Le 60 fps était donc obtenu en floutant l'image, pas grâce au GPU.
+
+Corrigé : `adapt()` compte la part de frames qui dépassent 1,5 × la cadence de l'écran (médiane de chaque fenêtre de 120 frames, insensible aux stalls), ignore la première fenêtre après montage (compilation des shaders), descend au-delà de 10 % de frames sautées, remonte après deux fenêtres propres. Vérifié : 1920×855 conservé sur 12 s puis en marchant, 60 fps, 0 frame > 20 ms. Le mode d'ombre (`PCFSoftShadowMap`) et la passe de flou n'ont donc pas besoin d'être touchés sur cette machine ; à revoir seulement si des joueurs remontent une image floue (= l'adaptatif a baissé chez eux).
+
 ## 7. Ordre recommandé (reste)
 
 | # | Action | Effort | Gain attendu | Mesure de vérification |
 |---|---|---|---|---|
-| 5 | FPS + profil GPU au premier plan | 10 min | inconnu | DevTools Performance |
 
 Règle du skill appliquée : chaque changement mesuré seul, gardé seulement si l'écart dépasse le bruit, sinon annulé.

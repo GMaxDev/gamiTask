@@ -794,13 +794,18 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function setRatio(value: number){pixelRatio=value;renderer.setPixelRatio(value);resize();restage();}
   // Adaptive resolution: a smoothed frame time steps the ratio down when the GPU is drowning and back up when it is bored. The editor keeps its sharp avatar pass, so it never adapts.
-  let frameMs=1000/60,slow=0,fast=0;
+  // Adaptive resolution. The frame interval is pinned to the display refresh by vsync (16.7 ms at 60 Hz), so its value says
+  // nothing about how hard the GPU works; what does is the share of frames that overshoot it. Each ~2 s window takes its own
+  // median as the refresh, so a stall never skews it, and the first window after mounting (shader compiles, uploads) is not judged.
+  const win: number[]=[];let warm=true,steady=0;
   function adapt(dt: number){
-    frameMs+=(dt*1000-frameMs)*.1;
-    if(mode==='edit'){slow=fast=0;return;}
-    if(frameMs>14){slow+=dt;fast=0;}else if(frameMs<9){fast+=dt;slow=0;}else slow=fast=0;
-    if(slow>2&&pixelRatio>.75){setRatio(Math.max(.75,pixelRatio-.25));slow=0;}
-    else if(fast>5&&pixelRatio<BASE_PR){setRatio(Math.min(BASE_PR,pixelRatio+.25));fast=0;}
+    if(mode==='edit'){win.length=0;steady=0;return;}
+    win.push(dt*1000);if(win.length<120)return;
+    const sorted=[...win].sort((a,b)=>a-b),refresh=sorted[sorted.length>>1],rate=win.filter(ms=>ms>refresh*1.5).length/win.length;win.length=0;
+    if(warm){warm=false;return;}
+    if(rate>.1){steady=0;if(pixelRatio>.75)setRatio(Math.max(.75,pixelRatio-.25));}
+    else if(rate<.02){steady++;if(steady>=2&&pixelRatio<BASE_PR){setRatio(Math.min(BASE_PR,pixelRatio+.25));steady=0;}}// two clean windows before stepping back up
+    else steady=0;
   }
   let previous=performance.now(),raf: number;
   function animate(now: number){
