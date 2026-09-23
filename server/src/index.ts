@@ -1173,6 +1173,7 @@ function createPublicRoomState(id: PublicRoomId): RoomState {
       running: false,
       participants: 0,
       session: 0,
+      names: [],
       intervalId: null,
     },
     pomoParticipants: new Set(),
@@ -1213,6 +1214,7 @@ function createPrivateRoomState(
       running: false,
       participants: 0,
       session: 0,
+      names: [],
       intervalId: null,
     },
     pomoParticipants: new Set(),
@@ -1334,6 +1336,7 @@ function pomoTick(
         phase: nextPhase,
         remaining: sp.remaining,
         session: nextSession,
+        names: participantNames(room),
       });
     }
     startPomoIfNeeded(io, room);
@@ -1357,6 +1360,12 @@ function pomoTick(
   }
 }
 
+function participantNames(room: RoomState): string[] {
+  return [...room.pomoParticipants]
+    .map((sid) => room.players.get(sid)?.name)
+    .filter((n): n is string => !!n);
+}
+
 function pomoState(room: RoomState): SharedPomoState {
   const sp = room.sharedPomo;
   return {
@@ -1365,6 +1374,7 @@ function pomoState(room: RoomState): SharedPomoState {
     running: sp.running,
     participants: sp.participants,
     session: sp.session,
+    names: participantNames(room),
   };
 }
 

@@ -13,7 +13,8 @@ export interface PomodoroDeps{
   ambience: Ambience;// carillons, notifications, contexte audio
   onComplete(): void;// un focus vient de finir : le serveur compte la récompense
   canMove(): boolean;// faux tant qu'une fenêtre est ouverte : le personnage patiente
-  onRoomFocusDone(): void;// un focus de la salle vient de finir : le serveur paie, le journal note
+  onRoomFocusDone(others: string[]): void;// un focus de la salle vient de finir, avec ces autres participants : le serveur paie, le chat et le journal notent
+  myName(): string;// pour ne pas se compter parmi « les autres »
 }
 export type Pomodoro=ReturnType<typeof createPomodoro>;
 
@@ -103,7 +104,7 @@ export function createPomodoro(deps: PomodoroDeps){
     if(text!==lastRoomShown){$('#room-value').textContent=text;lastRoomShown=text;}
     $('#room-dial-progress').style.strokeDashoffset=609.47*fraction;
     document.querySelectorAll('[data-phase]').forEach((s: any)=>s.classList.toggle('selected',s.dataset.phase===roomPomo.phase));
-    $('#room-subtitle').textContent=subtitle(roomPomo,[]);
+    $('#room-subtitle').textContent=subtitle(roomPomo,roomPomo.names.filter(n=>n!==deps.myName()));
     $('#room-kicker').textContent=`25 / 5 / 15 · SESSION ${roomPomo.session+1}`;
     $('#room-dot').hidden=!roomPomo.running;
     $('#room-count').hidden=roomPomo.participants===0;$('#room-count').textContent=String(roomPomo.participants);
@@ -130,17 +131,17 @@ export function createPomodoro(deps: PomodoroDeps){
   };
   setInterval(()=>{renderTimer();renderRoomPomo();},250);document.addEventListener('visibilitychange',renderTimer);renderTimer();renderRoomPomo();
 
-  function onRoomPhase({phase,remaining,session}: {phase: Phase; remaining: number; session: number}){const was=roomPomo.phase;
-    applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants},Date.now());
+  function onRoomPhase({phase,remaining,session,names}: {phase: Phase; remaining: number; session: number; names?: string[]}){const was=roomPomo.phase;
+    applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants,names},Date.now());
     if(roomPomo.joined){
-      if(was==='focus'){toast('Focus terminé avec la salle. Les pièces arrivent.');deps.onRoomFocusDone();}
+      if(was==='focus'){toast('Focus terminé avec la salle. Les pièces arrivent.');deps.onRoomFocusDone(roomPomo.names.filter(n=>n!==deps.myName()));}
       deps.ambience.chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);deps.ambience.notify(n.title,n.body);
       if(phase==='focus')seatForFocus();else standForBreak();
     }
     renderRoomPomo();}
 
   // Ce que main.ts relaie du serveur et de la connexion.
-  function onRoomState(st: {phase: Phase; remaining: number; running: boolean; participants: number; session: number}){applyState(roomPomo,st,Date.now());renderRoomPomo();}
+  function onRoomState(st: {phase: Phase; remaining: number; running: boolean; participants: number; session: number; names?: string[]}){applyState(roomPomo,st,Date.now());renderRoomPomo();}
   function onRoomTick(t: {remaining: number; phase: Phase; session: number}){applyTick(roomPomo,t,Date.now());renderRoomPomo();}
   function resetRoom(){roomPomo=createRoomPomo();renderRoomPomo();}
   function leaveRoom(){roomPomo.joined=false;renderRoomPomo();}

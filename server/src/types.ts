@@ -211,6 +211,7 @@ export interface SharedPomoState {
   running: boolean;
   participants: number;
   session: number;
+  names: string[];// display names of the participants, so the card can say who is there
 }
 
 export interface VideoState {
@@ -472,6 +473,7 @@ export interface ServerToClientEvents {
     phase: PomodoroPhase;
     remaining: number;
     session: number;
+    names: string[];// who was in the session when the phase turned
   }) => void;
   "leaderboard-update": (
     entries: Array<{

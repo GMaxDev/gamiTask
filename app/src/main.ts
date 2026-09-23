@@ -20,6 +20,7 @@ import {createAmbience} from './ambience.ts';
 import {createPomodoro} from './pomodoro-ui.ts';
 import {createTasksUi} from './tasks-ui.ts';
 import {createJournal,record,summaryLine,timeLabel} from './journal.ts';
+import {focusDoneLine,focusWithLine} from './pomo.ts';
 import {hudMarkup} from './hud.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
@@ -514,7 +515,8 @@ function bindServerEvents(){
 
 // « Fenêtre » : un dialogue ouvert, ou le tableau de liège en gros plan. Tant qu'il y en a une, le personnage ne bouge pas.
 const canMove=()=>!document.querySelector('dialog[open]')&&!cafe?.isViewingBoard?.();
-const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove,onRoomFocusDone:()=>note({kind:'pomo',text:'Focus terminé avec la salle'})});
+const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove,myName:()=>identity.name,
+  onRoomFocusDone:others=>{chat.system(focusDoneLine(others));note({kind:'pomo',text:focusWithLine(others)});}});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>pomo.resumeMove()));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&cafe?.isViewingBoard?.())cafe.leaveBoard();});
 // Sonde de développement : l'état de la scène et du pomodoro, lisibles depuis la console. Jamais en production.

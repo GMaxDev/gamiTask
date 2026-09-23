@@ -1,17 +1,19 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createRoomPomo,applyState,applyTick,remainingAt,DURATION,phaseLabel,phaseNotice,subtitle,format} from '../src/pomo.ts';
+import {createRoomPomo,applyState,applyTick,remainingAt,DURATION,phaseLabel,phaseNotice,subtitle,format,focusDoneLine,focusWithLine} from '../src/pomo.ts';
 
 test('a fresh room pomodoro is idle on a full focus',()=>{
  const p=createRoomPomo();
- assert.deepEqual({...p,syncedAt:0},{phase:'focus',remaining:1500,running:false,participants:0,session:0,joined:false,syncedAt:0});
+ assert.deepEqual({...p,syncedAt:0},{phase:'focus',remaining:1500,running:false,participants:0,session:0,names:[],joined:false,syncedAt:0});
  assert.equal(DURATION['focus'],1500);assert.equal(DURATION['short-break'],300);assert.equal(DURATION['long-break'],900);
 });
 
 test('applyState copies the server state and stamps the sync time, leaving `joined` alone',()=>{
  const p=createRoomPomo();p.joined=true;
  applyState(p,{phase:'short-break',remaining:280,running:true,participants:3,session:2},1000);
- assert.deepEqual(p,{phase:'short-break',remaining:280,running:true,participants:3,session:2,joined:true,syncedAt:1000});
+ assert.deepEqual(p,{phase:'short-break',remaining:280,running:true,participants:3,session:2,names:[],joined:true,syncedAt:1000});
+ applyState(p,{phase:'focus',remaining:1500,running:true,participants:2,session:2,names:['Léa','Max']},2000);assert.deepEqual(p.names,['Léa','Max']);
+ applyState(p,{phase:'focus',remaining:1499,running:true,participants:2,session:2},3000);assert.deepEqual(p.names,['Léa','Max']);// sans liste, on garde la dernière connue
 });
 
 test('applyTick refreshes the countdown and marks the session running',()=>{
@@ -64,4 +66,15 @@ test('phaseNotice names the phase and reads its length from DURATION',()=>{
  assert.match(phaseNotice('focus').title,/Focus/);
  assert.equal(phaseNotice('short-break').body,'5 minutes avec la salle.');
  assert.equal(phaseNotice('long-break').title,'Longue — souffle un peu');
+});
+
+test('focusDoneLine et focusWithLine nomment qui a partagé le focus',()=>{
+ assert.equal(focusDoneLine([]),'Tu as terminé un focus avec la salle.');
+ assert.equal(focusDoneLine(['Léa']),'Léa et toi avez terminé un focus.');
+ assert.equal(focusDoneLine(['Léa','Max']),'Léa, Max et toi avez terminé un focus.');
+ assert.equal(focusDoneLine(['Léa','Max','Jo']),'Léa, Max, Jo et toi avez terminé un focus.');
+ assert.equal(focusWithLine([]),'Focus terminé avec la salle');
+ assert.equal(focusWithLine(['Léa']),'Focus avec Léa');
+ assert.equal(focusWithLine(['Léa','Max']),'Focus avec Léa et Max');
+ assert.equal(focusWithLine(['Léa','Max','Jo','Ana','Sam']),'Focus avec Léa, Max et Jo et 2 autres');
 });

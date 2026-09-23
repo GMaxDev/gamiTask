@@ -3,18 +3,18 @@
 import type {PomodoroPhase} from '@shared/types';
 
 export type Phase=PomodoroPhase;
-export interface RoomPomo{phase: Phase; remaining: number; running: boolean; participants: number; session: number; joined: boolean; syncedAt: number}
+export interface RoomPomo{phase: Phase; remaining: number; running: boolean; participants: number; session: number; names: string[]; joined: boolean; syncedAt: number}
 
 export const DURATION: Record<Phase,number>={focus:25*60,'short-break':5*60,'long-break':15*60};
 const LABELS: Record<Phase,string>={focus:'Focus','short-break':'Pause','long-break':'Longue'};
 export const phaseLabel=(phase: Phase): string=>LABELS[phase];
 
 export function createRoomPomo(): RoomPomo{
-  return {phase:'focus',remaining:DURATION['focus'],running:false,participants:0,session:0,joined:false,syncedAt:Date.now()};
+  return {phase:'focus',remaining:DURATION['focus'],running:false,participants:0,session:0,names:[],joined:false,syncedAt:Date.now()};
 }
 
-export function applyState(p: RoomPomo,s: {phase: Phase; remaining: number; running: boolean; participants: number; session: number},now: number): void{
-  p.phase=s.phase;p.remaining=s.remaining;p.running=s.running;p.participants=s.participants;p.session=s.session;p.syncedAt=now;
+export function applyState(p: RoomPomo,s: {phase: Phase; remaining: number; running: boolean; participants: number; session: number; names?: string[]},now: number): void{
+  p.phase=s.phase;p.remaining=s.remaining;p.running=s.running;p.participants=s.participants;p.session=s.session;p.syncedAt=now;if(s.names)p.names=s.names;
 }
 
 export function applyTick(p: RoomPomo,t: {remaining: number; phase: Phase; session: number},now: number): void{
@@ -48,4 +48,15 @@ export function format(seconds: number): string{
 // Wording for the sound/notification pair fired on each phase change; durations stay tied to DURATION.
 export function phaseNotice(phase: Phase): {title: string; body: string}{
   return {title:phase==='focus'?'Focus — c’est parti':`${phaseLabel(phase)} — souffle un peu`,body:`${DURATION[phase]/60} minutes avec la salle.`};
+}
+
+// Qui vient de finir un focus avec toi — pour le chat et le journal. `others` : les autres participants, sans toi.
+const list=(names: string[]): string=>names.length<=2?names.join(' et '):`${names.slice(0,-1).join(', ')} et ${names.at(-1)}`;
+export function focusDoneLine(others: string[]): string{
+  return others.length?`${list([...others,'toi'])} avez terminé un focus.`:'Tu as terminé un focus avec la salle.';
+}
+export function focusWithLine(others: string[]): string{
+  if(!others.length)return 'Focus terminé avec la salle';
+  const rest=others.length-3;
+  return `Focus avec ${list(others.slice(0,3))}${rest>0?` et ${rest} autre${rest>1?'s':''}`:''}`;
 }
