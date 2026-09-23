@@ -280,9 +280,10 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
 });
 function onSceneState(state: SceneState){
     if(state.walking&&firstSteps){firstSteps=false;$('#recap').hidden=true;}// le premier pas vaut « compris »
+    if(state.board===false)pomo.resumeMove();// le gros plan se ferme : un siège demandé entre-temps se prend maintenant
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
     if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&tasksUi.catOf(t.category);
-      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
+      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · ${state.hover.up?'cliquer pour la retrouver':'cliquer pour lire le tableau'}</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
@@ -492,6 +493,12 @@ function bindServerEvents(){
 }
 
 
-const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro});
+// « Fenêtre » : un dialogue ouvert, ou le tableau de liège en gros plan. Tant qu'il y en a une, le personnage ne bouge pas.
+const canMove=()=>!document.querySelector('dialog[open]')&&!cafe?.isViewingBoard?.();
+const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove});
+document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>pomo.resumeMove()));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&cafe?.isViewingBoard?.())cafe.leaveBoard();});
+// Sonde de développement : l'état de la scène et du pomodoro, lisibles depuis la console. Jamais en production.
+if(import.meta.env.DEV)(window as any).gamitask={scene:()=>cafe,pomo,canMove};
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
 const tasksUi=createTasksUi({cafe:()=>cafe,socket:()=>net.socket,userId:()=>identity.userId});

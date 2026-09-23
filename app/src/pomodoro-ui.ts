@@ -12,6 +12,7 @@ export interface PomodoroDeps{
   socket(): any;// la socket du café, ou undefined tant qu'on n'est pas connecté
   ambience: Ambience;// carillons, notifications, contexte audio
   onComplete(): void;// un focus vient de finir : le serveur compte la récompense
+  canMove(): boolean;// faux tant qu'une fenêtre est ouverte : le personnage patiente
 }
 export type Pomodoro=ReturnType<typeof createPomodoro>;
 
@@ -22,8 +23,11 @@ export function createPomodoro(deps: PomodoroDeps){
   stats.sessions=Number.isFinite(stats.sessions)?Math.max(0,stats.sessions):0;stats.minutes=Number.isFinite(stats.minutes)?Math.max(0,stats.minutes):0;
 
   // Un focus qui commence envoie le personnage s'asseoir, une pause le fait se relever — solo comme en salle.
-  function seatForFocus(){if(timer.seatOnFocus)deps.cafe()?.takeSeat?.();}
-  function standForBreak(){if(timer.seatOnFocus)deps.cafe()?.leaveSeat?.();}
+  // Une fenêtre ouverte a priorité sur le déplacement : la demande attend sa fermeture, la dernière l'emporte.
+  let pendingMove: null|'seat'|'stand'=null;
+  function seatForFocus(){if(!timer.seatOnFocus)return;if(deps.canMove())deps.cafe()?.takeSeat?.();else pendingMove='seat';}
+  function standForBreak(){if(!timer.seatOnFocus)return;if(deps.canMove())deps.cafe()?.leaveSeat?.();else pendingMove='stand';}
+  function resumeMove(){if(!pendingMove||!deps.canMove())return;const m=pendingMove;pendingMove=null;if(m==='seat')deps.cafe()?.takeSeat?.();else deps.cafe()?.leaveSeat?.();}
   const MODE_LABEL: Record<TimerMode,string>={focus:'Focus',short:'Petite pause',long:'Longue pause'};
   function persistTimer(){save('gamitask.timer',timer);}
   let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
@@ -141,5 +145,5 @@ export function createPomodoro(deps: PomodoroDeps){
   function leaveRoom(){roomPomo.joined=false;renderRoomPomo();}
   function adoptDurations(d: Partial<Record<TimerMode,number>>){Object.assign(timer.durations,d);resetTimer(timer);persistTimer();}
 
-  return {avatarState,onRoomState,onRoomTick,onRoomPhase,resetRoom,leaveRoom,adoptDurations};
+  return {avatarState,onRoomState,onRoomTick,onRoomPhase,resetRoom,leaveRoom,adoptDurations,resumeMove};
 }
