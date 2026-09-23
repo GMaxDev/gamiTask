@@ -44,3 +44,8 @@ export function format(seconds: number): string{
   const s=Math.max(0,Math.floor(seconds));
   return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
+
+// Wording for the sound/notification pair fired on each phase change; durations stay tied to DURATION.
+export function phaseNotice(phase: Phase): {title: string; body: string}{
+  return {title:phase==='focus'?'Focus — c’est parti':`${phaseLabel(phase)} — souffle un peu`,body:`${DURATION[phase]/60} minutes avec la salle.`};
+}

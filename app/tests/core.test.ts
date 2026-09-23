@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createNavigator} from '../src/navigation.ts';
-import {createTimer,remainingSeconds,toggleTimer,resetTimer} from '../src/timer.ts';
+import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from '../src/timer.ts';
 
 test('avatar routes around a counter without crossing furniture',()=>{
  const nav=createNavigator([{x:0,z:0,w:2,d:3}]);
@@ -39,4 +39,30 @@ test('invalid saved durations are bounded',()=>{
 test('custom bounds let the avatar cross a bigger room',()=>{
  const nav=createNavigator([{x:0,z:0,w:2,d:2}],.25,{minX:-11.5,maxX:11.5,minZ:-9.5,maxZ:9.5});
  const path=nav.path({x:-11,z:-9},{x:11,z:9});assert.ok(path.length>60);assert.deepEqual(path.at(-1),{x:11,z:9});
+});
+
+test('un cycle enchaîne 4 focus, 3 petites pauses et une longue, puis repart',()=>{
+ const state=createTimer();const seen: string[]=[];let done=0;
+ for(let i=0;i<8;i++){
+  if(state.mode==='focus')done++;
+  const {to,started}=advance(state,done,1000);seen.push(to+(started?'*':''));
+  if(!started)break;
+ }
+ assert.deepEqual(seen,['short*','focus*','short*','focus*','short*','focus*','long*','focus*']);
+ assert.notEqual(state.endAt,null);assert.equal(state.mode,'focus');
+});
+
+test('advance respecte perCycle et l’enchaînement coupé',()=>{
+ const two=createTimer({perCycle:2} as any);advance(two,1,1000);assert.equal(two.mode,'short');
+ advance(two,1,1000);assert.equal(two.mode,'focus');
+ assert.equal(advance(two,2,1000).to,'long');
+ const manual=createTimer({autoChain:false} as any);
+ const r=advance(manual,1,1000);assert.equal(r.to,'short');assert.equal(r.started,false);assert.equal(manual.endAt,null);
+});
+
+test('perCycle borné et enchaînement actif par défaut',()=>{
+ assert.equal(createTimer().perCycle,4);assert.equal(createTimer().autoChain,true);
+ assert.equal(createTimer({perCycle:99} as any).perCycle,12);
+ assert.equal(createTimer({perCycle:0} as any).perCycle,2);
+ assert.equal(createTimer({perCycle:'oops'} as any).perCycle,4);
 });

@@ -19,7 +19,7 @@ import { decodeEntities } from './chat.ts';
 export interface SceneState { seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; kind: string}; hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective'; wander?: boolean }
 interface LightSet { hemi: [string,string,number]; sun: [string,number]; fill: number; lamps: number }
-// Daylight and evening per room, read both when the lights are created and every time `toggleLight` flips them.
+// Daylight and evening per room: the two ends of the curve `setDaylight` interpolates between.
 const CAFE_LIGHT: {day: LightSet; evening: LightSet}={
   day:{hemi:['#fff5dc','#a8b294',1.2],sun:['#ffd08f',2.2],fill:.5,lamps:1},
   evening:{hemi:['#8ea2cc','#a8b294',.35],sun:['#ff8c4c',.35],fill:.15,lamps:3},
@@ -113,7 +113,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   box(.34,.18,D+.45,C.oak,-HW-.07,3.91,0,.035);
   box(W-.1,.15,.08,room==='garden'?C.sage:C.edge,0,.17,-HD+.06,.01);
   box(.08,.15,D-.1,room==='garden'?C.sage:C.edge,-HW+.06,.17,0,.01);
-  let dusk: ((evening: boolean)=>void)|null=null;// the garden tints its glazing at nightfall
+  let dusk: ((night: number)=>void)|null=null;// the garden tints its glazing as night comes
   if(room==='cafe'){
   // The original café, untouched, tucked into the back-left corner of the bigger room.
   root=group(-HW+6,0,-HD+5);
@@ -768,16 +768,17 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const moves: Record<string, [number,number]>={ArrowUp:[0,-.75],ArrowDown:[0,.75],ArrowLeft:[-.75,0],ArrowRight:[.75,0]};
     if(moves[e.key]&&mode==='walk'){e.preventDefault();const [x,z]=moves[e.key];moveTo({x:avatar.position.x+x,z:avatar.position.z+z});}
   });
-  let evening=false;
-  const day=[...pendants,...windows].map(l=>l.intensity);// the lamps' own daylight values, captured once so toggling back is exact
-  function toggleLight(){
-    evening=!evening;const n=pendants.length,L=LIGHT[room][evening?'evening':'day'];
-    pendants.forEach((l,i)=>l.intensity=day[i]*L.lamps);
-    windows.forEach((l,i)=>l.intensity=evening?0:day[n+i]);
-    sun.color.set(L.sun[0]);sun.intensity=L.sun[1];fill.intensity=L.fill;
-    hemi.color.set(L.hemi[0]);hemi.groundColor.set(L.hemi[1]);hemi.intensity=L.hemi[2];
-    dusk?.(evening);restage();
-    return evening;
+  const day=[...pendants,...windows].map(l=>l.intensity);// the lamps' own daylight values, captured once so full noon is exact
+  const scratch=new THREE.Color();
+  const mixInto=(target: any,from: string,to: string,t: number)=>{target.set(from);scratch.set(to);target.lerp(scratch,t);};
+  // 0 = full noon, 1 = deep night. The old day/evening switch was only this curve's two ends.
+  function setDaylight(night: number){
+    const n=Math.min(1,Math.max(0,night)),count=pendants.length,D=LIGHT[room].day,E=LIGHT[room].evening,L=(a: number,b: number)=>a+(b-a)*n;
+    pendants.forEach((l,i)=>l.intensity=day[i]*L(D.lamps,E.lamps));
+    windows.forEach((l,i)=>l.intensity=day[count+i]*(1-n));
+    mixInto(sun.color,D.sun[0],E.sun[0],n);sun.intensity=L(D.sun[1],E.sun[1]);fill.intensity=L(D.fill,E.fill);
+    mixInto(hemi.color,D.hemi[0],E.hemi[0],n);mixInto(hemi.groundColor,D.hemi[1],E.hemi[1],n);hemi.intensity=L(D.hemi[2],E.hemi[2]);
+    dusk?.(n);restage();
   }
   function simulate(dt: number){
     me.step(dt);npcThink(dt);bar?.step(dt);remoteThink(dt);
@@ -863,7 +864,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   tick('ready');// the whole construction, phase by phase, is readable in DevTools → Performance → Timings (and logged once in dev)
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
   if(import.meta.env.DEV)(window as any).__cafe={scene,renderer,camera};// dev only: lets a console profile the live scene
-  return {setTasks,setClock,setEnergy,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,toggleLight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
+  return {setTasks,setClock,setEnergy,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,setDaylight,dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     P.disposeGeometries();renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

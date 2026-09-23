@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createRoomPomo,applyState,applyTick,remainingAt,DURATION,phaseLabel,subtitle,format} from '../src/pomo.ts';
+import {createRoomPomo,applyState,applyTick,remainingAt,DURATION,phaseLabel,phaseNotice,subtitle,format} from '../src/pomo.ts';
 
 test('a fresh room pomodoro is idle on a full focus',()=>{
  const p=createRoomPomo();
@@ -57,4 +57,11 @@ test('phaseLabel and format speak the café’s language',()=>{
  assert.equal(format(0),'00:00');
  assert.equal(format(61),'01:01');
  assert.equal(format(-5),'00:00');
+});
+
+test('phaseNotice names the phase and reads its length from DURATION',()=>{
+ assert.equal(phaseNotice('focus').body,'25 minutes avec la salle.');
+ assert.match(phaseNotice('focus').title,/Focus/);
+ assert.equal(phaseNotice('short-break').body,'5 minutes avec la salle.');
+ assert.equal(phaseNotice('long-break').title,'Longue — souffle un peu');
 });

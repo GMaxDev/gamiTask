@@ -1,9 +1,13 @@
+import * as THREE from 'three';
 import { C } from './primitives.ts';
 import type { DecorContext, createDecor } from './decor.ts';
 
 const GLASS='#dbe7d8',NEAR='#7a9a68',FAR='#5f7f52',WOOD='#d9c7a3';
+// Les teintes de nuit du vitrage et du jardin derrière, et un mélange sans allocation entre les deux.
+const NIGHT_GLASS=new THREE.Color('#1f2a2e'),NIGHT_NEAR=new THREE.Color('#33452f'),NIGHT_FAR=new THREE.Color('#26331f');
+const mixInto=(target: any,from: string,to: THREE.Color,t: number)=>{target.set(from);target.lerp(to,t);};
 // The Café-jardin: a bright veranda. Glazing on the back and left walls, hanging pots, sage benches
-// and a plant bar. Returns the hook `toggleLight` calls so the glass and the garden behind it go dark at dusk.
+// and a plant bar. Returns the hook `setDaylight` calls so the glass and the garden behind it go dark as the evening comes.
 export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,{W,D,HW,HD}: {W: number;D: number;HW: number;HD: number}){
   const {mat,box,cyl,ball,group}=ctx.p;
   const {label,plant,mug,book,chair,squareTable,roundTable,pool,windowLight}=d;
@@ -98,8 +102,9 @@ export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,
     cyl(.014,.014,.9,C.edge,x,3.45,z);cyl(.2,.38,.4,shade,x,2.9,z,root(),8);
     cyl(.34,.34,.025,bulb,x,2.72,z);pool(x,2.6,z,root(),!!cast);}
 
-  return (evening: boolean)=>{// dusk: the glazing tints and the garden behind it falls into shade
-    glass.opacity=evening?.35:.55;glass.color.set(evening?'#1f2a2e':GLASS);glass.emissive.set(evening?'#1f2a2e':GLASS);glass.emissiveIntensity=evening?.05:.12;
-    near.color.set(evening?'#33452f':NEAR);far.color.set(evening?'#26331f':FAR);
+  return (night: number)=>{// 0 = plein jour, 1 = nuit : le vitrage se teinte et le jardin derrière tombe dans l'ombre
+    glass.opacity=.55+(.35-.55)*night;glass.emissiveIntensity=.12+(.05-.12)*night;
+    mixInto(glass.color,GLASS,NIGHT_GLASS,night);mixInto(glass.emissive,GLASS,NIGHT_GLASS,night);
+    mixInto(near.color,NEAR,NIGHT_NEAR,night);mixInto(far.color,FAR,NIGHT_FAR,night);
   };
 }

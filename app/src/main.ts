@@ -1,8 +1,9 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
-import {createTimer,remainingSeconds,toggleTimer,resetTimer} from './timer.ts';
+import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from './timer.ts';
+import type {TimerMode} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,randomLook,type Look} from './look.ts';
 import {createEditor,EDITOR_ICONS} from './editor.ts';
@@ -19,11 +20,12 @@ import {createProgress,setCoins,setXp,setStreak,setEnergy,setExhausted,unlock,se
 import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
-import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,DURATION} from './pomo.ts';
+import {nightness,clockLabel,momentLabel} from './daylight.ts';
+import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice,DURATION} from './pomo.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar};
+const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -31,6 +33,13 @@ function drawIcons(){createIcons({icons,attrs:{'stroke-width':1.65}});}
 function load(key: string,fallback: any): any{try{return JSON.parse(localStorage.getItem(key) as string)??fallback;}catch{return fallback;}}
 function save(key: string,value: any){try{localStorage.setItem(key,JSON.stringify(value));}catch{/* The experience also works without persistent browser storage. */}}
 const today=()=>new Date().toLocaleDateString('sv-SE');
+type LightMode='auto'|'day'|'evening';
+const LIGHT_UI: Record<LightMode,{icon: string; label: string; next: LightMode; toast: string}>={
+  auto:{icon:'sun-moon',label:'Lumière auto',next:'day',toast:'La lumière suit de nouveau l’heure.'},
+  day:{icon:'sun',label:'Plein jour',next:'evening',toast:'Plein jour, quelle que soit l’heure.'},
+  evening:{icon:'moon',label:'Douce soirée',next:'auto',toast:'Douce soirée, quelle que soit l’heure.'},
+};
+let lightMode: LightMode=(LIGHT_UI[load('gamitask.light','auto') as LightMode]?load('gamitask.light','auto'):'auto');
 let timer=createTimer(load('gamitask.timer',{})),stats=load('gamitask.stats',{});
 const shop=createShop();// declared here: mountRoom() reads shop.placed / shop.hat before the shop block runs
 let placingId: string|null=null,placingCell: {c: number; r: number}|null=null;
@@ -44,6 +53,7 @@ $('#app').innerHTML=`
       <div class="hud-top">
         <div class="hud-zone hud-left">
           <a class="brand chip" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
+          <span class="chip clock-chip" id="clock" title="Heure locale">${icon('clock-3')}<span id="clock-time">--:--</span></span>
           <div class="chip-group room-switch" role="group" aria-label="Changer de salle"><button class="chip" data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button class="chip" data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button class="chip" data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
         </div>
         <div class="hud-zone hud-center"><div class="chip-group progress-group">
@@ -59,7 +69,7 @@ $('#app').innerHTML=`
           <div class="chip-group view-controls"><button id="follow" class="chip icon active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="chip icon" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="chip icon" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="chip icon" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
         </div>
       </div>
-      <div class="world-bottom"><div class="world-left"><div class="chip-group ambience-controls"><button id="light" class="chip">${icon('sun')}<span>Lumière du jour</span></button><button id="sound" class="chip" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button><span class="divider"></span><button id="help" class="chip icon" aria-label="Comment se déplacer" title="Comment se déplacer">${icon('help-circle')}</button></div></div></div>
+      <div class="world-bottom"><div class="world-left"><div class="chip-group ambience-controls"><button id="light" class="chip" aria-label="Lumière de la scène"></button><button id="sound" class="chip" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button><button id="sfx" class="chip" aria-pressed="true">${icon('volume-2')}<span>Carillon</span></button><button id="notifs" class="chip" aria-pressed="true">${icon('bell')}<span>Notifs</span></button><button id="alerts-preview" class="chip icon" aria-label="Écouter les sons" title="Écouter les sons">${icon('music-2')}</button><span class="divider"></span><button id="help" class="chip icon" aria-label="Comment se déplacer" title="Comment se déplacer">${icon('help-circle')}</button></div></div></div>
       <div class="timer-dock">
         <div class="timer-tabs-top" role="tablist" aria-label="Minuteur"><button class="chip" role="tab" id="tab-solo" aria-selected="true" aria-controls="pane-solo">Solo</button><button class="chip" role="tab" id="tab-room" aria-selected="false" aria-controls="pane-room">Avec la salle<span class="tab-dot" id="room-dot" hidden></span><span class="tab-count" id="room-count" hidden>0</span></button></div>
         <section class="timer-hud timer-card" aria-label="Pomodoro">
@@ -127,7 +137,13 @@ $('#app').innerHTML=`
     <div class="session-dots"><span class="filled"></span><span></span><span></span><span></span><small id="cycle-label">Un pas après l’autre</small></div>
     <section><h3>Succès <span class="pill" id="achievements-count">0/7</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
   </div></dialog>
-  <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label></div><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
+  <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><label>Focus avant la longue pause<input name="perCycle" type="number" min="2" max="12" required /></label><label>Enchaîner les phases<input name="autoChain" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
+  <dialog id="sounds-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('music-2')}</span><span class="card-eyebrow">SONS ET ALERTES</span><h2>Écoute avant de choisir.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Tout ce que le café peut jouer. « Carillon » et « Notifs » se coupent séparément ; ici, l’écoute marche toujours.</p><ul class="sound-list">
+    <li><div><strong>Début de session</strong><small>Deux notes montantes, quand tu lances un pomodoro ou rejoins la salle.</small></div><button data-play="start">${icon('play')}<span>Écouter</span></button></li>
+    <li><div><strong>Fin de session</strong><small>Un carillon de trois notes, à la fin d’un focus ou d’une pause.</small></div><button data-play="end">${icon('play')}<span>Écouter</span></button></li>
+    <li><div><strong>Récompense</strong><small>Trois notes brèves, à chaque pièce ou point d’expérience gagné.</small></div><button data-play="reward">${icon('play')}<span>Écouter</span></button></li>
+    <li><div><strong>Notification système</strong><small>Le même message, hors de l’onglet. Ton navigateur doit l’autoriser.</small></div><button data-play="notify">${icon('bell')}<span>Tester</span></button></li>
+  </ul><p class="form-note">La pluie douce garde son propre bouton.</p></div></dialog>
   <dialog id="help-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('mouse-pointer-2')}</span><span class="card-eyebrow">BIENVENUE</span><h2>Prends tes marques.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Ce petit coin est à toi. Prends tes marques.</p><ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul><p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p><button class="primary close-dialog">Je m’installe</button></div></dialog>
   <dialog id="identity-dialog" class="card card-sage"><form id="identity-form" method="dialog"><header class="card-head"><span class="card-icon">${icon('smile')}</span><span class="card-eyebrow">ON SE PRÉSENTE ?</span><h2>Un pseudo, une couleur.</h2></header><div class="card-body">
     <p>Un pseudo et une couleur, c’est tout ce qu’il faut pour entrer au café.</p>
@@ -360,10 +376,11 @@ const menu=$('#identity-menu') as HTMLDetailsElement;const pick=(f:()=>void)=>()
 $('#me-edit').onclick=pick(openEditor);document.addEventListener('click',e=>{if(menu.open&&!menu.contains(e.target as Node))menu.open=false;});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;($('#identity-chip') as HTMLElement).focus();}});
 let builtFurniture='',furnitureSeen=false;// what the current scene was baked with, and whether the server sent its first furniture snapshot
 function mountRoom(){
-  if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';$('.world').classList.remove('evening');$('#light').innerHTML=icon('sun')+'<span>Lumière du jour</span>';
+  if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(roomKind(b.dataset.room)===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
+  applyLight();// la nouvelle scène naît à l'heure qu'il est, pas en plein midi
   if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
   drawIcons();$('#move-hint-room').textContent=ROOM_UI[room].hint;renderCounts();
 }
@@ -472,7 +489,21 @@ start();// the room is built behind the veil, then the server fills it
   }
 };
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
-$('#light').onclick=()=>{if(!cafe)return;const evening=cafe.toggleLight();$('#light').innerHTML=icon(evening?'moon':'sun')+`<span>${evening?'Douce soirée':'Lumière du jour'}</span>`;$('.world').classList.toggle('evening',evening);drawIcons();};
+// La scène lit une valeur continue : l'heure en mode auto, une extrémité figée sinon.
+function applyLight(){
+  const night=lightMode==='auto'?nightness():lightMode==='day'?0:1;
+  cafe?.setDaylight(night);$('.world').classList.toggle('evening',night>.5);
+}
+function renderLightChip(){
+  const ui=LIGHT_UI[lightMode];$('#light').innerHTML=icon(ui.icon)+`<span>${ui.label}</span>`;
+  $('#light').setAttribute('title',lightMode==='auto'?`Suit l’heure — ${momentLabel()}`:'Lumière figée, clique pour changer');
+  drawIcons();
+}
+$('#light').onclick=()=>{lightMode=LIGHT_UI[lightMode].next;save('gamitask.light',lightMode);renderLightChip();applyLight();toast(LIGHT_UI[lightMode].toast);};
+function renderClock(){$('#clock-time').textContent=clockLabel();if(lightMode==='auto')$('#light').setAttribute('title',`Suit l’heure — ${momentLabel()}`);}
+// Une minute de lumière à la fois : la courbe bouge lentement, inutile de la recalculer à chaque image.
+setInterval(()=>{renderClock();if(lightMode==='auto')applyLight();},10000);
+renderClock();renderLightChip();applyLight();
 $('#help').onclick=()=>$('#help-dialog').showModal();
 $('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
@@ -573,7 +604,10 @@ function bindServerEvents(){
   s.on('pomo:tick',t=>{applyTick(roomPomo,t,Date.now());renderRoomPomo();});
   s.on('pomo:phase',({phase,remaining,session})=>{const was=roomPomo.phase;
     applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants},Date.now());
-    if(roomPomo.joined&&was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
+    if(roomPomo.joined){
+      if(was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
+      chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);notify(n.title,n.body);
+    }
     renderRoomPomo();});
   s.on('me:state',u=>{role=u.role;renderIdentity();});
   s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
@@ -597,16 +631,16 @@ function bindServerEvents(){
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);renderTasks();renderProgress();renderShop();syncScene();
-    const dc=coins-before;if(dc>0||xp>0){const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
+    const dc=coins-before;if(dc>0||xp>0){rewardChime();const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
     else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
   s.on('task:updated',t=>{taskUpdated(tasks,t);renderTasks();syncScene();});
   s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
-  s.on('coins:update',({coins})=>{setCoins(progress,coins);renderProgress();renderShop();});
+  s.on('coins:update',({coins})=>{if(coins>progress.coins)rewardChime();setCoins(progress,coins);renderProgress();renderShop();});
   s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
   s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
   s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);
     if(missed.length)later(()=>toast(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}. ${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`),0);});
-  s.on('xp:update',u=>{const before=progress.level;setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
+  s.on('xp:update',u=>{const before=progress.level;if(u.xp>progress.xp||u.level>before)rewardChime();setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
@@ -625,6 +659,7 @@ function bindServerEvents(){
     if(room==='private'&&now!==before)rearrange('C’est posé.');});
 }
 
+const MODE_LABEL: Record<TimerMode,string>={focus:'Focus',short:'Petite pause',long:'Longue pause'};
 function persistTimer(){save('gamitask.timer',timer);}
 let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
 const avatarState=():'idle'|'focus'|'pause'|'collective'=>roomPomo.joined?'collective':timer.endAt!==null?(timer.mode==='focus'?'focus':'pause'):'idle';
@@ -632,9 +667,15 @@ function renderTimer(){
   const remaining=remainingSeconds(timer),running=timer.endAt!==null;
   if(running&&remaining===0){
     if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
-    if(timer.mode==='focus'){stats.sessions++;stats.minutes+=timer.durations.focus;save('gamitask.stats',stats);rewardPomodoro();resetTimer(timer,stats.sessions%4===0?'long':'short');}
-    else {toast('La pause est terminée. On reprend quand tu veux.');resetTimer(timer,'focus');}
-    persistTimer();chime();return renderTimer();
+    if(timer.mode==='focus'){stats.sessions++;stats.minutes+=timer.durations.focus;save('gamitask.stats',stats);rewardPomodoro();}
+    const {from,to,started}=advance(timer,stats.sessions);
+    persistTimer();chime('end');
+    const next=`${MODE_LABEL[to]} de ${timer.durations[to]} min`;
+    toast(from==='focus'
+      ? started?`Focus terminé. ${next}, ça démarre.`:`Focus terminé. ${next} quand tu veux.`
+      : started?`${from==='long'?'Cycle bouclé, on repart pour un tour.':'Pause terminée.'} ${next}, c’est parti.`:`Pause terminée. ${next} quand tu veux.`);
+    notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
+    return renderTimer();
   }
   const text=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
   if(text!==lastShown){$('#timer-value').textContent=text;lastShown=text;}
@@ -651,15 +692,31 @@ function renderTimer(){
     net?.socket.emit('avatar-state',{state:avatarState()});
   }
   $('#sessions').textContent=stats.sessions;$('#minutes').textContent=stats.minutes;
-  const cycle=stats.sessions%4||(stats.sessions?3:0);// a completed cycle of four keeps every dot lit instead of dropping back to one
-  document.querySelectorAll('.session-dots > span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
+  const dots=$('.session-dots'),per=timer.perCycle;
+  if(dots.querySelectorAll('span').length!==per)dots.innerHTML='<span></span>'.repeat(per)+'<small id="cycle-label"></small>';
+  const cycle=stats.sessions%per||(stats.sessions?per-1:0);// a completed cycle keeps every dot lit instead of dropping back to one
+  dots.querySelectorAll('span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
   $('#cycle-label').textContent=stats.sessions?`${stats.sessions} petite${stats.sessions>1?'s':''} victoire${stats.sessions>1?'s':''}`:'Un pas après l’autre';
 }
-$('#start').onclick=()=>{ensureAudio();toggleTimer(timer);persistTimer();renderTimer();};
+$('#start').onclick=()=>{ensureAudio();askNotify();toggleTimer(timer);persistTimer();
+  if(timer.endAt!==null){chime('start');notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);}
+  renderTimer();};
 $('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};
 document.querySelectorAll('[data-mode]').forEach((b: any)=>b.onclick=()=>{resetTimer(timer,b.dataset.mode);persistTimer();lastRunning=null;renderTimer();});
-$('#settings').onclick=()=>{for(const [key,value] of Object.entries(timer.durations))$('#settings-form').elements[key].value=value;$('#settings-dialog').showModal();};
-$('#settings-form').onsubmit=(e: any)=>{e.preventDefault();for(const key of Object.keys(timer.durations) as (keyof typeof timer.durations)[])timer.durations[key]=Number($('#settings-form').elements[key].value);resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
+function cyclePreview(f: any){const per=Math.min(12,Math.max(2,Number(f.perCycle.value)||4));
+  $('#cycle-preview').textContent=f.autoChain.checked
+    ?`Un cycle : ${per} focus de ${f.focus.value} min, ${per-1} pauses de ${f.short.value} min, puis ${f.long.value} min. Tout s’enchaîne et repart en boucle jusqu’à ta pause.`
+    :`Un cycle : ${per} focus, puis la longue pause. Chaque phase attend ton clic.`;}
+$('#settings').onclick=()=>{const f=$('#settings-form').elements;
+  for(const [key,value] of Object.entries(timer.durations))f[key].value=value;
+  f.perCycle.value=timer.perCycle;f.autoChain.checked=timer.autoChain;
+  cyclePreview(f);$('#settings-dialog').showModal();};
+$('#settings-form').oninput=()=>cyclePreview($('#settings-form').elements);
+$('#settings-form').onsubmit=(e: any)=>{e.preventDefault();const f=$('#settings-form').elements;
+  const durations={...timer.durations};for(const key of Object.keys(durations) as TimerMode[])durations[key]=Number(f[key].value);
+  // createTimer borne tout : c'est lui qui valide, pas le formulaire
+  timer=createTimer({durations,mode:timer.mode,perCycle:Number(f.perCycle.value),autoChain:f.autoChain.checked});
+  resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
 
 // Pomodoro de la salle : le serveur tient l'horloge, on l'affiche et on extrapole entre deux ticks.
 let roomPomo=createRoomPomo(),timerTab: 'solo'|'room'=load('gamitask.timerTab','solo')==='room'?'room':'solo';
@@ -693,7 +750,7 @@ $('#tab-solo').onclick=()=>selectTab('solo');$('#tab-room').onclick=()=>selectTa
 $('#room-join').onclick=()=>{
   if(!net)return;// sans serveur il n'y a pas de session de salle : ne rien promettre à l'écran
   if(!roomPomo.joined){
-    net.socket.emit('pomo:join');roomPomo.joined=true;
+    net.socket.emit('pomo:join');roomPomo.joined=true;ensureAudio();askNotify();chime('start');
     if(timer.endAt!==null){toggleTimer(timer);persistTimer();lastRunning=null;renderTimer();}// une seule session à la fois : le solo se met en pause
   } else {net.socket.emit('pomo:leave');roomPomo.joined=false;}
   net.socket.emit('avatar-state',{state:avatarState()});renderRoomPomo();
@@ -781,7 +838,36 @@ renderTasks();
 
 // Optional generated rain: no remote audio, tracking, or autoplay.
 function ensureAudio(){try{audio??=new (window.AudioContext||(window as any).webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{});return audio;}catch{return null;}}
-function chime(){if(!audio||audio.state!=='running')return;for(const [i,freq] of [523.25,659.25,783.99].entries()){const osc=audio.createOscillator(),gain=audio.createGain();osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,audio.currentTime+i*.16);gain.gain.linearRampToValueAtTime(.045,audio.currentTime+i*.16+.02);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+i*.16+.9);osc.connect(gain);gain.connect(audio.destination);osc.start(audio.currentTime+i*.16);osc.stop(audio.currentTime+i*.16+1);}}
+type Chime='start'|'end'|'reward';
+const CHIMES: Record<Chime,{freqs: number[]; step: number; decay: number; peak: number}>={
+  start:{freqs:[392,523.25],step:.14,decay:.9,peak:.045},
+  end:{freqs:[523.25,659.25,783.99],step:.16,decay:.9,peak:.045},
+  reward:{freqs:[659.25,987.77,1318.51],step:.075,decay:.45,peak:.035},// même sinus, plus haut et plus court : une petite pièce qui tombe
+};
+// L'ancien réglage unique sert de valeur de départ aux deux nouveaux.
+let sfx: boolean=load('gamitask.sfx',load('gamitask.alerts',true)),notifs: boolean=load('gamitask.notifs',load('gamitask.alerts',true));
+function chime(kind: Chime='end'){if(sfx&&audio)playChime(kind);}
+function playChime(kind: Chime){if(!ensureAudio()||!audio)return;const{freqs,step,decay,peak}=CHIMES[kind];
+  for(const [i,freq] of freqs.entries()){const osc=audio.createOscillator(),gain=audio.createGain(),at=audio.currentTime+i*step;osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(peak,at+.02);gain.gain.exponentialRampToValueAtTime(.001,at+decay);osc.connect(gain);gain.connect(audio.destination);osc.start(at);osc.stop(at+decay+.1);}}
+// Un gain arrive souvent en deux messages (pièces puis XP) : une seule récompense sonore par salve.
+let lastReward=0;
+function rewardChime(){const now=Date.now();if(now-lastReward<600)return;lastReward=now;chime('reward');}
+// Notifications système : la permission est demandée au premier geste (démarrage ou entrée en salle), jamais avant.
+function askNotify(){try{if(notifs&&typeof Notification!=='undefined'&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});}catch{}}
+function notify(title: string,body: string){if(notifs)showNotify(title,body);}
+function showNotify(title: string,body: string){try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,icon:'/favicon.svg',tag:'gamitask-pomo'});}catch{}}
+function renderAlerts(){
+  $('#sfx').setAttribute('aria-pressed',String(sfx));$('#sfx').innerHTML=icon(sfx?'volume-2':'volume-x')+`<span>${sfx?'Carillon':'Carillon coupé'}</span>`;
+  $('#notifs').setAttribute('aria-pressed',String(notifs));$('#notifs').innerHTML=icon(notifs?'bell':'bell-off')+`<span>${notifs?'Notifs':'Notifs coupées'}</span>`;
+  drawIcons();
+}
+renderAlerts();
+$('#sfx').onclick=()=>{sfx=!sfx;save('gamitask.sfx',sfx);renderAlerts();if(sfx)playChime('start');toast(sfx?'Les carillons sont de retour.':'Carillons coupés. Les notifications restent.');};
+$('#notifs').onclick=()=>{notifs=!notifs;save('gamitask.notifs',notifs);renderAlerts();if(notifs)askNotify();toast(notifs?'Les notifications sont activées.':'Notifications coupées. Les carillons restent.');};
+$('#alerts-preview').onclick=()=>$('#sounds-dialog').showModal();
+$('#sounds-dialog').addEventListener('click',(e: Event)=>{const b=(e.target as HTMLElement).closest('[data-play]') as HTMLElement|null;if(!b)return;
+  if(b.dataset.play==='notify'){try{Notification.requestPermission().then(()=>showNotify('Le café te fait signe','Voilà à quoi ressemblera une alerte.'));}catch{toast('Les notifications ne sont pas disponibles ici.');}}
+  else playChime(b.dataset.play as Chime);});
 $('#sound').onclick=()=>{
   const ctx=ensureAudio();if(!ctx){toast('Le son n’est pas disponible dans ce navigateur.');return;}
   if(!rain){const buffer=ctx.createBuffer(1,ctx.sampleRate*4,ctx.sampleRate),data=buffer.getChannelData(0);let last=0;for(let i=0;i<data.length;i++){last=(last+Math.random()*.04-.02)/1.02;data[i]=last*4;}rain=ctx.createBufferSource();rain.buffer=buffer;rain.loop=true;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=1600;rainGain=ctx.createGain();rainGain.gain.value=0;rain.connect(filter);filter.connect(rainGain);rainGain.connect(ctx.destination);rain.start();}

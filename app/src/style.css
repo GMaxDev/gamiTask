@@ -236,3 +236,9 @@ dialog.card[open]{display:flex;flex-direction:column;max-height:calc(100vh - 40p
 .task-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px}.task-foot .task-filter{margin-top:0}#task-help-toggle{width:24px;height:24px}#task-help-toggle[hidden]{display:none}#task-help-toggle svg{width:14px;height:14px}
 .task-list li .cat-dot.empty{opacity:0;border:1px dashed #b7bca9;background:transparent}.task-list li:hover .cat-dot.empty,.task-list li .cat-dot.empty:focus-visible{opacity:1}
 .counts{display:inline-flex;gap:6px}.counts b{font-weight:600}.counts b.up{color:#5b6b4e}.counts b.down{color:#a04050}
+
+.sound-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}.sound-list li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:#f3f4ec}.sound-list li>div{flex:1;min-width:0}.sound-list strong{display:block;font-size:14px;font-weight:600;color:#657459}.sound-list small{font-size:12px;line-height:1.55;color:#97a088}.sound-list button{display:flex;align-items:center;gap:6px;padding:8px 11px;border-radius:9px;background:#fffefa;border:1px solid #e3e6d8;color:#7a866a;font-size:13px;flex-shrink:0}.sound-list button svg{width:13px;height:13px}
+
+.clock-chip{font-variant-numeric:tabular-nums;letter-spacing:.2px;cursor:default}
+
+.world .clock-chip{height:42px;padding:0 17px;gap:9px;font-family:Manrope,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.8px;font-variant-numeric:tabular-nums;color:#5d6b52;cursor:default}.world .clock-chip svg{width:19px;height:19px;opacity:.75}.world .clock-chip:hover{background:var(--chip-bg)}.field-rows input[type=checkbox]{width:auto;accent-color:#657757;margin:0}
