@@ -194,7 +194,7 @@ const chat=createChat($('.world-left') as HTMLElement,{
   onMention:ambience.mentionChime,
 });
 const board=createBoard($('.hud-top') as HTMLElement,{meId:()=>net?.socket.id??''});drawIcons();
-chat.open();// the room's conversation is visible from the start; the round button folds it away
+if(matchMedia('(min-width:501px)').matches)chat.open();// visible d'emblée sur grand écran ; sur téléphone il couvrirait la scène, le bouton rond l'ouvre
 let chatRoomKnown=false;
 const roomLabel=()=>ROOM_UI[room].chat;
 // `T` opens the chat from anywhere in the room, never while typing, editing the character or placing a piece.
