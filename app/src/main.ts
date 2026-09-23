@@ -1,9 +1,7 @@
 /// <reference types="vite/client" />
-import {$,icon,drawIcons,load,save,today,toast,showRecap} from './ui.ts';
+import {$,icon,drawIcons,load,save,toast,showRecap} from './ui.ts';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
-import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from './timer.ts';
-import type {TimerMode} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,randomLook,type Look} from './look.ts';
 import {createEditor} from './editor.ts';
@@ -21,15 +19,12 @@ import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createAmbience} from './ambience.ts';
-import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice,DURATION} from './pomo.ts';
+import {createPomodoro} from './pomodoro-ui.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-let timer=createTimer(load('gamitask.timer',{})),stats=load('gamitask.stats',{});
 const shop=createShop();// declared here: mountRoom() reads shop.placed / shop.hat before the shop block runs
 let placingId: string|null=null,placingCell: {c: number; r: number}|null=null;
-if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
-stats.sessions=Number.isFinite(stats.sessions)?Math.max(0,stats.sessions):0;stats.minutes=Number.isFinite(stats.minutes)?Math.max(0,stats.minutes):0;
 
 $('#app').innerHTML=`
   <main class="workspace">
@@ -282,8 +277,8 @@ async function start(){
   net.onStatus(s=>{
     if(s==='online'){ready={room:false,tasks:false};furnitureSeen=false;homeAsked=false;showVeil('Connexion au café…');}
     // le serveur retire le participant à la déconnexion : on ne garde ni « Quitter », ni l'état collectif, ni l'horloge de la salle
-    if(s==='offline'){roomPomo.joined=false;renderRoomPomo();showVeil('Le café est injoignable, on réessaie…');}
-    if(s==='replaced'){roomPomo.joined=false;renderRoomPomo();showVeil('Le café est ouvert dans un autre onglet.');}
+    if(s==='offline'){pomo.leaveRoom();showVeil('Le café est injoignable, on réessaie…');}
+    if(s==='replaced'){pomo.leaveRoom();showVeil('Le café est ouvert dans un autre onglet.');}
   });
   bindServerEvents();
 }
@@ -574,7 +569,7 @@ function bindServerEvents(){
   s.on('room-state',players=>{cafe?.clearRemotes();members.clear();for(const p of players){members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));cafe?.setTodo(p.id,p.pendingTaskIds?.length??0);}
     if(!chatRoomKnown){chatRoomKnown=true;chat.setRoom(roomLabel());}ready.room=true;maybeReady();
     // the server spawns us at a fixed tile and resets our state: tell everyone where we really stand, and what we're doing
-    const at=cafe?.playerPosition()??{x:0,z:0};s.emit('move',toCell(at.x,at.z,room));s.emit('avatar-state',{state:avatarState()});});
+    const at=cafe?.playerPosition()??{x:0,z:0};s.emit('move',toCell(at.x,at.z,room));s.emit('avatar-state',{state:pomo.avatarState()});});
   s.on('player-joined',p=>{members.set(p.id,{name:p.name,color:p.color});cafe?.addRemote(p.id,remote(p));cafe?.setTodo(p.id,p.pendingTaskIds?.length??0);});
   s.on('player-moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
   s.on('player-state',({id,state})=>cafe?.setRemoteState(id,state));
@@ -599,16 +594,9 @@ function bindServerEvents(){
   s.on('chat:typing',({id,name})=>chat.typing(id,name));
   s.on('chat:emote',({id,emoji})=>{if(id===s.id)cafe?.emoteMe(emoji);else cafe?.emote(id,emoji);});
   s.on('rooms:list',({rooms:list})=>{rooms=list;renderCounts();if(!pendingHome)return;if(homeDecision(rooms,identity.userId,homeAsked)!=='wait')switchServerRoom('private');});
-  s.on('pomo:state',st=>{applyState(roomPomo,st,Date.now());renderRoomPomo();});
-  s.on('pomo:tick',t=>{applyTick(roomPomo,t,Date.now());renderRoomPomo();});
-  s.on('pomo:phase',({phase,remaining,session})=>{const was=roomPomo.phase;
-    applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants},Date.now());
-    if(roomPomo.joined){
-      if(was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
-      ambience.chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);ambience.notify(n.title,n.body);
-      if(phase==='focus')seatForFocus();else standForBreak();
-    }
-    renderRoomPomo();});
+  s.on('pomo:state',st=>pomo.onRoomState(st));
+  s.on('pomo:tick',t=>pomo.onRoomTick(t));
+  s.on('pomo:phase',p=>pomo.onRoomPhase(p));
   s.on('me:state',u=>{role=u.role;renderIdentity();});
   s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
     if(furnitureSeen){try{mountRoom();syncScene();net.socket.emit('room:refresh');}catch(error){console.error(error);}}
@@ -616,7 +604,7 @@ function bindServerEvents(){
     if(!csgReady()&&items.some(i=>needsCsg(i.parts)))ensureCsg().then(()=>{if(cafe){try{mountRoom();syncScene();}catch(error){console.error(error);}}});});
   s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',logout);// a Google account without a valid token starts over as a guest
-  s.on('room:info',({roomId})=>{roomPomo=createRoomPomo();renderRoomPomo();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
+  s.on('room:info',({roomId})=>{pomo.resetRoom();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
     if(pendingHome)return;// still on the way home: the server room is only a stop-over, no need to rebuild twice
     const here=kindOfRoomId(roomId,rooms,identity.userId);
     if(here!==room)enterRoom(here);// an unchanged kind (an unknown public id already reads as the café) never remounts
@@ -627,7 +615,7 @@ function bindServerEvents(){
   // Notes and timer settings started on the landing page follow the visitor in, once.
   s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
     for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,kind:'todo',difficulty:'easy'});
-    if(h.durations){Object.assign(timer.durations,h.durations);resetTimer(timer);persistTimer();}
+    if(h.durations)pomo.adoptDurations(h.durations);
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);renderTasks();renderProgress();renderShop();syncScene();
@@ -659,109 +647,8 @@ function bindServerEvents(){
     if(room==='private'&&now!==before)rearrange('C’est posé.');});
 }
 
-// Un focus qui commence envoie le personnage s'asseoir, une pause le fait se relever — solo comme en salle.
-function seatForFocus(){if(timer.seatOnFocus)cafe?.takeSeat?.();}
-function standForBreak(){if(timer.seatOnFocus)cafe?.leaveSeat?.();}
-const MODE_LABEL: Record<TimerMode,string>={focus:'Focus',short:'Petite pause',long:'Longue pause'};
-function persistTimer(){save('gamitask.timer',timer);}
-let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
-const avatarState=():'idle'|'focus'|'pause'|'collective'=>roomPomo.joined?'collective':timer.endAt!==null?(timer.mode==='focus'?'focus':'pause'):'idle';
-function renderTimer(){
-  const remaining=remainingSeconds(timer),running=timer.endAt!==null;
-  if(running&&remaining===0){
-    if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
-    if(timer.mode==='focus'){stats.sessions++;stats.minutes+=timer.durations.focus;save('gamitask.stats',stats);rewardPomodoro();}
-    const {from,to,started}=advance(timer,stats.sessions);
-    persistTimer();ambience.chime('end');
-    const next=`${MODE_LABEL[to]} de ${timer.durations[to]} min`;
-    toast(from==='focus'
-      ? started?`Focus terminé. ${next}, ça démarre.`:`Focus terminé. ${next} quand tu veux.`
-      : started?`${from==='long'?'Cycle bouclé, on repart pour un tour.':'Pause terminée.'} ${next}, c’est parti.`:`Pause terminée. ${next} quand tu veux.`);
-    ambience.notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
-    if(started)to==='focus'?seatForFocus():standForBreak();
-    return renderTimer();
-  }
-  const text=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
-  if(text!==lastShown){$('#timer-value').textContent=text;lastShown=text;}
-  const title=running?`${text} · ${timer.mode==='focus'?'Focus':'Pause'} — gamitask`:'gamitask — Le café des petites victoires';
-  // while we sit in the room's session it owns the wall clock and the tab title: one source per tick, never both
-  if(!roomPomo.joined&&document.title!==title)document.title=title;
-  $('#dial-progress').style.strokeDashoffset=609.47*(1-remaining/(timer.durations[timer.mode]*60));if(!roomPomo.joined)cafe?.setClock(1-remaining/(timer.durations[timer.mode]*60),running);
-  if(lastRunning!==running||lastMode!==timer.mode){
-    $('#start').innerHTML=icon(running?'pause':'play')+`<span>${running?'Faire une pause':remaining<timer.durations[timer.mode]*60?'Reprendre':timer.mode==='focus'?'C’est parti':'Prendre une pause'}</span>`;
-    $('#timer-kicker').textContent=running?(timer.mode==='focus'?'UN PETIT PAS À LA FOIS':'PRENDS UNE RESPIRATION'):'ON Y VA DOUCEMENT';
-    $('#session-label').textContent=timer.mode==='focus'?'Session de concentration':timer.mode==='short'?'Une petite respiration':'Une pause bien méritée';
-    document.querySelectorAll('[data-mode]').forEach((b: any)=>{b.classList.toggle('selected',b.dataset.mode===timer.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===timer.mode));});
-    $('.timer-card').classList.toggle('running',running);drawIcons();lastRunning=running;lastMode=timer.mode;
-    net?.socket.emit('avatar-state',{state:avatarState()});
-  }
-  $('#sessions').textContent=stats.sessions;$('#minutes').textContent=stats.minutes;
-  const dots=$('.session-dots'),per=timer.perCycle;
-  if(dots.querySelectorAll('span').length!==per)dots.innerHTML='<span></span>'.repeat(per)+'<small id="cycle-label"></small>';
-  const cycle=stats.sessions%per||(stats.sessions?per-1:0);// a completed cycle keeps every dot lit instead of dropping back to one
-  dots.querySelectorAll('span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
-  $('#cycle-label').textContent=stats.sessions?`${stats.sessions} petite${stats.sessions>1?'s':''} victoire${stats.sessions>1?'s':''}`:'Un pas après l’autre';
-}
-$('#start').onclick=()=>{ambience.ensureAudio();ambience.askNotify();toggleTimer(timer);persistTimer();
-  if(timer.endAt!==null){ambience.chime('start');ambience.notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
-    if(timer.mode==='focus')seatForFocus();else standForBreak();}
-  renderTimer();};
-$('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};
-document.querySelectorAll('[data-mode]').forEach((b: any)=>b.onclick=()=>{resetTimer(timer,b.dataset.mode);persistTimer();lastRunning=null;renderTimer();});
-function cyclePreview(f: any){const per=Math.min(12,Math.max(2,Number(f.perCycle.value)||4));
-  $('#cycle-preview').textContent=f.autoChain.checked
-    ?`Un cycle : ${per} focus de ${f.focus.value} min, ${per-1} pauses de ${f.short.value} min, puis ${f.long.value} min. Tout s’enchaîne et repart en boucle jusqu’à ta pause.`
-    :`Un cycle : ${per} focus, puis la longue pause. Chaque phase attend ton clic.`;}
-$('#settings').onclick=()=>{const f=$('#settings-form').elements;
-  for(const [key,value] of Object.entries(timer.durations))f[key].value=value;
-  f.perCycle.value=timer.perCycle;f.autoChain.checked=timer.autoChain;f.seatOnFocus.checked=timer.seatOnFocus;
-  cyclePreview(f);$('#settings-dialog').showModal();};
-$('#settings-form').oninput=()=>cyclePreview($('#settings-form').elements);
-$('#settings-form').onsubmit=(e: any)=>{e.preventDefault();const f=$('#settings-form').elements;
-  const durations={...timer.durations};for(const key of Object.keys(durations) as TimerMode[])durations[key]=Number(f[key].value);
-  // createTimer borne tout : c'est lui qui valide, pas le formulaire
-  timer=createTimer({durations,mode:timer.mode,perCycle:Number(f.perCycle.value),autoChain:f.autoChain.checked,seatOnFocus:f.seatOnFocus.checked});
-  resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
 
-// Pomodoro de la salle : le serveur tient l'horloge, on l'affiche et on extrapole entre deux ticks.
-let roomPomo=createRoomPomo(),timerTab: 'solo'|'room'=load('gamitask.timerTab','solo')==='room'?'room':'solo';
-let lastRoomShown: string|null=null,lastRoomJoined: boolean|null=null;
-function selectTab(tab: 'solo'|'room'){
-  timerTab=tab;save('gamitask.timerTab',tab);
-  $('#tab-solo').setAttribute('aria-selected',String(tab==='solo'));$('#tab-room').setAttribute('aria-selected',String(tab==='room'));
-  $('#pane-solo').hidden=tab!=='solo';$('#pane-room').hidden=tab!=='room';
-}
-function renderRoomPomo(){
-  const remaining=remainingAt(roomPomo,Date.now()),text=format(remaining),fraction=1-remaining/DURATION[roomPomo.phase];
-  if(text!==lastRoomShown){$('#room-value').textContent=text;lastRoomShown=text;}
-  $('#room-dial-progress').style.strokeDashoffset=609.47*fraction;
-  document.querySelectorAll('[data-phase]').forEach((s: any)=>s.classList.toggle('selected',s.dataset.phase===roomPomo.phase));
-  $('#room-subtitle').textContent=subtitle(roomPomo,[]);
-  $('#room-kicker').textContent=`25 / 5 / 15 · SESSION ${roomPomo.session+1}`;
-  $('#room-dot').hidden=!roomPomo.running;
-  $('#room-count').hidden=roomPomo.participants===0;$('#room-count').textContent=String(roomPomo.participants);
-  if(lastRoomJoined!==roomPomo.joined){
-    $('#room-join').classList.toggle('leaving',roomPomo.joined);
-    $('#room-join').innerHTML=icon('users')+`<span>${roomPomo.joined?'Quitter':'Rejoindre'}</span>`;
-    $('#room-join').setAttribute('aria-label',roomPomo.joined?'Quitter la session':'Rejoindre la session');
-    drawIcons();lastRoomJoined=roomPomo.joined;
-  }
-  if(roomPomo.joined){
-    cafe?.setClock(fraction,roomPomo.running);
-    const title=`${text} · Avec la salle — gamitask`;if(document.title!==title)document.title=title;
-  }
-}
-$('#tab-solo').onclick=()=>selectTab('solo');$('#tab-room').onclick=()=>selectTab('room');selectTab(timerTab);
-$('#room-join').onclick=()=>{
-  if(!net)return;// sans serveur il n'y a pas de session de salle : ne rien promettre à l'écran
-  if(!roomPomo.joined){
-    net.socket.emit('pomo:join');roomPomo.joined=true;ambience.ensureAudio();ambience.askNotify();ambience.chime('start');
-    if(roomPomo.phase==='focus')seatForFocus();
-    if(timer.endAt!==null){toggleTimer(timer);persistTimer();lastRunning=null;renderTimer();}// une seule session à la fois : le solo se met en pause
-  } else {net.socket.emit('pomo:leave');roomPomo.joined=false;}
-  net.socket.emit('avatar-state',{state:avatarState()});renderRoomPomo();
-};
-setInterval(()=>{renderTimer();renderRoomPomo();},250);document.addEventListener('visibilitychange',renderTimer);renderTimer();renderRoomPomo();
+const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro});
 
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
 const tasks=createTasks();
