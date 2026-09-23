@@ -13,6 +13,7 @@ export interface PomodoroDeps{
   ambience: Ambience;// carillons, notifications, contexte audio
   onComplete(): void;// un focus vient de finir : le serveur compte la récompense
   canMove(): boolean;// faux tant qu'une fenêtre est ouverte : le personnage patiente
+  onRoomFocusDone(): void;// un focus de la salle vient de finir : le serveur paie, le journal note
 }
 export type Pomodoro=ReturnType<typeof createPomodoro>;
 
@@ -132,7 +133,7 @@ export function createPomodoro(deps: PomodoroDeps){
   function onRoomPhase({phase,remaining,session}: {phase: Phase; remaining: number; session: number}){const was=roomPomo.phase;
     applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants},Date.now());
     if(roomPomo.joined){
-      if(was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
+      if(was==='focus'){toast('Focus terminé avec la salle. Les pièces arrivent.');deps.onRoomFocusDone();}
       deps.ambience.chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);deps.ambience.notify(n.title,n.body);
       if(phase==='focus')seatForFocus();else standForBreak();
     }

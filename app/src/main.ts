@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {$,icon,drawIcons,load,save,toast,showRecap,esc} from './ui.ts';
+import {$,icon,drawIcons,load,save,toast,showRecap,esc,today} from './ui.ts';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
@@ -19,6 +19,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createAmbience} from './ambience.ts';
 import {createPomodoro} from './pomodoro-ui.ts';
 import {createTasksUi} from './tasks-ui.ts';
+import {createJournal,record,summaryLine,timeLabel} from './journal.ts';
 import {hudMarkup} from './hud.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
@@ -342,7 +343,7 @@ start();// the room is built behind the veil, then the server fills it
   }
 };
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
-$('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});($('#progress-dialog') as HTMLDialogElement).showModal();};
+$('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});renderJournal();($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
 let drawerTab='tasks';
 function showTab(tab: string){drawerTab=tab;document.querySelectorAll('.drawer-tabs [data-tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
@@ -356,6 +357,23 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',(e: an
 
 // Progression: coins, XP, streak and achievements — the server owns the rules, the client only renders them.
 const progress=createProgress();
+// Le journal du jour : chaque gain, succès ou coup dur y laisse une ligne. Le lendemain il repart vide.
+let journal=createJournal(load('gamitask.journal',null),today());
+const JOURNAL_GLYPH: Record<string,string>={task:'✓',pomo:'⏱',achievement:'🏆',level:'✨',streak:'🔥',exhausted:'☕',rollover:'🌅'};
+function note(e: {kind: 'task'|'pomo'|'achievement'|'level'|'streak'|'exhausted'|'rollover'; text: string; coins?: number; xp?: number}){
+  journal=record(journal,e,today());save('gamitask.journal',journal);if($('#progress-dialog').open)renderJournal();
+}
+// Un focus paie en deux messages qui suivent sa ligne de quelques secondes : on les lui rattache.
+function attachToLastPomo(field: 'coins'|'xp',delta: number){
+  const e=journal.entries.at(-1);if(delta<=0||!e||e.kind!=='pomo'||e[field]!==undefined||Date.now()-e.at>5000)return;
+  e[field]=delta;save('gamitask.journal',journal);if($('#progress-dialog').open)renderJournal();
+}
+function renderJournal(){
+  const line=summaryLine(journal);$('#journal-summary').textContent=line;$('#journal-summary').hidden=!line;
+  const items=journal.entries.slice(-40).reverse();
+  $('#journal-list').innerHTML=items.map(e=>`<li><time>${timeLabel(e.at)}</time><i>${JOURNAL_GLYPH[e.kind]??''}</i><span>${esc(e.text)}</span><b>${[e.coins?`+${e.coins} pièce${e.coins>1?'s':''}`:'',e.xp?`+${e.xp} XP`:''].filter(Boolean).join(' · ')}</b></li>`).join('');
+  $('#journal-empty').hidden=items.length>0;
+}
 let wearNext:string|null=null;// a hat just bought, worn as soon as the server confirms we own it
 function renderShop(){
   const home=room==='private',done=completeSets(shop);
@@ -404,7 +422,7 @@ function renderProgress(){
   if(low&&!progress.exhausted&&!warnedLow){warnedLow=true;toast(`Énergie basse : ${progress.energy}/50. À zéro, tu perds 30 % de tes pièces — un niveau gagné la recharge.`);}
   if(!low)warnedLow=false;
 }
-function rewardPomodoro(){net.socket.emit('pomodoro:complete',{userId:identity.userId});}
+function rewardPomodoro(){net.socket.emit('pomodoro:complete',{userId:identity.userId});note({kind:'pomo',text:'Focus terminé'});}
 renderProgress();
 // Everything the server says, applied as-is.
 function bindServerEvents(){
@@ -463,19 +481,20 @@ function bindServerEvents(){
     if(h.durations)pomo.adoptDurations(h.durations);
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{tasksUi.added(t);tasksUi.render();tasksUi.sync();});
-  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;tasksUi.scored(t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);tasksUi.render();renderProgress();renderShop();tasksUi.sync();
-    const dc=coins-before;if(dc>0||xp>0){ambience.rewardChime();const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
+  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins,xpBefore=progress.xp;tasksUi.scored(t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);tasksUi.render();renderProgress();renderShop();tasksUi.sync();
+    const dc=coins-before;if(dc>0||xp>0){ambience.rewardChime();note({kind:'task',text:t.text,coins:dc,xp:Math.max(0,xp-xpBefore)});const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
     else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
   s.on('task:updated',t=>{tasksUi.updated(t);tasksUi.render();tasksUi.sync();});
   s.on('task:deleted',({taskId})=>{tasksUi.deleted(taskId);tasksUi.render();tasksUi.sync();});
-  s.on('coins:update',({coins})=>{if(coins>progress.coins)ambience.rewardChime();setCoins(progress,coins);renderProgress();renderShop();});
+  s.on('coins:update',({coins})=>{if(coins>progress.coins)ambience.rewardChime();attachToLastPomo('coins',coins-progress.coins);setCoins(progress,coins);renderProgress();renderShop();});
   s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
-  s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
+  s.on('energy:exhausted',({coins})=>{note({kind:'exhausted',text:'Épuisé·e — 30 % des pièces perdues'});setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
   s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);
+    if(missed.length)note({kind:'rollover',text:`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}`});
     if(missed.length)showRecap(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}.`,`${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`);});
-  s.on('xp:update',u=>{const before=progress.level;if(u.xp>progress.xp||u.level>before)ambience.rewardChime();setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
-  s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
-  s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
+  s.on('xp:update',u=>{const before=progress.level;if(u.xp>progress.xp||u.level>before)ambience.rewardChime();attachToLastPomo('xp',u.xp-progress.xp);setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){note({kind:'level',text:`Niveau ${u.level} — énergie rechargée`});cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
+  s.on('streak:update',({streak,bonus})=>{if(bonus>5&&streak!==progress.streak)note({kind:'streak',text:`Série ×${streak}`});setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
+  s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){note({kind:'achievement',text:`${a.icon} ${a.label}`});renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
   s.on('room:full',()=>{if(ready.room){if(room!==prevRoom)enterRoom(prevRoom);// the iris already moved us: the server kept us where we were
       toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil
@@ -495,7 +514,7 @@ function bindServerEvents(){
 
 // « Fenêtre » : un dialogue ouvert, ou le tableau de liège en gros plan. Tant qu'il y en a une, le personnage ne bouge pas.
 const canMove=()=>!document.querySelector('dialog[open]')&&!cafe?.isViewingBoard?.();
-const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove});
+const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove,onRoomFocusDone:()=>note({kind:'pomo',text:'Focus terminé avec la salle'})});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>pomo.resumeMove()));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&cafe?.isViewingBoard?.())cafe.leaveBoard();});
 // Sonde de développement : l'état de la scène et du pomodoro, lisibles depuis la console. Jamais en production.
