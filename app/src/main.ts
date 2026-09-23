@@ -137,7 +137,7 @@ $('#app').innerHTML=`
     <div class="session-dots"><span class="filled"></span><span></span><span></span><span></span><small id="cycle-label">Un pas après l’autre</small></div>
     <section><h3>Succès <span class="pill" id="achievements-count">0/7</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
   </div></dialog>
-  <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><label>Focus avant la longue pause<input name="perCycle" type="number" min="2" max="12" required /></label><label>Enchaîner les phases<input name="autoChain" type="checkbox" /></label><label>Chercher une place au début d’un focus<input name="seatOnFocus" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
+  <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><label>Focus avant la longue pause<input name="perCycle" type="number" min="2" max="12" required /></label><label>Enchaîner les phases<input name="autoChain" type="checkbox" /></label><label>S’asseoir en focus, se lever en pause<input name="seatOnFocus" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
   <dialog id="sounds-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('music-2')}</span><span class="card-eyebrow">SONS ET ALERTES</span><h2>Écoute avant de choisir.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Tout ce que le café peut jouer. « Carillon » et « Notifs » se coupent séparément ; ici, l’écoute marche toujours.</p><ul class="sound-list">
     <li><div><strong>Début de session</strong><small>Deux notes montantes, quand tu lances un pomodoro ou rejoins la salle.</small></div><button data-play="start">${icon('play')}<span>Écouter</span></button></li>
     <li><div><strong>Fin de session</strong><small>Un carillon de trois notes, à la fin d’un focus ou d’une pause.</small></div><button data-play="end">${icon('play')}<span>Écouter</span></button></li>
@@ -607,7 +607,7 @@ function bindServerEvents(){
     if(roomPomo.joined){
       if(was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
       chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);notify(n.title,n.body);
-      if(phase==='focus')seatForFocus();
+      if(phase==='focus')seatForFocus();else standForBreak();
     }
     renderRoomPomo();});
   s.on('me:state',u=>{role=u.role;renderIdentity();});
@@ -660,8 +660,9 @@ function bindServerEvents(){
     if(room==='private'&&now!==before)rearrange('C’est posé.');});
 }
 
-// Un focus qui commence envoie le personnage s'asseoir, solo comme en salle, si la préférence est active.
+// Un focus qui commence envoie le personnage s'asseoir, une pause le fait se relever — solo comme en salle.
 function seatForFocus(){if(timer.seatOnFocus)cafe?.takeSeat?.();}
+function standForBreak(){if(timer.seatOnFocus)cafe?.leaveSeat?.();}
 const MODE_LABEL: Record<TimerMode,string>={focus:'Focus',short:'Petite pause',long:'Longue pause'};
 function persistTimer(){save('gamitask.timer',timer);}
 let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
@@ -678,7 +679,7 @@ function renderTimer(){
       ? started?`Focus terminé. ${next}, ça démarre.`:`Focus terminé. ${next} quand tu veux.`
       : started?`${from==='long'?'Cycle bouclé, on repart pour un tour.':'Pause terminée.'} ${next}, c’est parti.`:`Pause terminée. ${next} quand tu veux.`);
     notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
-    if(to==='focus'&&started)seatForFocus();
+    if(started)to==='focus'?seatForFocus():standForBreak();
     return renderTimer();
   }
   const text=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
@@ -704,7 +705,7 @@ function renderTimer(){
 }
 $('#start').onclick=()=>{ensureAudio();askNotify();toggleTimer(timer);persistTimer();
   if(timer.endAt!==null){chime('start');notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
-    if(timer.mode==='focus')seatForFocus();}
+    if(timer.mode==='focus')seatForFocus();else standForBreak();}
   renderTimer();};
 $('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};
 document.querySelectorAll('[data-mode]').forEach((b: any)=>b.onclick=()=>{resetTimer(timer,b.dataset.mode);persistTimer();lastRunning=null;renderTimer();});
