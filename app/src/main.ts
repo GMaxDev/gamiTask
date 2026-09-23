@@ -53,7 +53,7 @@ $('#app').innerHTML=`
       <div class="hud-top">
         <div class="hud-zone hud-left">
           <a class="brand chip" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
-          <span class="chip clock-chip" id="clock" title="Heure locale">${icon('clock-3')}<span id="clock-time">--:--</span></span>
+          <button class="chip clock-chip" id="clock"><span id="clock-time">--:--</span><span id="clock-light" class="clock-light"></span></button>
           <div class="chip-group room-switch" role="group" aria-label="Changer de salle"><button class="chip" data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button class="chip" data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button class="chip" data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
         </div>
         <div class="hud-zone hud-center"><div class="chip-group progress-group">
@@ -69,7 +69,7 @@ $('#app').innerHTML=`
           <div class="chip-group view-controls"><button id="follow" class="chip icon active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="chip icon" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="chip icon" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="chip icon" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
         </div>
       </div>
-      <div class="world-bottom"><div class="world-left"><button id="open-panel" class="chip">${icon('settings-2')}<span>Paramètres</span></button></div></div>
+      <div class="world-bottom"><div class="world-left"><div class="chip-group"><button id="rain-chip" class="chip" aria-pressed="false" title="Pluie douce">${icon('headphones')}<span>Pluie</span><span class="sound-bars"><b></b><b></b><b></b></span></button><span class="divider"></span><button id="open-panel" class="chip">${icon('settings-2')}<span>Paramètres</span></button></div></div></div>
       <div class="timer-dock">
         <div class="timer-tabs-top" role="tablist" aria-label="Minuteur"><button class="chip" role="tab" id="tab-solo" aria-selected="true" aria-controls="pane-solo">Solo</button><button class="chip" role="tab" id="tab-room" aria-selected="false" aria-controls="pane-room">Avec la salle<span class="tab-dot" id="room-dot" hidden></span><span class="tab-count" id="room-count" hidden>0</span></button></div>
         <section class="timer-hud timer-card" aria-label="Pomodoro">
@@ -94,6 +94,7 @@ $('#app').innerHTML=`
       <button id="open-tasks" class="chip active open-tasks" aria-label="Mes tâches" aria-expanded="false">${icon('list-checks')}<span id="tasks-count" class="tasks-count"></span></button>
       <div class="movement-hint">${icon('mouse-pointer-2')} Cliquer pour marcher ou s’asseoir <span>·</span> ${icon('move')} Glisser pour explorer <span>·</span> ${icon('coffee')} <span id="move-hint-room">Comptoir : passer commande</span></div>
       <div id="toast" class="toast" role="status"></div>
+      <div id="recap" class="recap" role="status" hidden>${icon('coffee')}<div><strong id="recap-title"></strong><span id="recap-text"></span></div><button type="button" class="icon-button" id="recap-close" aria-label="Fermer">${icon('x')}</button></div>
       <div id="hint" class="hint" role="tooltip" hidden></div>
       <div id="place-bar" class="place-bar" hidden><span id="place-text"></span><button id="place-ok" class="primary" disabled>${icon('check')}<span>Poser ici</span></button><button id="place-cancel" class="icon-button" aria-label="Annuler">${icon('x')}</button></div>
       <div id="veil" class="veil" aria-hidden="true"><span class="veil-label"><span id="veil-icon">${icon('coffee')}</span><span id="veil-text"></span></span></div><div id="veil-edge" class="veil-edge" aria-hidden="true"></div>
@@ -172,9 +173,16 @@ $('#app').innerHTML=`
     <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button></section>
     </section>
     <section class="panel-pane" data-pane="aide" hidden>
+      <h3>Se déplacer</h3>
       <p>Ce petit coin est à toi. Prends tes marques.</p>
       <ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul>
       <p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p>
+      <h3>Énergie</h3>
+      <ul class="help-list">
+        <li>${icon('coffee')}<span><strong>50 au maximum</strong>Une quotidienne oubliée à minuit ou une habitude ratée en coûte un peu — d’autant plus que la tâche est difficile.</span></li>
+        <li>${icon('flame')}<span><strong>Sous 25, le café te prévient</strong>Ton personnage ralentit et cherche un siège. C’est le moment de finir quelque chose de facile.</span></li>
+        <li>${icon('coins')}<span><strong>À zéro, épuisement</strong>Tu perds 30 % de tes pièces et tu restes épuisé·e jusqu’au lendemain. L’énergie repart à 50, et un niveau gagné la recharge aussi.</span></li>
+      </ul>
     </section>
   </div></dialog>
   <dialog id="guests-dialog" class="card card-sage"><header class="card-head"><span class="card-icon">${icon('home')}</span><span class="card-eyebrow">MA PIÈCE</span><h2>Ta pièce, tes invités.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
@@ -226,7 +234,9 @@ let pendingHome=false,homeAsked=false;// a saved 'private' room is resolved into
 const veil=$('#net-veil') as HTMLElement,veilText=$('#net-text') as HTMLElement;
 function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.textContent=text;}
 let ready={room:false,tasks:false};
-function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
+let firstSteps=!load('gamitask.firstSteps',false);
+function maybeReady(){if(!(ready.room&&ready.tasks)||pendingHome)return;showVeil(null);
+  if(firstSteps){save('gamitask.firstSteps',true);showRecap('Bienvenue au café.','Clique au sol pour marcher, sur une chaise pour t’asseoir. Glisse pour regarder autour.');}}
 const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined)??'';
 let twitch:{login:string|null;displayName:string|null}={login:null,displayName:null};
 function renderAccount(){
@@ -299,9 +309,18 @@ async function start(){
   });
   bindServerEvents();
 }
-let toastTimeout: ReturnType<typeof setTimeout>;
 let audio: any,rain: any,rainGain: any,soundOn=false;
-function toast(message: string){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4500);}
+// Une file : tâche faite, série et succès arrivent ensemble, chacun a son tour. Plus court quand d'autres attendent.
+const toasts: string[]=[];let toastBusy=false,warnedLow=false;
+function toast(message: string){toasts.push(message);if(!toastBusy)nextToast();}
+function nextToast(){
+  const m=toasts.shift();if(m===undefined){toastBusy=false;return;}
+  toastBusy=true;$('#toast').textContent=m;$('#toast').classList.add('visible');
+  setTimeout(()=>{$('#toast').classList.remove('visible');setTimeout(nextToast,260);},toasts.length?3200:4500);
+}
+// Le bilan du matin est l'info du jour : il reste jusqu'à ce qu'on le ferme, au lieu de filer en quatre secondes.
+function showRecap(title: string,text: string){$('#recap-title').textContent=title;$('#recap-text').textContent=text;$('#recap').hidden=false;}
+$('#recap-close').onclick=()=>{$('#recap').hidden=true;};
 function untilLabel(until: number|null): string{
   if(until===null)return 'définitivement';
   const mins=Math.max(1,Math.round((until-Date.now())/60000));
@@ -457,6 +476,7 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
   }finally{switching=false;}
 });
 function onSceneState(state: SceneState){
+    if(state.walking&&firstSteps){firstSteps=false;$('#recap').hidden=true;}// le premier pas vaut « compris »
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
     if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category);
       h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
@@ -466,7 +486,8 @@ function onSceneState(state: SceneState){
     if(state.hotspot==='timer')$('#settings').click();
     if(state.hotspot==='shop')openDrawer(true,'shop');
     if(state.placing){placingCell=state.placing.cell;$('#place-ok').disabled=!placingCell;if(state.placing.refused)toast('Pas la place ici.');}
-    if(state.focusTask){openDrawer(true);const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as any;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
+    if(state.focusTask){openDrawer(true);const t=tasks.list.find(t=>t.id===state.focusTask);if(t&&t.kind!==tasks.tab){tasks.tab=t.kind;renderTasks();}// la liste ne montre qu'un genre à la fois
+      const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as any;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
 try{
@@ -522,10 +543,16 @@ function applyLight(){
   const night=lightMode==='auto'?nightness():lightMode==='day'?0:1;
   cafe?.setDaylight(night);$('.world').classList.toggle('evening',night>.5);
 }
+let clockGlyph='';
 function renderLightChip(){
   document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.light===lightMode)));
   $('#light-note').textContent=lightMode==='auto'?`La lumière suit l’heure — en ce moment, ${momentLabel()}.`:'Lumière figée, quelle que soit l’heure.';
+  // Le glyphe de l'horloge ne se redessine que si le mode change : renderClock repasse ici toutes les dix secondes.
+  const glyph=LIGHT_UI[lightMode].icon;
+  if(glyph!==clockGlyph){clockGlyph=glyph;$('#clock-light').innerHTML=icon(glyph);drawIcons();}
+  $('#clock').setAttribute('title',`Heure locale · ${LIGHT_UI[lightMode].label.toLowerCase()}${lightMode==='auto'?` (${momentLabel()})`:''} — clique pour régler`);
 }
+$('#clock').onclick=()=>openPanel('ambiance');
 document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.onclick=()=>{lightMode=b.dataset.light;save('gamitask.light',lightMode);renderLightChip();applyLight();toast(LIGHT_UI[lightMode].toast);});
 function renderClock(){$('#clock-time').textContent=clockLabel();if(lightMode==='auto')renderLightChip();}
 // Une minute de lumière à la fois : la courbe bouge lentement, inutile de la recalculer à chaque image.
@@ -534,9 +561,9 @@ renderClock();renderLightChip();applyLight();
 $('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
 let drawerTab='tasks';
-function showTab(tab: string){drawerTab=tab;document.querySelectorAll('[data-tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
+function showTab(tab: string){drawerTab=tab;document.querySelectorAll('.drawer-tabs [data-tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));$('#tab-tasks').hidden=tab!=='tasks';$('#tab-shop').hidden=tab!=='shop';$('#drawer-title').innerHTML=tab==='shop'?'La petite<br>boutique.':'Mes petites<br>tâches.';if(tab==='shop')renderShop();}
 function openDrawer(open=true,tab=drawerTab){$('#tasks-drawer').classList.toggle('open',open);$('#tasks-drawer').setAttribute('aria-hidden',String(!open));$('#open-tasks').setAttribute('aria-expanded',String(open));showTab(open?tab:drawerTab);if(open&&tab==='tasks')setTimeout(()=>$('#task-text').focus(),250);}
-document.querySelectorAll('[data-tab]').forEach((b: any)=>b.onclick=()=>showTab(b.dataset.tab));
+document.querySelectorAll('.drawer-tabs [data-tab]').forEach((b: any)=>b.onclick=()=>showTab(b.dataset.tab));
 $('#open-tasks').onclick=()=>{if(!editing)openDrawer(!$('#tasks-drawer').classList.contains('open'));};
 $('.drawer-close').onclick=()=>openDrawer(false);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!editing&&$('#tasks-drawer').classList.contains('open'))openDrawer(false);});
@@ -589,7 +616,9 @@ function renderProgress(){
   $('#streak').hidden=progress.streak<2;$('#streak-count').textContent=progress.streak;
   $('#achievements-count').textContent=`${progress.achievements.length}/${ACHIEVEMENTS.length}`;
   const ep=Math.round(progress.energy/50*100);$('#energy-fill').style.width=`${ep}%`;$('#energy-fill-big').style.width=`${ep}%`;$('.energy-bar').setAttribute('aria-valuenow',String(progress.energy));$('#energy-label').textContent=`${progress.energy} / 50`;
-  document.body.classList.toggle('low-energy',progress.energy<25);document.body.classList.toggle('exhausted',progress.exhausted);
+  const low=progress.energy<25;document.body.classList.toggle('low-energy',low);document.body.classList.toggle('exhausted',progress.exhausted);
+  if(low&&!progress.exhausted&&!warnedLow){warnedLow=true;toast(`Énergie basse : ${progress.energy}/50. À zéro, tu perds 30 % de tes pièces — un niveau gagné la recharge.`);}
+  if(!low)warnedLow=false;
 }
 function rewardPomodoro(){net.socket.emit('pomodoro:complete',{userId:identity.userId});}
 renderProgress();
@@ -666,7 +695,7 @@ function bindServerEvents(){
   s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
   s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
   s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);
-    if(missed.length)later(()=>toast(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}. ${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`),0);});
+    if(missed.length)showRecap(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}.`,`${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`);});
   s.on('xp:update',u=>{const before=progress.level;if(u.xp>progress.xp||u.level>before)rewardChime();setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
@@ -886,7 +915,7 @@ function playChime(kind: Chime){if(!ensureAudio()||!audio)return;const{freqs,ste
 let lastReward=0;
 function rewardChime(){const now=Date.now();if(now-lastReward<600)return;lastReward=now;chime('reward');}
 // Notifications système : la permission est demandée au premier geste (démarrage ou entrée en salle), jamais avant.
-function askNotify(){try{if(notifs&&typeof Notification!=='undefined'&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});}catch{}}
+function askNotify(){try{if(notifs&&typeof Notification!=='undefined'&&Notification.permission==='default'){toast('Le café peut te prévenir quand un focus se termine — ton navigateur va te le demander.');Notification.requestPermission().catch(()=>{});}}catch{}}
 function notify(title: string,body: string){if(notifs)showNotify(title,body);}
 function showNotify(title: string,body: string){try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,icon:'/favicon.svg',tag:'gamitask-pomo'});}catch{}}
 function renderAlerts(){$('#sfx').checked=sfx;$('#notifs').checked=notifs;}
@@ -896,8 +925,12 @@ $('#notifs').onchange=()=>{notifs=$('#notifs').checked;save('gamitask.notifs',no
 $('#panel-dialog').addEventListener('click',(e: Event)=>{const b=(e.target as HTMLElement).closest('[data-play]') as HTMLElement|null;if(!b)return;
   if(b.dataset.play==='notify'){try{Notification.requestPermission().then(()=>showNotify('Le café te fait signe','Voilà à quoi ressemblera une alerte.'));}catch{toast('Les notifications ne sont pas disponibles ici.');}}
   else playChime(b.dataset.play as Chime);});
-$('#sound').onchange=()=>{
-  const ctx=ensureAudio();if(!ctx){$('#sound').checked=false;toast('Le son n’est pas disponible dans ce navigateur.');return;}
+// Deux commandes, un état : le chip en bas à gauche et la case du panneau reflètent la même pluie.
+function renderRain(on: boolean){$('#sound').checked=on;$('#sound').closest('label').classList.toggle('playing',on);$('#rain-chip').setAttribute('aria-pressed',String(on));$('#rain-chip').classList.toggle('playing',on);}
+function setRain(on: boolean){
+  const ctx=ensureAudio();if(!ctx){renderRain(false);toast('Le son n’est pas disponible dans ce navigateur.');return;}
   if(!rain){const buffer=ctx.createBuffer(1,ctx.sampleRate*4,ctx.sampleRate),data=buffer.getChannelData(0);let last=0;for(let i=0;i<data.length;i++){last=(last+Math.random()*.04-.02)/1.02;data[i]=last*4;}rain=ctx.createBufferSource();rain.buffer=buffer;rain.loop=true;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=1600;rainGain=ctx.createGain();rainGain.gain.value=0;rain.connect(filter);filter.connect(rainGain);rainGain.connect(ctx.destination);rain.start();}
-  soundOn=$('#sound').checked;rainGain.gain.setTargetAtTime(soundOn?.35:0,ctx.currentTime,.3);$('#sound').closest('label').classList.toggle('playing',soundOn);toast(soundOn?'Un fond de pluie pour se concentrer.':'Le calme, tout simplement.');
-};
+  soundOn=on;rainGain.gain.setTargetAtTime(on?.35:0,ctx.currentTime,.3);renderRain(on);toast(on?'Un fond de pluie pour se concentrer.':'Le calme, tout simplement.');
+}
+$('#sound').onchange=()=>setRain($('#sound').checked);
+$('#rain-chip').onclick=()=>setRain(!soundOn);
