@@ -694,12 +694,12 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     glowing=object;glowTime=0;
     object?.traverse((o: any)=>{if(o.isMesh){o.userData.mat=o.material;o.material=o.material.clone();o.material.emissive.set('#ffd595');}});
   }
-  const camTarget=new THREE.Vector3(0,.85,0),pan=new THREE.Vector3(),cameraOffset=new THREE.Vector3(13,12.5,16);
+  const camTarget=new THREE.Vector3(0,.85,0),pan=new THREE.Vector3(),cameraOffset=new THREE.Vector3(13,12.5,16),viewOffset=cameraOffset.clone();// viewOffset: the live viewing direction — isometric, or face-on to the board up close
   const ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),floor=new THREE.Plane(new THREE.Vector3(0,1,0),-.08);
   let width=1,height=1;
   // --- Editor mode: the camera dives onto the avatar, the room behind it goes soft. ---
   const camRight=new THREE.Vector3(cameraOffset.z,0,-cameraOffset.x).normalize(),EDIT_H=3.0;
-  let editAnim: null|{t:number;z0:number;z1:number;p0:THREE.Vector3;p1:THREE.Vector3}=null;
+  let editAnim: null|{t:number;z0:number;z1:number;p0:THREE.Vector3;p1:THREE.Vector3;o0?:THREE.Vector3;o1?:THREE.Vector3;n0?:number;n1?:number}=null;
   let savedView: null|{zoom:number;follow:boolean;pan:THREE.Vector3;target:THREE.Vector3}=null;
   let editYaw=0,studio: THREE.SpotLight|null=null;
   const editZoom=()=>2*camera.top/EDIT_H;// the framing is a fixed world height, so it survives a resize
@@ -732,14 +732,15 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   function focusBoard(){
     if(mode!=='walk')return;mode='board';
     boardView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};
-    pinBoard.getWorldPosition(boardTarget);boardTarget.y=B.y-.15;
+    pinBoard.getWorldPosition(boardTarget);boardTarget.y=B.y;
+    const facing=new THREE.Vector3(Math.sin(B.ry),0,Math.cos(B.ry)).multiplyScalar(cameraOffset.length());// the board's normal, at the usual camera distance
     me.cancel();hoverTicket(null);dragging=false;// a window opening takes priority over a walk in progress
-    editAnim={t:0,z0:camera.zoom,z1:boardZoom(),p0:camTarget.clone(),p1:boardTarget.clone()};
+    editAnim={t:0,z0:camera.zoom,z1:boardZoom(),p0:camTarget.clone(),p1:boardTarget.clone(),o0:viewOffset.clone(),o1:facing,n0:camera.near,n1:cameraOffset.length()-.6};
     renderer.domElement.style.cursor='';onState?.({board:true});
   }
   function leaveBoard(){
     if(mode!=='board'||!boardView)return;
-    editAnim={t:0,z0:camera.zoom,z1:boardView.zoom,p0:camTarget.clone(),p1:boardView.target.clone()};
+    editAnim={t:0,z0:camera.zoom,z1:boardView.zoom,p0:camTarget.clone(),p1:boardView.target.clone(),o0:viewOffset.clone(),o1:cameraOffset.clone(),n0:camera.near,n1:.1};
     zoom=boardView.zoom;follow=boardView.follow;pan.copy(boardView.pan);boardView=null;mode='walk';dragging=false;
     onState?.({board:false,zoom,follow});
   }
@@ -905,15 +906,15 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(mode==='edit'){const d=Math.atan2(Math.sin(editYaw-avatar.rotation.y),Math.cos(editYaw-avatar.rotation.y));avatar.rotation.y+=d*Math.min(1,dt*(reducedMotion?60:14));if(Math.abs(d)>.002)stir=2;}
     if(editAnim){
       editAnim.t=Math.min(1,editAnim.t+dt/(reducedMotion?.001:.6));const k=spring(editAnim.t);
-      camera.zoom=editAnim.z0+(editAnim.z1-editAnim.z0)*k;camera.updateProjectionMatrix();
-      camTarget.lerpVectors(editAnim.p0,editAnim.p1,k);
+      camera.zoom=editAnim.z0+(editAnim.z1-editAnim.z0)*k;if(editAnim.n0!==undefined&&editAnim.n1!==undefined)camera.near=editAnim.n0+(editAnim.n1-editAnim.n0)*k;camera.updateProjectionMatrix();
+      camTarget.lerpVectors(editAnim.p0,editAnim.p1,k);if(editAnim.o0&&editAnim.o1)viewOffset.lerpVectors(editAnim.o0,editAnim.o1,k);
       if(editAnim.t>=1)editAnim=null;
     } else if(mode!=='edit'){
       // At 100% the whole room fits, so the camera only leans toward the player; the more you zoom in, the more it locks onto them.
       const k=Math.min(1,.7+(zoom-1)*.3),desired=mode==='board'?boardTarget.clone():follow?new THREE.Vector3(avatar.position.x*k,.85,avatar.position.z*k-.5*(1-k)):new THREE.Vector3(0,.85,0).add(pan);
       camTarget.lerp(desired,1-Math.exp(-dt*(reducedMotion?20:3.5)));
     }
-    camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);
+    camera.position.copy(camTarget).add(viewOffset);camera.lookAt(camTarget);
     stage();
     if(mode==='edit')drawEditing();else renderer.render(scene,camera);
     raf=requestAnimationFrame(animate);
