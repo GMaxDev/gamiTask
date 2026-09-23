@@ -20,18 +20,11 @@ import {createProgress,setCoins,setXp,setStreak,setEnergy,setExhausted,unlock,se
 import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
-import {nightness,clockLabel,momentLabel} from './daylight.ts';
+import {createAmbience} from './ambience.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice,DURATION} from './pomo.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-type LightMode='auto'|'day'|'evening';
-const LIGHT_UI: Record<LightMode,{icon: string; label: string; next: LightMode; toast: string}>={
-  auto:{icon:'sun-moon',label:'Lumière auto',next:'day',toast:'La lumière suit de nouveau l’heure.'},
-  day:{icon:'sun',label:'Plein jour',next:'evening',toast:'Plein jour, quelle que soit l’heure.'},
-  evening:{icon:'moon',label:'Douce soirée',next:'auto',toast:'Douce soirée, quelle que soit l’heure.'},
-};
-let lightMode: LightMode=(LIGHT_UI[load('gamitask.light','auto') as LightMode]?load('gamitask.light','auto'):'auto');
 let timer=createTimer(load('gamitask.timer',{})),stats=load('gamitask.stats',{});
 const shop=createShop();// declared here: mountRoom() reads shop.placed / shop.hat before the shop block runs
 let placingId: string|null=null,placingCell: {c: number; r: number}|null=null;
@@ -245,14 +238,7 @@ function applyAuthUser(u:{userId:string;token:string;name:string;color:number;tw
   twitch={login:u.twitchLogin??null,displayName:u.twitchDisplayName??null};renderAccount();
   ($('#account-button') as HTMLElement).hidden=false;
 }
-function openPanel(tab: 'ambiance'|'compte'|'aide'='ambiance'){
-  document.querySelectorAll('.panel-tabs [data-panel]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.panel===tab)));
-  document.querySelectorAll('.panel-pane').forEach((p: any)=>p.hidden=p.dataset.pane!==tab);
-  renderAccount();if(!$('#panel-dialog').open)($('#panel-dialog') as HTMLDialogElement).showModal();
-}
-$('#open-panel').onclick=()=>openPanel();
-document.querySelectorAll('.panel-tabs [data-panel]').forEach((b: any)=>b.onclick=()=>openPanel(b.dataset.panel));
-($('#account-button') as HTMLButtonElement).onclick=()=>openPanel('compte');
+($('#account-button') as HTMLButtonElement).onclick=()=>ambience.openPanel('compte');
 ($('#twitch-link') as HTMLButtonElement).onclick=async()=>{
   const token=load('gamitask.token',null);if(!token){toast('Connecte-toi avec Google pour lier Twitch.');return;}
   const r=await startTwitchLink(API_URL,token);
@@ -301,7 +287,6 @@ async function start(){
   });
   bindServerEvents();
 }
-let audio: any,rain: any,rainGain: any,soundOn=false;
 let warnedLow=false;
 $('#recap-close').onclick=()=>{$('#recap').hidden=true;};
 function untilLabel(until: number|null): string{
@@ -319,6 +304,7 @@ const ROOM_UI: Record<RoomKind,{label: string; icon: string; toast: string; hint
 };
 const roomKind=(v: string): RoomKind=>Object.hasOwn(ROOM_UI,v)?v as RoomKind:'cafe';// a saved 'public' from before the garden, or anything unknown, means the café
 let cafe: any,room=roomKind(load('gamitask.room','cafe'));
+const ambience=createAmbience({cafe:()=>cafe,onOpen:renderAccount});
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 function saveLook(){save('gamitask.look',look);}
 // Character editor: a sheet over the scene, the café avatar itself is the preview.
@@ -360,18 +346,13 @@ $('#guests-list').addEventListener('click',(e: Event)=>{
 });
 let sendTimes: number[]=[];
 function allowLocal(){const now=Date.now();sendTimes=sendTimes.filter(t=>now-t<5000);if(sendTimes.length>=5)return false;sendTimes.push(now);return true;}
-// Two short notes when someone calls your name, only if the ambience sound is on (the audio context is already unlocked then).
-function mentionChime(){if(!soundOn||!audio||audio.state!=='running')return;
-  for(const [i,freq] of [659.25,987.77].entries()){const osc=audio.createOscillator(),gain=audio.createGain(),t0=audio.currentTime+i*.13;
-    osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,t0);gain.gain.linearRampToValueAtTime(.04,t0+.015);gain.gain.exponentialRampToValueAtTime(.001,t0+.34);
-    osc.connect(gain);gain.connect(audio.destination);osc.start(t0);osc.stop(t0+.4);}}
 const chat=createChat($('.world-left') as HTMLElement,{
   send(text){if(!net)return false;if(!allowLocal())return false;net?.socket.emit('chat',{text});return true;},
   typing(){net?.socket.emit('chat:typing');},
   emote(emoji){net?.socket.emit('chat:emote',{emoji});},
   members:()=>[...members].filter(([id])=>id!==net?.socket.id).map(([id,m])=>({id,...m})),
   myName:()=>identity.name,
-  onMention:mentionChime,
+  onMention:ambience.mentionChime,
 });
 const board=createBoard($('.hud-top') as HTMLElement,{meId:()=>net?.socket.id??''});drawIcons();
 chat.open();// the room's conversation is visible from the start; the round button folds it away
@@ -410,7 +391,7 @@ function mountRoom(){
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(roomKind(b.dataset.room)===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
   cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
-  applyLight();// la nouvelle scène naît à l'heure qu'il est, pas en plein midi
+  ambience.applyLight();// la nouvelle scène naît à l'heure qu'il est, pas en plein midi
   if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
   drawIcons();$('#move-hint-room').textContent=ROOM_UI[room].hint;renderCounts();
 }
@@ -521,26 +502,6 @@ start();// the room is built behind the veil, then the server fills it
   }
 };
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
-// La scène lit une valeur continue : l'heure en mode auto, une extrémité figée sinon.
-function applyLight(){
-  const night=lightMode==='auto'?nightness():lightMode==='day'?0:1;
-  cafe?.setDaylight(night);$('.world').classList.toggle('evening',night>.5);
-}
-let clockGlyph='';
-function renderLightChip(){
-  document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.light===lightMode)));
-  $('#light-note').textContent=lightMode==='auto'?`La lumière suit l’heure — en ce moment, ${momentLabel()}.`:'Lumière figée, quelle que soit l’heure.';
-  // Le glyphe de l'horloge ne se redessine que si le mode change : renderClock repasse ici toutes les dix secondes.
-  const glyph=LIGHT_UI[lightMode].icon;
-  if(glyph!==clockGlyph){clockGlyph=glyph;$('#clock-light').innerHTML=icon(glyph);drawIcons();}
-  $('#clock').setAttribute('title',`Heure locale · ${LIGHT_UI[lightMode].label.toLowerCase()}${lightMode==='auto'?` (${momentLabel()})`:''} — clique pour régler`);
-}
-$('#clock').onclick=()=>openPanel('ambiance');
-document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.onclick=()=>{lightMode=b.dataset.light;save('gamitask.light',lightMode);renderLightChip();applyLight();toast(LIGHT_UI[lightMode].toast);});
-function renderClock(){$('#clock-time').textContent=clockLabel();if(lightMode==='auto')renderLightChip();}
-// Une minute de lumière à la fois : la courbe bouge lentement, inutile de la recalculer à chaque image.
-setInterval(()=>{renderClock();if(lightMode==='auto')applyLight();},10000);
-renderClock();renderLightChip();applyLight();
 $('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
 let drawerTab='tasks';
@@ -644,7 +605,7 @@ function bindServerEvents(){
     applyState(roomPomo,{phase,remaining,session,running:roomPomo.participants>0,participants:roomPomo.participants},Date.now());
     if(roomPomo.joined){
       if(was==='focus')toast('Focus terminé avec la salle. Les pièces arrivent.');
-      chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);notify(n.title,n.body);
+      ambience.chime(phase==='focus'?'start':'end');const n=phaseNotice(phase);ambience.notify(n.title,n.body);
       if(phase==='focus')seatForFocus();else standForBreak();
     }
     renderRoomPomo();});
@@ -670,16 +631,16 @@ function bindServerEvents(){
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
   s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);renderTasks();renderProgress();renderShop();syncScene();
-    const dc=coins-before;if(dc>0||xp>0){rewardChime();const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
+    const dc=coins-before;if(dc>0||xp>0){ambience.rewardChime();const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
     else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
   s.on('task:updated',t=>{taskUpdated(tasks,t);renderTasks();syncScene();});
   s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
-  s.on('coins:update',({coins})=>{if(coins>progress.coins)rewardChime();setCoins(progress,coins);renderProgress();renderShop();});
+  s.on('coins:update',({coins})=>{if(coins>progress.coins)ambience.rewardChime();setCoins(progress,coins);renderProgress();renderShop();});
   s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
   s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
   s.on('day:rollover',({missed,energy,energyDelta})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);
     if(missed.length)showRecap(`Hier : ${missed.length} quotidienne${missed.length>1?'s':''} oubliée${missed.length>1?'s':''}${energyDelta<0?`, −${-energyDelta} énergie`:''}.`,`${missed.map(t=>t.text).slice(0,3).join(', ')}${missed.length>3?'…':''}`);});
-  s.on('xp:update',u=>{const before=progress.level;if(u.xp>progress.xp||u.level>before)rewardChime();setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
+  s.on('xp:update',u=>{const before=progress.level;if(u.xp>progress.xp||u.level>before)ambience.rewardChime();setXp(progress,u);renderProgress();if(u.levelUp&&u.level>before){cafe?.float('',`Niveau ${u.level}`,'#647557');later(()=>toast(`✨ Niveau ${u.level} ! Énergie rechargée.`),2600);}});
   s.on('streak:update',({streak,bonus})=>{setStreak(progress,streak);renderProgress();toast(`Une petite victoire de plus.${bonus>5?` Série ×${streak}.`:''}`);});
   s.on('achievement:unlocked',a=>{if(unlock(progress,a.key)){renderProgress();cafe?.float('',`${a.icon} ${a.label}`);later(()=>toast(`${a.icon} Succès : ${a.label} — ${a.desc}`),2600);}});
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
@@ -711,12 +672,12 @@ function renderTimer(){
     if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
     if(timer.mode==='focus'){stats.sessions++;stats.minutes+=timer.durations.focus;save('gamitask.stats',stats);rewardPomodoro();}
     const {from,to,started}=advance(timer,stats.sessions);
-    persistTimer();chime('end');
+    persistTimer();ambience.chime('end');
     const next=`${MODE_LABEL[to]} de ${timer.durations[to]} min`;
     toast(from==='focus'
       ? started?`Focus terminé. ${next}, ça démarre.`:`Focus terminé. ${next} quand tu veux.`
       : started?`${from==='long'?'Cycle bouclé, on repart pour un tour.':'Pause terminée.'} ${next}, c’est parti.`:`Pause terminée. ${next} quand tu veux.`);
-    notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
+    ambience.notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
     if(started)to==='focus'?seatForFocus():standForBreak();
     return renderTimer();
   }
@@ -741,8 +702,8 @@ function renderTimer(){
   dots.querySelectorAll('span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
   $('#cycle-label').textContent=stats.sessions?`${stats.sessions} petite${stats.sessions>1?'s':''} victoire${stats.sessions>1?'s':''}`:'Un pas après l’autre';
 }
-$('#start').onclick=()=>{ensureAudio();askNotify();toggleTimer(timer);persistTimer();
-  if(timer.endAt!==null){chime('start');notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
+$('#start').onclick=()=>{ambience.ensureAudio();ambience.askNotify();toggleTimer(timer);persistTimer();
+  if(timer.endAt!==null){ambience.chime('start');ambience.notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
     if(timer.mode==='focus')seatForFocus();else standForBreak();}
   renderTimer();};
 $('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};
@@ -794,7 +755,7 @@ $('#tab-solo').onclick=()=>selectTab('solo');$('#tab-room').onclick=()=>selectTa
 $('#room-join').onclick=()=>{
   if(!net)return;// sans serveur il n'y a pas de session de salle : ne rien promettre à l'écran
   if(!roomPomo.joined){
-    net.socket.emit('pomo:join');roomPomo.joined=true;ensureAudio();askNotify();chime('start');
+    net.socket.emit('pomo:join');roomPomo.joined=true;ambience.ensureAudio();ambience.askNotify();ambience.chime('start');
     if(roomPomo.phase==='focus')seatForFocus();
     if(timer.endAt!==null){toggleTimer(timer);persistTimer();lastRunning=null;renderTimer();}// une seule session à la fois : le solo se met en pause
   } else {net.socket.emit('pomo:leave');roomPomo.joined=false;}
@@ -881,39 +842,3 @@ $('#task-list').addEventListener('focusout',(e: Event)=>{const el=e.target as HT
   if(!t||!text){if(t)el.textContent=t.text;return;}if(text!==t.text)emitUpdate(id,{text});});
 renderTasks();
 
-// Optional generated rain: no remote audio, tracking, or autoplay.
-function ensureAudio(){try{audio??=new (window.AudioContext||(window as any).webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{});return audio;}catch{return null;}}
-type Chime='start'|'end'|'reward';
-const CHIMES: Record<Chime,{freqs: number[]; step: number; decay: number; peak: number}>={
-  start:{freqs:[392,523.25],step:.14,decay:.9,peak:.045},
-  end:{freqs:[523.25,659.25,783.99],step:.16,decay:.9,peak:.045},
-  reward:{freqs:[659.25,987.77,1318.51],step:.075,decay:.45,peak:.035},// même sinus, plus haut et plus court : une petite pièce qui tombe
-};
-// L'ancien réglage unique sert de valeur de départ aux deux nouveaux.
-let sfx: boolean=load('gamitask.sfx',load('gamitask.alerts',true)),notifs: boolean=load('gamitask.notifs',load('gamitask.alerts',true));
-function chime(kind: Chime='end'){if(sfx&&audio)playChime(kind);}
-function playChime(kind: Chime){if(!ensureAudio()||!audio)return;const{freqs,step,decay,peak}=CHIMES[kind];
-  for(const [i,freq] of freqs.entries()){const osc=audio.createOscillator(),gain=audio.createGain(),at=audio.currentTime+i*step;osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(peak,at+.02);gain.gain.exponentialRampToValueAtTime(.001,at+decay);osc.connect(gain);gain.connect(audio.destination);osc.start(at);osc.stop(at+decay+.1);}}
-// Un gain arrive souvent en deux messages (pièces puis XP) : une seule récompense sonore par salve.
-let lastReward=0;
-function rewardChime(){const now=Date.now();if(now-lastReward<600)return;lastReward=now;chime('reward');}
-// Notifications système : la permission est demandée au premier geste (démarrage ou entrée en salle), jamais avant.
-function askNotify(){try{if(notifs&&typeof Notification!=='undefined'&&Notification.permission==='default'){toast('Le café peut te prévenir quand un focus se termine — ton navigateur va te le demander.');Notification.requestPermission().catch(()=>{});}}catch{}}
-function notify(title: string,body: string){if(notifs)showNotify(title,body);}
-function showNotify(title: string,body: string){try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,icon:'/favicon.svg',tag:'gamitask-pomo'});}catch{}}
-function renderAlerts(){$('#sfx').checked=sfx;$('#notifs').checked=notifs;}
-renderAlerts();
-$('#sfx').onchange=()=>{sfx=$('#sfx').checked;save('gamitask.sfx',sfx);if(sfx)playChime('start');toast(sfx?'Les carillons sont de retour.':'Carillons coupés. Les notifications restent.');};
-$('#notifs').onchange=()=>{notifs=$('#notifs').checked;save('gamitask.notifs',notifs);if(notifs)askNotify();toast(notifs?'Les notifications sont activées.':'Notifications coupées. Les carillons restent.');};
-$('#panel-dialog').addEventListener('click',(e: Event)=>{const b=(e.target as HTMLElement).closest('[data-play]') as HTMLElement|null;if(!b)return;
-  if(b.dataset.play==='notify'){try{Notification.requestPermission().then(()=>showNotify('Le café te fait signe','Voilà à quoi ressemblera une alerte.'));}catch{toast('Les notifications ne sont pas disponibles ici.');}}
-  else playChime(b.dataset.play as Chime);});
-// Deux commandes, un état : le chip en bas à gauche et la case du panneau reflètent la même pluie.
-function renderRain(on: boolean){$('#sound').checked=on;$('#sound').closest('label').classList.toggle('playing',on);$('#rain-chip').setAttribute('aria-pressed',String(on));$('#rain-chip').classList.toggle('playing',on);}
-function setRain(on: boolean){
-  const ctx=ensureAudio();if(!ctx){renderRain(false);toast('Le son n’est pas disponible dans ce navigateur.');return;}
-  if(!rain){const buffer=ctx.createBuffer(1,ctx.sampleRate*4,ctx.sampleRate),data=buffer.getChannelData(0);let last=0;for(let i=0;i<data.length;i++){last=(last+Math.random()*.04-.02)/1.02;data[i]=last*4;}rain=ctx.createBufferSource();rain.buffer=buffer;rain.loop=true;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=1600;rainGain=ctx.createGain();rainGain.gain.value=0;rain.connect(filter);filter.connect(rainGain);rainGain.connect(ctx.destination);rain.start();}
-  soundOn=on;rainGain.gain.setTargetAtTime(on?.35:0,ctx.currentTime,.3);renderRain(on);toast(on?'Un fond de pluie pour se concentrer.':'Le calme, tout simplement.');
-}
-$('#sound').onchange=()=>setRain($('#sound').checked);
-$('#rain-chip').onclick=()=>setRain(!soundOn);
