@@ -60,7 +60,7 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
   const axes=new THREE.AxesHelper(1);(axes.material as any).depthTest=false;axes.renderOrder=3;scene.add(axes);// X red, Y green, Z blue: what the inspector's fields mean, blue being the front
   const materials=new Map<string,any>(),extras:any[]=[];let root=new THREE.Group();scene.add(root);
   const P=createPrimitives(()=>root,materials,extras);
-  const D=createDecor({p:P,scene,root:()=>root,previewing:()=>true,HD:0,obstacle(){},seat(){},taskSpot(){},hotspot:(o:any)=>o,shadow(){},steam:[],pendants:[],windows:[],taskSpots:[]});
+  const D=createDecor({p:P,scene,root:()=>root,previewing:()=>true,HD:0,obstacle(){},seat(){},hotspot:(o:any)=>o,shadow(){},steam:[],pendants:[],windows:[]});
   const BUILDERS:Record<string,()=>any>={plant:()=>D.plant(0,0),cactus:()=>D.cactus(0,0),lamp:()=>D.lamp(0,0),bookshelf:()=>D.bookcase(0,0),coffee:()=>D.coffeeCorner(0,0),couch:()=>D.armchair(0,0,0),chair:()=>D.chair(0,0),sofa:()=>D.sofa(0,0),rug:()=>D.rug(0,0),'coffee-table':()=>D.coffeeTable(0,0),'square-table':()=>D.squareTable(0,0),'round-table':()=>D.roundTable(0,0),mug:()=>D.mug(0,0,0,C.white,root,false),book:()=>D.book(0,0,0)};
   function captureNative(n:Native):CatalogItem{
     const g=withOriginals(()=>n.kind==='hat'?buildHat(P,n.id,root):BUILDERS[n.id]());const parts=captureRecipe(g);g.traverse((o:any)=>o.geometry?.dispose?.());root.remove(g);

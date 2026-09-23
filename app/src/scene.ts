@@ -10,6 +10,7 @@ import { createDecor } from './decor.ts';
 import type { DecorContext } from './decor.ts';
 import { buildGarden } from './garden.ts';
 import { DIMS } from './coords.ts';
+import { layout, slot, ASPECT } from './pinboard.ts';
 import type { RoomKind } from './coords.ts';
 import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
 import type { Look } from './look.ts';
@@ -48,7 +49,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   const AVATAR_LAYER=1;// the editor renders the avatar alone on this layer, sharp, over the blurred backdrop
   const {w:W,d:D}=DIMS[room],HW=W/2,HD=D/2;// the public rooms are 24x20; your own is a cosy 12x10
   let root: any=scene;// helpers build into this; a translated group lets the original layout keep its coordinates
-  const materials=new Map<string, any>(), extras: any[]=[], obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], taskSpots: any[]=[], hotspots: any[]=[];
+  const materials=new Map<string, any>(), extras: any[]=[], obstacles: any[]=[], steam: any[]=[], pendants: any[]=[], windows: any[]=[], seats: any[]=[], hotspots: any[]=[];
   const P=createPrimitives(()=>root,materials,extras);const {mat,mesh,box,cyl,ball,group}=P;
   function hotspot(object: any,id: string,title: string,sub: string){object.userData.keep=true;object.userData.hotspot={id,title,sub};hotspots.push(object);return object;}
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -56,7 +57,6 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   let previewing=false;// while a ghost piece is being built, nothing is registered for gameplay
   function obstacle(x: number,z: number,w: number,d: number){if(previewing)return;const o=rootOrigin();obstacles.push({x:x+o.x,z:z+o.z,w,d});}
   // A seat: world position, cushion height, the direction it faces and the mesh that catches the click.
-  function taskSpot(x: number,y: number,z: number){if(previewing)return;const o=rootOrigin();taskSpots.push(new THREE.Vector3(x+o.x,y,z+o.z));}
   function seat(x: number,z: number,y: number,rot: number,object: any){if(previewing)return;object.userData.keep=true;const o=rootOrigin();seats.push({x:x+o.x,z:z+o.z,y,rot,object});}
   // Movers never write the shadow maps — those would have to be redrawn every frame they walk, the single biggest cost on
   // integrated GPUs. Each gets a soft disc that follows it instead; the maps only refresh when the room itself changes.
@@ -67,7 +67,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     return rig;
   }
   function shadow(x: number,z: number,sx: number,sz: number,opacity=.12){const m=mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:'#694a30',transparent:true,opacity,depthWrite:false}),x,.018,z);m.rotation.x=-Math.PI/2;m.scale.set(sx,sz,1);m.castShadow=false;}
-  const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HD,obstacle,seat,taskSpot,hotspot,shadow,steam,pendants,windows,taskSpots};
+  const dctx: DecorContext={p:P,scene,root:()=>root,previewing:()=>previewing,HD,obstacle,seat,hotspot,shadow,steam,pendants,windows};
   tick('primitives');
   const D_=createDecor(dctx);
   const {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow}=D_;
@@ -189,7 +189,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Two café tables, plus a shared desk with a laptop.
   roundTable(-1.3,-.1);chair(-2.42,-.1,Math.PI/2,C.terra);chair(-.19,-.1,-Math.PI/2,C.sage);
   roundTable(.30,3.02);chair(-.78,3.15,Math.PI/2,C.sage);chair(1.4,3.02,-Math.PI/2,C.terra);
-  box(1.6,.16,2.45,OAK,3.81,1.05,.46,.09);taskSpot(4.3,1.14,-.3);taskSpot(3.4,1.14,1.3);
+  box(1.6,.16,2.45,OAK,3.81,1.05,.46,.09);
   for(const x of [3.22,4.40])for(const z of [-.50,1.42])box(.10,.98,.10,TRIM,x,.52,z,.02);
   obstacle(3.81,.46,1.64,2.5);shadow(3.81,.46,1.0,1.45);
   chair(2.49,-.21,Math.PI/2,C.terra);chair(2.49,1.17,Math.PI/2,C.sage);
@@ -230,7 +230,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   plant(-11.3,9.3,1.35);obstacle(-11.3,9.3,.75,.75);plant(-11.3,1.0,1.1);obstacle(-11.3,1.0,.7,.7);
   label('petits matins',2.1,.62,-HW+.11,2.95,5.2,{ry:Math.PI/2,bg:'#ecd8b8',color:C.edge,size:145});
   // Middle and front-right: a communal table, two more café tables and the entrance.
-  box(4.4,.16,1.4,OAK,5.6,1.05,2.6,.09);for(const x of [4.0,6.2,7.4])taskSpot(x,1.14,2.35);for(const x of [3.6,7.6])for(const z of [2.05,3.15])box(.10,.98,.10,TRIM,x,.52,z,.02);
+  box(4.4,.16,1.4,OAK,5.6,1.05,2.6,.09);for(const x of [3.6,7.6])for(const z of [2.05,3.15])box(.10,.98,.10,TRIM,x,.52,z,.02);
   obstacle(5.6,2.6,4.45,1.45);shadow(5.6,2.6,2.3,.9);
   for(const x of [4.2,5.6,7.0]){chair(x,1.45,0,x===5.6?C.terra:C.sage);chair(x,3.75,Math.PI,x===5.6?C.sage:C.terra);}
   mug(4.3,1.15,2.3,C.terra,root,true);mug(6.9,1.15,2.9,C.sage);book(5.5,1.17,2.9,.46,C.sage);cyl(.16,.11,.24,C.terra,5.7,1.25,2.3);ball(.17,C.sage,5.7,1.46,2.3,root,1,.9,1);
@@ -253,7 +253,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   label('chez moi',2.1,.62,-HW+.11,2.95,1.2,{ry:Math.PI/2,bg:'#ecd8b8',color:C.edge,size:145});
   // desk against the back wall, with a laptop, a mug and a lamp
   hotspot(box(2.2,.12,.9,OAK,2.6,1.02,-HD+.75,.05),'shop','Aménager','boutique et mobilier de ta pièce');for(const x of [1.65,3.55])for(const z of [-HD+.4,-HD+1.1])box(.08,.96,.08,TRIM,x,.5,z,.015);
-  obstacle(2.6,-HD+.75,2.25,.95);shadow(2.6,-HD+.75,1.3,.6);taskSpot(1.8,1.1,-HD+.55);
+  obstacle(2.6,-HD+.75,2.25,.95);shadow(2.6,-HD+.75,1.3,.6);
   const laptop=group(2.9,1.08,-HD+.7,Math.PI);box(.65,.035,.46,'#c2baa8',0,0,0,.025,laptop);const screen=box(.65,.43,.035,C.dark,0,.215,-.21,.025,laptop);screen.rotation.x=-.18;const display=box(.57,.34,.01,'#c0d1b5',0,.215,-.184,.012,laptop);display.rotation.x=-.18;
   mug(2.05,1.08,-HD+.95,C.terra);book(3.5,1.1,-HD+1.0,.4,C.sage);lamp(4.1,-HD+.55);
   chair(2.6,-HD+1.65,Math.PI,C.terra);
@@ -356,15 +356,36 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   if(npc)ground(npc);
   tick('npc');
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
-  // Nearest tables to where the player starts get the first notes, so a new task is visible right away.
-  taskSpots.sort((a,b)=>a.distanceTo(avatar.position)-b.distanceTo(avatar.position));
+  // Every task hangs on one cork board per room: a wall reads as a list, a table full of easels read as clutter.
+  const BOARD: Record<RoomKind,{w: number; h: number; x: number; y: number; z: number; ry: number}>={
+    cafe:{w:3.6,h:1.7,x:-HW+.16,y:2.0,z:-2.0,ry:Math.PI/2},
+    private:{w:3.0,h:1.8,x:-HW+.16,y:2.15,z:2.6,ry:Math.PI/2},
+    // la véranda n'a pas de mur plein : le panneau se pose sur le vitrage du fond, comme l'enseigne juste au-dessus
+    garden:{w:3.4,h:1.9,x:-5.5,y:2.0,z:-HD+.24,ry:0},
+  };
+  const B=BOARD[room],pinBoard=D_.corkBoard(B.w,B.h,B.x,B.y,B.z,B.ry);
+  const MIN_CARD=.3;// en dessous, le texte d'une carte n'est plus lisible de loin
+  // Le surplus : un pense-bête crème épinglé par-dessus le coin, devant les cartes.
+  // La barre latérale garde la liste complète — le tableau ne prétend pas la remplacer.
+  const overflowCanvas=document.createElement('canvas');overflowCanvas.width=256;overflowCanvas.height=112;
+  const overflowTexture=new THREE.CanvasTexture(overflowCanvas);overflowTexture.colorSpace=THREE.SRGBColorSpace;overflowTexture.anisotropy=4;
+  const overflow=mesh(new THREE.PlaneGeometry(.58,.25),new THREE.MeshBasicMaterial({map:overflowTexture,transparent:true}),B.w/2-.36,-B.h/2+.17,.1,pinBoard);
+  overflow.castShadow=false;overflow.visible=false;overflow.rotation.z=-.05;
+  function showOverflow(n: number){
+    overflow.visible=n>0;if(n<=0)return;
+    const x=overflowCanvas.getContext('2d') as CanvasRenderingContext2D;
+    x.clearRect(0,0,256,112);x.fillStyle='#fdf3dc';x.fillRect(4,4,248,104);
+    x.fillStyle='#00000018';x.fillRect(4,100,248,8);
+    x.fillStyle='#7a6a4e';x.font='600 62px Georgia';x.textAlign='center';x.textBaseline='middle';
+    x.fillText(`+ ${n}`,128,58);overflowTexture.needsUpdate=true;
+  }
   const tickets=new Map<string, any>(),cameraYaw=Math.atan2(13,16);let hovered: any=null,lastPointer: any=null;
   function hoverTicket(g: any){// g: a note group, a hotspot mesh, or null
     if(hovered&&hovered!==g){if(hovered.userData.material)hovered.userData.material.emissiveIntensity=0;hovered=null;renderer.domElement.style.cursor='';onState?.({hover:null});}
     if(g&&hovered!==g){hovered=g;if(g.userData.material)g.userData.material.emissiveIntensity=.22;renderer.domElement.style.cursor='pointer';}
   }
   function anchor(g: any){
-    const v=(g.userData.card??g).getWorldPosition(new THREE.Vector3());v.y+=g.userData.card?.34/Math.sqrt(zoom):(g.userData.hotspot.id==='timer'?.7:1.1);v.project(camera);
+    const v=(g.userData.card??g).getWorldPosition(new THREE.Vector3());v.y+=g.userData.card?g.userData.size*.7:(g.userData.hotspot.id==='timer'?.7:1.1);v.project(camera);
     const rect=renderer.domElement.getBoundingClientRect();return {task:g.userData.task,hotspot:g.userData.hotspot,x:rect.left+(v.x+1)/2*width,y:rect.top+(1-v.y)/2*height};
   }
   function ticketAt(e: any){
@@ -390,32 +411,36 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     paintTicket(ctx,task);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
     const material=new THREE.MeshStandardMaterial({map:texture,roughness:1,emissive:'#fff1d6',emissiveIntensity:0});
-    const g=new THREE.Group();g.rotation.y=cameraYaw;scene.add(g);
-    const board=new THREE.Group();board.position.y=.31;board.rotation.x=-.22;g.add(board);
-    box(.84,.58,.05,C.oak,0,0,0,.012,board);// wooden frame
-    const card=mesh(new THREE.PlaneGeometry(.72,.46),material,0,0,.028,board);card.castShadow=false;card.userData.note=g;
-    for(const dx of [-.16,.16]){const leg=box(.035,.34,.035,C.edge,dx,-.17,-.09,.006,g);leg.rotation.x=.42;}// easel legs
-    box(.36,.045,.2,C.edge,0,.022,-.02,.01,g);// foot
-    if(cat)box(.2,.07,.03,cat,-.26,.31,.02,.012,board);// category tag clipped to the frame
-    if(task.kind==='daily'){const bean=mesh(new THREE.SphereGeometry(.035,10,8),mat(C.gold,{emissive:C.gold,emissiveIntensity:.5}),.3,.34,.02,board);bean.scale.set(1,.75,1);bean.castShadow=false;}
-    const n=7,seeds=Float32Array.from({length:n*3},()=>Math.random());// sparkles: each one drifts up on its own loop
-    const sparks=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*3),3)),new THREE.PointsMaterial({color:'#ffbd4a',size:4,sizeAttenuation:false,transparent:true,opacity:.9,depthWrite:false}));
-    g.add(sparks);
-    g.userData={material,texture,canvas,ctx,card,sparks,seeds,task,phase:Math.random()*7};return g;
+    // Built one unit tall, whatever the list's length: the grid scales the group, so every card
+    // shares the same geometry however many are pinned up.
+    const g=new THREE.Group();g.rotation.z=(Math.random()-.5)*.07;pinBoard.add(g);
+    box(ASPECT,1,.035,C.oak,0,0,0,.02,g).castShadow=false;// wooden frame
+    const card=mesh(new THREE.PlaneGeometry(ASPECT*.86,.79),material,0,0,.022,g);card.castShadow=false;card.userData.note=g;
+    mesh(new THREE.SphereGeometry(.055,10,8),mat(C.terra,{emissive:C.terra,emissiveIntensity:.25}),0,.42,.04,g).castShadow=false;// the pin
+    if(cat)box(.26,.09,.02,cat,-ASPECT/2+.19,.4,.03,.012,g).castShadow=false;// category tag clipped to the frame
+    if(task.kind==='daily'){const bean=mesh(new THREE.SphereGeometry(.05,10,8),mat(C.gold,{emissive:C.gold,emissiveIntensity:.5}),ASPECT/2-.17,.4,.03,g);bean.scale.set(1,.75,1);bean.castShadow=false;}
+    g.userData={material,texture,canvas,ctx,card,task,size:1};return g;
   }
   function setTasks(tasks: any[]){
     const keep=new Set<string>();
-    for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
+    for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){pinBoard.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
     for(const task of tasks){keep.add(task.id);
       const g=tickets.get(task.id);
       if(g){const old=g.userData.task;
-        if(old.category!==task.category){scene.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.userData.sparks.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(task.id);}
+        if(old.category!==task.category){pinBoard.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(task.id);}
         else{if(old.text!==task.text||old.value!==task.value){paintTicket(g.userData.ctx,task);g.userData.texture.needsUpdate=true;}g.userData.task=task;continue;}
       }
       const created=ticket(task);tickets.set(task.id,created);
     }
     restage();
-    let i=0;for(const g of tickets.values()){const n=taskSpots.length,spot=taskSpots[i%n],round=Math.floor(i/n);g.userData.base=spot.clone().add(new THREE.Vector3(round*.12,round*.34,round*.12));i++;}
+    // La grille décide de la taille : plus il y a de tâches, plus les cartes sont petites, jusqu'au plancher.
+    const grid=layout(tickets.size,B.w-.12,B.h-.12,MIN_CARD);
+    let i=0;for(const g of tickets.values()){
+      const on=i<grid.shown;g.visible=on;
+      if(on){const {x,y}=slot(i,grid);g.position.set(x,y,.035);g.userData.size=grid.cardH;}
+      i++;
+    }
+    showOverflow(grid.hidden);
   }
   // A wall clock whose single hand sweeps through the current pomodoro.
   const clock=new THREE.Group();clock.position.set(room==='private'?-4.2:-1.5,3.15,-HD+(room==='garden'?.38:.03));scene.add(clock);
@@ -843,10 +868,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     }
     for(const [k,b] of bubbles)if(k.endsWith(':emote'))fitBubble(b,tops.get(k.slice(0,-6))??0);
     fitFeedback();
-    for(const g of tickets.values()){const b=g.userData.base;g.position.set(b.x,b.y+(reducedMotion?.06:.06+Math.sin(time*1.4+g.userData.phase)*.03),b.z);g.rotation.y=cameraYaw+(reducedMotion?0:Math.sin(time*.8+g.userData.phase)*.08);g.scale.setScalar((g===hovered?1.35:1.2)/Math.sqrt(zoom));
-      const {sparks,seeds}=g.userData,pos=sparks.geometry.attributes.position;sparks.material.size=4.5*Math.sqrt(zoom)*Math.min(devicePixelRatio,1.5);
-      for(let k=0;k<pos.count;k++){const life=reducedMotion?seeds[k*3+2]:(time*.35+seeds[k*3+2])%1,a=seeds[k*3]*6.28+life*2;pos.setXYZ(k,Math.cos(a)*(.34+seeds[k*3+1]*.2),.05+life*.75,Math.sin(a)*(.28+seeds[k*3+1]*.2));}
-      pos.needsUpdate=true;sparks.material.opacity=.65+.35*Math.sin(time*2+g.userData.phase);}
+    for(const g of tickets.values()){if(!g.visible)continue;const on=g===hovered;
+      g.scale.setScalar(g.userData.size*(on?1.12:1));g.position.z=on?.09:.035;}
     if(!dragging&&mode==='walk')hoverTicket(lastPointer?ticketAt(lastPointer):null);
     if(hovered)onState?.({hover:anchor(hovered)});
     hand.rotation.z+=(-clockTarget*Math.PI*2-hand.rotation.z)*Math.min(1,dt*4);clockRing.scale.setScalar(clockRunning&&!reducedMotion?1+Math.sin(time*2)*.015:1);

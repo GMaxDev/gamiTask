@@ -13,17 +13,16 @@ export interface DecorContext {
   p: Primitives; scene: THREE.Scene; root(): any; previewing(): boolean; HD: number;
   obstacle(x: number,z: number,w: number,d: number): void;
   seat(x: number,z: number,y: number,rot: number,object: any): void;
-  taskSpot(x: number,y: number,z: number): void;
   hotspot(object: any,id: string,title: string,sub: string): any;
   shadow(x: number,z: number,sx: number,sz: number,opacity?: number): any;
-  steam: any[]; pendants: any[]; windows: any[]; taskSpots: any[];
+  steam: any[]; pendants: any[]; windows: any[];
 }
 // The room's furniture, plants, lamps and signage. Pure geometry plus the gameplay registrations the context provides.
 export function createDecor(ctx: DecorContext){
-  const {scene,steam,pendants,windows,taskSpots,HD}=ctx;
+  const {scene,steam,pendants,windows,HD}=ctx;
   const {mat,mesh,box,cyl,ball,group}=ctx.p;
   const root=()=>ctx.root(),previewing=()=>ctx.previewing();
-  const obstacle=ctx.obstacle,seat=ctx.seat,taskSpot=ctx.taskSpot,shadow=ctx.shadow;
+  const obstacle=ctx.obstacle,seat=ctx.seat,shadow=ctx.shadow;
   // Every piece draws into its own group at the piece's origin; an override from the workshop replaces the drawing, never the
   // registrations (obstacle, seat, light, steam) that follow it.
   const local=(x: number,y: number,z: number,rot=0,parent: any=root())=>{const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=rot;parent.add(g);return g;};
@@ -41,6 +40,15 @@ export function createDecor(ctx: DecorContext){
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
     const m=mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:texture,roughness:1}),x,y,z);m.castShadow=false;
     if(opts.ry)m.rotation.y=opts.ry;return m;
+  }
+  // A cork board screwed to a wall. Returns the group tasks pin themselves to: its local
+  // XY plane is the cork face, so a card at (x, y, small z) sits flat on it.
+  function corkBoard(w: number,h: number,x: number,y: number,z: number,ry=0){
+    const g=group(x,y,z,ry);
+    const frame=box(w+.16,h+.16,.06,OAK,0,0,-.02,.02,g);frame.castShadow=false;
+    const cork=box(w,h,.03,mat('#c9a97b',{roughness:1}),0,0,.01,.006,g);cork.castShadow=false;
+    for(const dx of [-1,1])for(const dy of [-1,1])cyl(.022,.022,.025,TRIM,dx*(w/2+.045),dy*(h/2+.045),.03,g,8).rotation.x=Math.PI/2;
+    return g;
   }
   function plant(x: number,z: number,size=1,y=0,parent: any=root()){
     const g=local(x,y,z,0,parent);g.scale.setScalar(size);
@@ -76,7 +84,7 @@ export function createDecor(ctx: DecorContext){
   function rug(x: number,z: number,rot=0){const g=group(x,0,z,rot);return piece('rug',g,()=>{box(2.65,.022,3.63,'#d6a574',0,.062,0,.15,g);for(let i=0;i<8;i++)box(.018,.005,3.42,'#e8c697',-1.15+i*.33,.076,0,0,g);});}
   function coffeeTable(x: number,z: number,rot=0){
     const g=group(x,0,z,rot);piece('coffee-table',g,()=>{box(.82,.13,1.46,OAK,0,.58,0,.13,g);for(const dz of [-.5,.5])for(const dx of [-.27,.27])box(.065,.5,.065,TRIM,dx,.29,dz,.015,g);mug(.04,.66,-.35,C.white,g);book(0,.68,.25,.43,C.terra,g);});
-    obstacle(x,z,rot?1.5:.85,rot?.85:1.5);g.updateWorldMatrix(true,false);const w=new THREE.Vector3(.2,.66,.62).applyMatrix4(g.matrixWorld);taskSpots.push(w);return g;
+    obstacle(x,z,rot?1.5:.85,rot?.85:1.5);return g;
   }
   function bookcase(x: number,z: number,rot=0){
     const g=group(x,0,z,rot);piece('bookshelf',g,()=>{box(.82,1.39,1.48,C.oak,0,.72,0,.04,g);
@@ -95,7 +103,7 @@ export function createDecor(ctx: DecorContext){
     windowLight(x,2.1,-HD+.36,3.12,1.9,[x,1.1,-HD+4]);
   }
   function lamp(x: number,z: number){const g=local(x,0,z);piece('lamp',g,()=>{cyl(.22,.26,.03,C.dark,0,.02,0,g);cyl(.02,.02,1.7,C.edge,0,.87,0,g);cyl(.32,.42,.42,SHADE,0,1.75,0,g,24);cyl(.3,.3,.02,LAMPGLOW,0,1.55,0,g);});if(!previewing())pool(x,1.5,z,root());obstacle(x,z,.5,.5);return g;}
-  function squareTable(x: number,z: number){const g=local(x,0,z);piece('square-table',g,()=>{box(.9,.08,.9,OAK,0,1.0,0,.03,g);cyl(.07,.1,.95,TRIM,0,.5,0,g);cyl(.32,.36,.06,TRIM,0,.04,0,g);});obstacle(x,z,.95,.95);shadow(x,z,.55,.5);taskSpot(x+.2,1.06,z-.22);return g;}
+  function squareTable(x: number,z: number){const g=local(x,0,z);piece('square-table',g,()=>{box(.9,.08,.9,OAK,0,1.0,0,.03,g);cyl(.07,.1,.95,TRIM,0,.5,0,g);cyl(.32,.36,.06,TRIM,0,.04,0,g);});obstacle(x,z,.95,.95);shadow(x,z,.55,.5);return g;}
   function armchair(x: number,z: number,rot: number){
     const g=group(x,0,z,rot);piece('couch',g,()=>{box(.95,.36,.95,C.edge,0,.24,0,.06,g);box(.9,.22,.85,C.terra,0,.5,0,.1,g);box(.95,.7,.24,C.terra,0,.78,-.36,.1,g);
     for(const dx of [-.42,.42])box(.14,.5,.9,C.terra,dx,.62,0,.06,g);const pillow=box(.4,.34,.14,C.cream,0,.72,-.24,.06,g);pillow.rotation.x=-.15;});
@@ -109,12 +117,12 @@ export function createDecor(ctx: DecorContext){
   function coffeeCorner(x: number,z: number){
     const g=local(x,0,z);piece('coffee',g,()=>{cyl(.38,.38,.06,C.oak,0,.72,0,g,24);cyl(.05,.07,.66,C.edge,0,.36,0,g);cyl(.24,.3,.05,C.edge,0,.03,0,g);
     mug(.1,.75,-.08,C.white,g,true);cyl(.09,.07,.14,C.terra,-.15,.82,.1,g);ball(.11,C.sage,-.15,.94,.1,g,1,.8,1);});
-    obstacle(x,z,.85,.85);shadow(x,z,.45,.4);taskSpot(x+.15,.75,z+.18);return g;
+    obstacle(x,z,.85,.85);shadow(x,z,.45,.4);return g;
   }
   function roundTable(x: number,z: number){
     const g=local(x,0,z);piece('round-table',g,()=>{cyl(.76,.76,.14,OAK,0,1.03,0,g,32);cyl(.095,.14,.96,TRIM,0,.48,0,g);cyl(.4,.48,.10,TRIM,0,.07,0,g);
     mug(.28,1.11,-.12,C.white,g,true);cyl(.16,.11,.24,C.terra,-.29,1.21,-.15,g);ball(.17,C.sage,-.29,1.42,-.15,g,1,.9,1);book(-.11,1.15,.30,.43,C.sage,g);});
-    shadow(x,z,.91,.8);obstacle(x,z,1.48,1.48);taskSpot(x+.3,1.12,z+.3);return g;
+    shadow(x,z,.91,.8);obstacle(x,z,1.48,1.48);return g;
   }
   // A lamp's warm halo plus the soft circle it drops on the floor.
   function pool(x: number,y: number,z: number,parent: any,shadows=false){
@@ -126,5 +134,5 @@ export function createDecor(ctx: DecorContext){
   function windowLight(x: number,y: number,z: number,w: number,h: number,lookAt: [number,number,number]){
     const l=new THREE.RectAreaLight('#eaf1ff',3.6,w,h);l.position.set(x,y,z);l.lookAt(...lookAt);scene.add(l);windows.push(l);
   }
-  return {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow};
+  return {label,corkBoard,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow};
 }
