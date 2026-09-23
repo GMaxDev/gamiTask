@@ -1,5 +1,5 @@
 export type TimerMode='focus'|'short'|'long';
-export interface TimerState { mode: TimerMode; durations: Record<TimerMode, number>; remaining: number; endAt: number | null; perCycle: number; autoChain: boolean }
+export interface TimerState { mode: TimerMode; durations: Record<TimerMode, number>; remaining: number; endAt: number | null; perCycle: number; autoChain: boolean; seatOnFocus: boolean }
 export const defaults: Record<TimerMode, number> = {focus:25,short:5,long:15};
 export const PER_CYCLE=4;// combien de focus avant la longue pause : 4 focus, 3 petites pauses, 1 longue
 export function createTimer(saved: Partial<TimerState> & {durations?: Record<string, unknown>} = {}, now = Date.now()): TimerState {
@@ -7,7 +7,7 @@ export function createTimer(saved: Partial<TimerState> & {durations?: Record<str
   for(const k of Object.keys(defaults) as TimerMode[]) if(Number.isFinite(saved.durations?.[k])) durations[k]=Math.min(90,Math.max(1,Math.round(saved.durations![k] as number)));
   const mode: TimerMode = Object.hasOwn(defaults,saved.mode as string)?saved.mode as TimerMode:'focus';
   const perCycle=Number.isFinite(saved.perCycle)?Math.min(12,Math.max(2,Math.round(saved.perCycle as number))):PER_CYCLE;
-  return {mode,durations,perCycle,autoChain:saved.autoChain!==false,remaining:Math.max(0,Math.min(durations[mode]*60,Number.isFinite(saved.remaining)?saved.remaining as number:durations[mode]*60)),endAt:Number.isFinite(saved.endAt)&&(saved.endAt as number)>0?saved.endAt as number:null};
+  return {mode,durations,perCycle,autoChain:saved.autoChain!==false,seatOnFocus:saved.seatOnFocus!==false,remaining:Math.max(0,Math.min(durations[mode]*60,Number.isFinite(saved.remaining)?saved.remaining as number:durations[mode]*60)),endAt:Number.isFinite(saved.endAt)&&(saved.endAt as number)>0?saved.endAt as number:null};
 }
 export function remainingSeconds(state: TimerState, now=Date.now()): number { return state.endAt===null?state.remaining:Math.max(0,Math.ceil((state.endAt-now)/1000)); }
 export function toggleTimer(state: TimerState, now=Date.now()): void {

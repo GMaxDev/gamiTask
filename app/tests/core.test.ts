@@ -66,3 +66,9 @@ test('perCycle borné et enchaînement actif par défaut',()=>{
  assert.equal(createTimer({perCycle:0} as any).perCycle,2);
  assert.equal(createTimer({perCycle:'oops'} as any).perCycle,4);
 });
+
+test('seatOnFocus est actif par défaut et se coupe explicitement',()=>{
+ assert.equal(createTimer().seatOnFocus,true);
+ assert.equal(createTimer({seatOnFocus:false} as any).seatOnFocus,false);
+ assert.equal(createTimer({seatOnFocus:'oops'} as any).seatOnFocus,true);
+});
