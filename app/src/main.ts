@@ -1,13 +1,13 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn} from 'lucide';
+import {$,icon,drawIcons,load,save,today,toast,showRecap} from './ui.ts';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from './timer.ts';
 import type {TimerMode} from './timer.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
 import {loadLook,randomLook,type Look} from './look.ts';
-import {createEditor,EDITOR_ICONS} from './editor.ts';
-import {createWorkshop,WORKSHOP_ICONS} from './workshop.ts';
+import {createEditor} from './editor.ts';
+import {createWorkshop} from './workshop.ts';
 import {ensureCsg,csgReady,needsCsg} from './recipe.ts';
 import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
@@ -25,14 +25,6 @@ import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNot
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn};
-const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
-// ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
-const $=(s: string): any=>document.querySelector(s);
-function drawIcons(){createIcons({icons,attrs:{'stroke-width':1.65}});}
-function load(key: string,fallback: any): any{try{return JSON.parse(localStorage.getItem(key) as string)??fallback;}catch{return fallback;}}
-function save(key: string,value: any){try{localStorage.setItem(key,JSON.stringify(value));}catch{/* The experience also works without persistent browser storage. */}}
-const today=()=>new Date().toLocaleDateString('sv-SE');
 type LightMode='auto'|'day'|'evening';
 const LIGHT_UI: Record<LightMode,{icon: string; label: string; next: LightMode; toast: string}>={
   auto:{icon:'sun-moon',label:'Lumière auto',next:'day',toast:'La lumière suit de nouveau l’heure.'},
@@ -310,16 +302,7 @@ async function start(){
   bindServerEvents();
 }
 let audio: any,rain: any,rainGain: any,soundOn=false;
-// Une file : tâche faite, série et succès arrivent ensemble, chacun a son tour. Plus court quand d'autres attendent.
-const toasts: string[]=[];let toastBusy=false,warnedLow=false;
-function toast(message: string){toasts.push(message);if(!toastBusy)nextToast();}
-function nextToast(){
-  const m=toasts.shift();if(m===undefined){toastBusy=false;return;}
-  toastBusy=true;$('#toast').textContent=m;$('#toast').classList.add('visible');
-  setTimeout(()=>{$('#toast').classList.remove('visible');setTimeout(nextToast,260);},toasts.length?3200:4500);
-}
-// Le bilan du matin est l'info du jour : il reste jusqu'à ce qu'on le ferme, au lieu de filer en quatre secondes.
-function showRecap(title: string,text: string){$('#recap-title').textContent=title;$('#recap-text').textContent=text;$('#recap').hidden=false;}
+let warnedLow=false;
 $('#recap-close').onclick=()=>{$('#recap').hidden=true;};
 function untilLabel(until: number|null): string{
   if(until===null)return 'définitivement';
