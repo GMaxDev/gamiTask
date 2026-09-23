@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {$,icon,drawIcons,load,save,toast,showRecap} from './ui.ts';
+import {$,icon,drawIcons,load,save,toast,showRecap,esc} from './ui.ts';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
@@ -13,13 +13,13 @@ import {toCell,DIMS} from './coords.ts';
 import type {RoomKind} from './coords.ts';
 import {homeDecision,kindOfRoomId,myPrivateRoom,PUBLIC_IDS} from './rooms.ts';
 import type {Player,RoomSummary} from '@shared/types';
-import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
 import {createProgress,setCoins,setXp,setStreak,setEnergy,setExhausted,unlock,setAchievements,levelInfo,ACHIEVEMENTS} from './progress.ts';
-import {tint,isDue} from '../../server/src/scoring.ts';
 import {HATS,FURNITURE,SETS,createShop,setCosmetics,setFurniture,setCatalog,canPlace,takenCells,completeSets,toServerCell,item as shopItem} from './shop.ts';
 import {createChat,decodeEntities} from './chat.ts';
 import {createAmbience} from './ambience.ts';
 import {createPomodoro} from './pomodoro-ui.ts';
+import {createTasksUi} from './tasks-ui.ts';
+import {CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,DAY_LABELS} from './tasks.ts';
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
@@ -420,7 +420,7 @@ function switchServerRoom(next:RoomKind){
   else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
     homeTimer=setTimeout(()=>{if(!myPrivateRoom(rooms,identity.userId))abandonHome();},4000);}
 }
-function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);($('#guests-button') as HTMLElement).hidden=next!=='private';try{mountRoom();syncScene();renderShop();}catch(error){console.error(error);}}
+function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);($('#guests-button') as HTMLElement).hidden=next!=='private';try{mountRoom();tasksUi.sync();renderShop();}catch(error){console.error(error);}}
 function abandonHome(){
   clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
   if(room==='private')enterRoom('cafe');
@@ -437,7 +437,7 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
 function onSceneState(state: SceneState){
     if(state.walking&&firstSteps){firstSteps=false;$('#recap').hidden=true;}// le premier pas vaut « compris »
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
-    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&catOf(t.category);
+    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&tasksUi.catOf(t.category);
       h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
     if(state.hotspot==='mirror')openEditor();
@@ -445,7 +445,7 @@ function onSceneState(state: SceneState){
     if(state.hotspot==='timer')$('#settings').click();
     if(state.hotspot==='shop')openDrawer(true,'shop');
     if(state.placing){placingCell=state.placing.cell;$('#place-ok').disabled=!placingCell;if(state.placing.refused)toast('Pas la place ici.');}
-    if(state.focusTask){openDrawer(true);const t=tasks.list.find(t=>t.id===state.focusTask);if(t&&t.kind!==tasks.tab){tasks.tab=t.kind;renderTasks();}// la liste ne montre qu'un genre à la fois
+    if(state.focusTask){openDrawer(true);tasksUi.revealKind(state.focusTask);
       const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as any;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
@@ -544,7 +544,7 @@ function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#pl
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
 // furniture is part of the baked room, so a change rebuilds your room in place, no iris
-function rearrange(message: string){if(switching)return;try{mountRoom();syncScene();}catch(error){console.error(error);}toast(message);renderShop();}
+function rearrange(message: string){if(switching)return;try{mountRoom();tasksUi.sync();}catch(error){console.error(error);}toast(message);renderShop();}
 let toastQueue=Promise.resolve();
 const later=(fn: () => void,ms: number)=>{toastQueue=toastQueue.then(()=>new Promise<void>(r=>setTimeout(()=>{fn();r();},ms)));};// one toast at a time
 function renderProgress(){
@@ -599,9 +599,9 @@ function bindServerEvents(){
   s.on('pomo:phase',p=>pomo.onRoomPhase(p));
   s.on('me:state',u=>{role=u.role;renderIdentity();});
   s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
-    if(furnitureSeen){try{mountRoom();syncScene();net.socket.emit('room:refresh');}catch(error){console.error(error);}}
+    if(furnitureSeen){try{mountRoom();tasksUi.sync();net.socket.emit('room:refresh');}catch(error){console.error(error);}}
     // Carved pieces need the boolean toolkit: fetch it once, then rebuild so the cuts show (they rendered solid meanwhile).
-    if(!csgReady()&&items.some(i=>needsCsg(i.parts)))ensureCsg().then(()=>{if(cafe){try{mountRoom();syncScene();}catch(error){console.error(error);}}});});
+    if(!csgReady()&&items.some(i=>needsCsg(i.parts)))ensureCsg().then(()=>{if(cafe){try{mountRoom();tasksUi.sync();}catch(error){console.error(error);}}});});
   s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',logout);// a Google account without a valid token starts over as a guest
   s.on('room:info',({roomId})=>{pomo.resetRoom();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
@@ -611,18 +611,18 @@ function bindServerEvents(){
     // Room-manage panel is for the owner only — a private room can now also be a friend's, visited via an invite link.
     ($('#guests-button') as HTMLElement).hidden=!(here==='private'&&myPrivateRoom(rooms,identity.userId)?.id===roomId);
     chatRoomKnown=true;chat.setRoom(roomLabel());});
-  s.on('tasks:state',({tasks:list,coins,energy,exhausted})=>{setTasks(tasks,list);setCoins(progress,coins);setEnergy(progress,energy);setExhausted(progress,!!exhausted);cafe?.setEnergy?.(progress.energy,progress.exhausted);ready.tasks=true;maybeReady();renderTasks();renderProgress();syncScene();});
+  s.on('tasks:state',({tasks:list,coins,energy,exhausted})=>{tasksUi.setList(list);setCoins(progress,coins);setEnergy(progress,energy);setExhausted(progress,!!exhausted);cafe?.setEnergy?.(progress.energy,progress.exhausted);ready.tasks=true;maybeReady();tasksUi.render();renderProgress();tasksUi.sync();});
   // Notes and timer settings started on the landing page follow the visitor in, once.
   s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
     for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,kind:'todo',difficulty:'easy'});
     if(h.durations)pomo.adoptDurations(h.durations);
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
-  s.on('task:added',t=>{taskAdded(tasks,t);renderTasks();syncScene();});
-  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;taskScored(tasks,t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);renderTasks();renderProgress();renderShop();syncScene();
+  s.on('task:added',t=>{tasksUi.added(t);tasksUi.render();tasksUi.sync();});
+  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext,bossDamage})=>{const before=progress.coins;tasksUi.scored(t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);tasksUi.render();renderProgress();renderShop();tasksUi.sync();
     const dc=coins-before;if(dc>0||xp>0){ambience.rewardChime();const parts=[];if(dc>0)parts.push(`+${dc} pièces`);if(bossDamage>0)parts.push(`${bossDamage} dégâts au boss`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
     else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
-  s.on('task:updated',t=>{taskUpdated(tasks,t);renderTasks();syncScene();});
-  s.on('task:deleted',({taskId})=>{taskDeleted(tasks,taskId);renderTasks();syncScene();});
+  s.on('task:updated',t=>{tasksUi.updated(t);tasksUi.render();tasksUi.sync();});
+  s.on('task:deleted',({taskId})=>{tasksUi.deleted(taskId);tasksUi.render();tasksUi.sync();});
   s.on('coins:update',({coins})=>{if(coins>progress.coins)ambience.rewardChime();setCoins(progress,coins);renderProgress();renderShop();});
   s.on('energy:update',({energy})=>{setEnergy(progress,energy);renderProgress();cafe?.setEnergy?.(progress.energy,progress.exhausted);});
   s.on('energy:exhausted',({coins})=>{setExhausted(progress,true);setCoins(progress,coins);renderProgress();renderShop();cafe?.setEnergy?.(progress.energy,true);later(()=>toast('Épuisé… tu as perdu 30 % de tes pièces. Repose-toi, demain ça repart.'),0);});
@@ -643,89 +643,11 @@ function bindServerEvents(){
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
   s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();const now=JSON.stringify(shop.placed);
     // the first snapshot after a (re)connect is not a move: rebuild silently if the room was baked without it, never toast
-    if(!furnitureSeen){furnitureSeen=true;if(room==='private'&&now!==builtFurniture){try{mountRoom();syncScene();}catch(error){console.error(error);}}return;}
+    if(!furnitureSeen){furnitureSeen=true;if(room==='private'&&now!==builtFurniture){try{mountRoom();tasksUi.sync();}catch(error){console.error(error);}}return;}
     if(room==='private'&&now!==before)rearrange('C’est posé.');});
 }
 
 
 const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro});
-
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
-const tasks=createTasks();
-let newCategory: string|null=null,newDifficulty=1,newDays=127,newUp=true,newDown=false,optionsOpen=false,helpHidden: boolean=load('gamitask.taskHelp',false);
-const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
-const esc=(v: string)=>v.replace(/[&<>"']/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'} as Record<string,string>)[c]);
-const pips=(n: number)=>`<span class="pips" aria-hidden="true">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
-const dueLabel=(ts: number)=>new Date(ts).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
-function syncScene(){cafe?.setTasks(pending(tasks));}
-function renderTaskForm(){
-  const k=tasks.tab;($('#task-text') as HTMLInputElement).placeholder=KIND_LABELS[k].placeholder;
-  $('#task-days-opt').hidden=k!=='daily';$('#task-dirs-opt').hidden=k!=='habit';$('#task-due-opt').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
-  $('#task-help').hidden=helpHidden;$('#task-help-text').textContent=KIND_LABELS[k].help;$('#task-help-toggle').hidden=!helpHidden;
-  $('#task-options').hidden=!optionsOpen;$('#task-more').setAttribute('aria-expanded',String(optionsOpen));
-  const tweaked=newCategory!==null||(k==='daily'&&newDays!==127)||(k==='habit'&&(newDown||!newUp))||(k==='todo'&&!!($('#task-due') as HTMLInputElement).value);$('#task-more').classList.toggle('tweaked',tweaked);// a dot on the toggle says "something is set in there"
-  document.querySelectorAll('#task-days button').forEach((b: any)=>b.setAttribute('aria-pressed',String(!!(newDays&(1<<Number(b.dataset.day))))));
-  document.querySelectorAll('#task-dirs button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.dir==='up'?newUp:newDown)));
-  const d=DIFFICULTIES[newDifficulty];$('#task-difficulty').innerHTML=`${pips(d.pips)}<span>${d.label}</span>`;
-  document.querySelectorAll('#task-tabs [role=tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.kind===k)));
-  document.querySelectorAll('#task-filter button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.filter===tasks.filter)));
-}
-function renderTasks(){
-  const list=$('#task-list'),today=new Date();
-  const open=new Set([...list.querySelectorAll('li.open')].map((l: any)=>l.dataset.id));
-  list.innerHTML='';
-  for(const t of visible(tasks,today)){
-    const li=document.createElement('li');li.dataset.id=t.id;const cat=catOf(t.category),d=DIFFICULTIES.find(x=>x.id===t.difficulty)!;
-    const tn=tint(t.value);li.className=`kind-${t.kind} tint-${tn}${t.done?' done':''}${t.kind==='daily'&&!isDue(t,today)?' not-due':''}`;if(TINT_LABELS[tn])li.title=TINT_LABELS[tn];
-    const dt=esc(decodeEntities(t.text));
-    const text=`<span class="task-text" contenteditable="plaintext-only" spellcheck="false">${dt}</span>`;
-    const common=`<button class="cat-dot${cat?'':' empty'}" style="--cat:${cat?cat.color:'#c9cdbd'}" title="Catégorie : ${cat?cat.label:'aucune'} — cliquer pour changer" aria-label="Changer la catégorie"></button><button class="pips diff" title="Difficulté : ${d.label} — cliquer pour changer. ${DIFFICULTY_HINT}" aria-label="Changer la difficulté">${pips(d.pips)}</button>`;
-    if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" title="J’ai craqué (−)" aria-label="Craquée : ${dt}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui : fois tenue / fois craquée">${t.up?`<b class="up">+${t.countUp}</b>`:''}${t.down?`<b class="down">−${t.countDown}</b>`:''}</small>${t.up?`<button class="score-button up" data-dir="up" title="Je l’ai tenue (+)" aria-label="Tenue : ${dt}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
-    else if(t.kind==='daily')li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.streak>1?`<small class="streak-count" title="Série">${icon('flame')}${t.streak}</small>`:''}<small class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</small><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
-    else{const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
-      li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.dueAt?`<small class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</small>`:''}<button class="icon-button toggle-list" aria-expanded="false" aria-label="Étapes" title="Étapes">${icon('chevron-down')}${n?`<b>${k}/${n}</b>`:''}</button><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>
-      <ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(decodeEntities(i.text))}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
-    list.append(li);
-  }
-  for(const li of list.querySelectorAll('li[data-id]') as NodeListOf<HTMLElement>){
-    if(!open.has(li.dataset.id))continue;
-    li.classList.add('open');(li.querySelector('.checklist') as HTMLElement).hidden=false;li.querySelector('.toggle-list')!.setAttribute('aria-expanded','true');
-  }
-  $('#tasks-empty').hidden=visible(tasks,today).length>0;const left=remaining(tasks,today);$('#tasks-count').textContent=left?`${left} à faire`:tasks.list.length?'Tout est fait':'';
-  for(const k of ['habit','daily','todo'] as const){const n=k==='habit'?tasks.list.filter(t=>t.kind==='habit').length:tasks.list.filter(t=>t.kind===k&&!t.done&&(k==='todo'||isDue(t,today))).length;($(`[data-count=${k}]`) as HTMLElement).textContent=n?String(n):'';}
-  document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
-  renderTaskForm();drawIcons();
-}
-const emitUpdate=(id: string,patch: any)=>net.socket.emit('task:update',{userId:identity.userId,taskId:id,patch});
-$('#task-tabs').onclick=(e: any)=>{const b=e.target.closest('[data-kind]');if(!b)return;tasks.tab=b.dataset.kind;renderTasks();$('#task-text').focus();};
-$('#task-filter').onclick=(e: any)=>{const b=e.target.closest('[data-filter]');if(!b)return;tasks.filter=b.dataset.filter;renderTasks();};
-$('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
-$('#task-days').onclick=(e: any)=>{const b=e.target.closest('[data-day]');if(!b)return;newDays=toggleDay(newDays,Number(b.dataset.day));renderTaskForm();};
-$('#task-dirs').onclick=(e: any)=>{const b=e.target.closest('[data-dir]');if(!b)return;if(b.dataset.dir==='up')newUp=!newUp;else newDown=!newDown;if(!newUp&&!newDown)newUp=true;renderTaskForm();};
-$('#task-difficulty').onclick=()=>{newDifficulty=(newDifficulty+1)%DIFFICULTIES.length;renderTaskForm();};
-$('#task-more').onclick=()=>{optionsOpen=!optionsOpen;renderTaskForm();};
-$('#task-due').onchange=()=>renderTaskForm();
-$('#task-help-close').onclick=()=>{helpHidden=true;save('gamitask.taskHelp',true);renderTaskForm();};
-$('#task-help-toggle').onclick=()=>{helpHidden=false;save('gamitask.taskHelp',false);renderTaskForm();};
-$('#task-form').onsubmit=(e: any)=>{e.preventDefault();const text=cleanText(($('#task-text') as HTMLInputElement).value);if(!text)return;
-  const due=($('#task-due') as HTMLInputElement).value;const dueAt=due?new Date(due+'T12:00:00').getTime():null;
-  net.socket.emit('task:add',{userId:identity.userId,...newTaskPayload(tasks.tab,text,{difficulty:DIFFICULTIES[newDifficulty].id,category:newCategory,up:newUp,down:newDown,days:newDays,dueAt})});($('#task-text') as HTMLInputElement).value='';($('#task-due') as HTMLInputElement).value='';};
-$('#task-list').addEventListener('click',(e: Event)=>{
-  const target=e.target as HTMLElement,li=target.closest('li[data-id]') as HTMLElement|null;if(!li)return;const id=li.dataset.id!;const t=tasks.list.find(t=>t.id===id);if(!t)return;
-  const scoreBtn=target.closest('[data-dir]') as HTMLElement|null;
-  if(scoreBtn&&!target.closest('.checklist')){scoreBtn.setAttribute('disabled','');net.socket.emit('task:score',{userId:identity.userId,taskId:id,direction:scoreBtn.dataset.dir as 'up'|'down'});}
-  else if(target.closest('.cat-dot')){const i=CATEGORIES.findIndex(c=>c.id===t.category);emitUpdate(id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
-  else if(target.closest('.diff')){const i=DIFFICULTIES.findIndex(d=>d.id===t.difficulty);emitUpdate(id,{difficulty:DIFFICULTIES[(i+1)%DIFFICULTIES.length].id});}
-  else if(target.closest('.toggle-list')){const ul=li.querySelector('.checklist') as HTMLElement,b=li.querySelector('.toggle-list')!;ul.hidden=!ul.hidden;b.setAttribute('aria-expanded',String(!ul.hidden));li.classList.toggle('open',!ul.hidden);}
-  else if(target.closest('.checklist .check-button')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.map((i,j)=>j===idx?{...i,done:!i.done}:i)});}
-  else if(target.closest('.remove-item')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.filter((_,j)=>j!==idx)});}
-  else if(target.closest('.remove-task'))net.socket.emit('task:delete',{userId:identity.userId,taskId:id});
-});
-$('#task-list').addEventListener('keydown',(e: any)=>{
-  if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}
-  if(e.target.matches('.add-item input')&&e.key==='Enter'){e.preventDefault();const li=e.target.closest('li[data-id]'),t=tasks.list.find(t=>t.id===li.dataset.id);const text=cleanChecklistItem(e.target.value);if(!t||!text)return;emitUpdate(t.id,{checklist:[...t.checklist,{text,done:false}]});e.target.value='';}
-});
-$('#task-list').addEventListener('focusout',(e: Event)=>{const el=e.target as HTMLElement;if(!el.matches('.task-text'))return;const id=(el.closest('li[data-id]') as HTMLElement).dataset.id!;const t=tasks.list.find(t=>t.id===id);const text=cleanText(el.textContent);
-  if(!t||!text){if(t)el.textContent=t.text;return;}if(text!==t.text)emitUpdate(id,{text});});
-renderTasks();
-
+const tasksUi=createTasksUi({cafe:()=>cafe,socket:()=>net.socket,userId:()=>identity.userId});

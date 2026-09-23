@@ -12,6 +12,8 @@ export function drawIcons(){createIcons({icons,attrs:{'stroke-width':1.65}});}
 export function load(key: string,fallback: any): any{try{return JSON.parse(localStorage.getItem(key) as string)??fallback;}catch{return fallback;}}
 export function save(key: string,value: any){try{localStorage.setItem(key,JSON.stringify(value));}catch{/* The experience also works without persistent browser storage. */}}
 export const today=()=>new Date().toLocaleDateString('sv-SE');
+// Texte utilisateur dans du HTML : toujours par ici.
+export const esc=(v: string)=>v.replace(/[&<>"']/g,(c: string)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'} as Record<string,string>)[c]);
 
 // Une file : tâche faite, série et succès arrivent ensemble, chacun a son tour. Plus court quand d'autres attendent.
 const toasts: string[]=[];let toastBusy=false;
