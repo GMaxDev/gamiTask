@@ -242,3 +242,8 @@ dialog.card[open]{display:flex;flex-direction:column;max-height:calc(100vh - 40p
 .clock-chip{font-variant-numeric:tabular-nums;letter-spacing:.2px;cursor:default}
 
 .world .clock-chip{height:42px;padding:0 17px;gap:9px;font-family:Manrope,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.8px;font-variant-numeric:tabular-nums;color:#5d6b52;cursor:default}.world .clock-chip svg{width:19px;height:19px;opacity:.75}.world .clock-chip:hover{background:var(--chip-bg)}.field-rows input[type=checkbox]{width:auto;accent-color:#657757;margin:0}
+
+/* Panneau Paramètres : onglets, segmenté lumière, lignes à cocher */
+.panel-tabs{margin:0 0 4px}.panel-tabs button svg{width:13px;height:13px}.panel-pane h3{font-size:12px;letter-spacing:1.1px;text-transform:uppercase;font-weight:650;color:#8b917f;margin:18px 0 8px}.panel-pane h3:first-child{margin-top:4px}.panel-pane .kv+.kv{margin-top:6px}
+.segmented{display:flex;gap:3px;background:#f0f1e9;padding:4px;border-radius:9px}.segmented button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 4px;border-radius:6px;background:transparent;font-size:13px;color:#949a87}.segmented button svg{width:14px;height:14px}.segmented button[aria-pressed=true]{background:#fffefa;color:#627452;box-shadow:0 1px 5px #3e4e3410;font-weight:600}
+.panel-pane .field-rows label{gap:9px;justify-content:flex-start}.panel-pane .field-rows label>span:first-of-type{flex:1}.panel-pane .field-rows label svg{width:16px;height:16px;color:#8b9271;flex-shrink:0}.panel-pane .field-rows .sound-bars{margin:0 6px 0 0}.panel-pane .field-rows input[type=checkbox]{width:18px;height:18px;margin-left:auto}

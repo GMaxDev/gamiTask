@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon} from 'lucide';
+import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from './timer.ts';
@@ -25,7 +25,7 @@ import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNot
 import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
 import './style.css';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon};
+const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn};
 const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout this file.
 const $=(s: string): any=>document.querySelector(s);
@@ -69,7 +69,7 @@ $('#app').innerHTML=`
           <div class="chip-group view-controls"><button id="follow" class="chip icon active" title="Activer ou désactiver le suivi du personnage" aria-label="Suivre le personnage" aria-pressed="true">${icon('locate-fixed')}</button><span class="divider"></span><button id="zoom-out" class="chip icon" aria-label="Dézoomer">${icon('minus')}</button><output id="zoom-value">100%</output><button id="zoom-in" class="chip icon" aria-label="Zoomer">${icon('plus')}</button><span class="divider"></span><button id="recenter" class="chip icon" title="Vue initiale" aria-label="Recentrer la vue">${icon('rotate-ccw')}</button></div>
         </div>
       </div>
-      <div class="world-bottom"><div class="world-left"><div class="chip-group ambience-controls"><button id="light" class="chip" aria-label="Lumière de la scène"></button><button id="sound" class="chip" aria-pressed="false">${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span></button><button id="sfx" class="chip" aria-pressed="true">${icon('volume-2')}<span>Carillon</span></button><button id="notifs" class="chip" aria-pressed="true">${icon('bell')}<span>Notifs</span></button><button id="alerts-preview" class="chip icon" aria-label="Écouter les sons" title="Écouter les sons">${icon('music-2')}</button><span class="divider"></span><button id="help" class="chip icon" aria-label="Comment se déplacer" title="Comment se déplacer">${icon('help-circle')}</button></div></div></div>
+      <div class="world-bottom"><div class="world-left"><button id="open-panel" class="chip">${icon('settings-2')}<span>Paramètres</span></button></div></div>
       <div class="timer-dock">
         <div class="timer-tabs-top" role="tablist" aria-label="Minuteur"><button class="chip" role="tab" id="tab-solo" aria-selected="true" aria-controls="pane-solo">Solo</button><button class="chip" role="tab" id="tab-room" aria-selected="false" aria-controls="pane-room">Avec la salle<span class="tab-dot" id="room-dot" hidden></span><span class="tab-count" id="room-count" hidden>0</span></button></div>
         <section class="timer-hud timer-card" aria-label="Pomodoro">
@@ -138,24 +138,44 @@ $('#app').innerHTML=`
     <section><h3>Succès <span class="pill" id="achievements-count">0/7</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
   </div></dialog>
   <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><label>Focus avant la longue pause<input name="perCycle" type="number" min="2" max="12" required /></label><label>Enchaîner les phases<input name="autoChain" type="checkbox" /></label><label>S’asseoir en focus, se lever en pause<input name="seatOnFocus" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
-  <dialog id="sounds-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('music-2')}</span><span class="card-eyebrow">SONS ET ALERTES</span><h2>Écoute avant de choisir.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Tout ce que le café peut jouer. « Carillon » et « Notifs » se coupent séparément ; ici, l’écoute marche toujours.</p><ul class="sound-list">
-    <li><div><strong>Début de session</strong><small>Deux notes montantes, quand tu lances un pomodoro ou rejoins la salle.</small></div><button data-play="start">${icon('play')}<span>Écouter</span></button></li>
-    <li><div><strong>Fin de session</strong><small>Un carillon de trois notes, à la fin d’un focus ou d’une pause.</small></div><button data-play="end">${icon('play')}<span>Écouter</span></button></li>
-    <li><div><strong>Récompense</strong><small>Trois notes brèves, à chaque pièce ou point d’expérience gagné.</small></div><button data-play="reward">${icon('play')}<span>Écouter</span></button></li>
-    <li><div><strong>Notification système</strong><small>Le même message, hors de l’onglet. Ton navigateur doit l’autoriser.</small></div><button data-play="notify">${icon('bell')}<span>Tester</span></button></li>
-  </ul><p class="form-note">La pluie douce garde son propre bouton.</p></div></dialog>
-  <dialog id="help-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('mouse-pointer-2')}</span><span class="card-eyebrow">BIENVENUE</span><h2>Prends tes marques.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Ce petit coin est à toi. Prends tes marques.</p><ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul><p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p><button class="primary close-dialog">Je m’installe</button></div></dialog>
   <dialog id="identity-dialog" class="card card-sage"><form id="identity-form" method="dialog"><header class="card-head"><span class="card-icon">${icon('smile')}</span><span class="card-eyebrow">ON SE PRÉSENTE ?</span><h2>Un pseudo, une couleur.</h2></header><div class="card-body">
     <p>Un pseudo et une couleur, c’est tout ce qu’il faut pour entrer au café.</p>
     <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
     <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
   </div></form></dialog>
-  <dialog id="account-dialog" class="card card-plum"><header class="card-head"><span class="card-icon">${icon('user-cog')}</span><span class="card-eyebrow">MON COMPTE</span><h2>Toi, partout.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
-    <section><h3>Twitch</h3><div class="kv"><span class="kv-key">${icon('twitch')}<span>Chaîne</span></span><span class="pill" id="account-twitch-status">Non lié</span></div>
+  <dialog id="panel-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('settings-2')}</span><span class="card-eyebrow">PARAMÈTRES</span><h2>Le café, à ta main.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header>
+  <div class="task-tabs panel-tabs" role="tablist"><button role="tab" data-panel="ambiance" aria-selected="true">${icon('sun-moon')}Ambiance</button><button role="tab" data-panel="compte" aria-selected="false">${icon('user-cog')}Compte</button><button role="tab" data-panel="aide" aria-selected="false">${icon('help-circle')}Aide</button></div>
+  <div class="card-body">
+    <section class="panel-pane" data-pane="ambiance">
+      <h3>Lumière</h3>
+      <div class="segmented" id="light" role="radiogroup" aria-label="Lumière de la scène"><button data-light="auto">${icon('sun-moon')}<span>Auto</span></button><button data-light="day">${icon('sun')}<span>Plein jour</span></button><button data-light="evening">${icon('moon')}<span>Soirée</span></button></div>
+      <p class="form-note" id="light-note"></p>
+      <h3>Sons</h3>
+      <div class="field-rows"><label>${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span><input id="sound" type="checkbox" /></label><label>${icon('volume-2')}<span>Carillon du minuteur</span><input id="sfx" type="checkbox" /></label><label>${icon('bell')}<span>Notifications système</span><input id="notifs" type="checkbox" /></label></div>
+      <h3>Écouter</h3>
+      <ul class="sound-list">
+    <li><div><strong>Début de session</strong><small>Deux notes montantes, quand tu lances un pomodoro ou rejoins la salle.</small></div><button data-play="start">${icon('play')}<span>Écouter</span></button></li>
+    <li><div><strong>Fin de session</strong><small>Un carillon de trois notes, à la fin d’un focus ou d’une pause.</small></div><button data-play="end">${icon('play')}<span>Écouter</span></button></li>
+    <li><div><strong>Récompense</strong><small>Trois notes brèves, à chaque pièce ou point d’expérience gagné.</small></div><button data-play="reward">${icon('play')}<span>Écouter</span></button></li>
+    <li><div><strong>Notification système</strong><small>Le même message, hors de l’onglet. Ton navigateur doit l’autoriser.</small></div><button data-play="notify">${icon('bell')}<span>Tester</span></button></li>
+  </ul>
+    </section>
+    <section class="panel-pane" data-pane="compte" hidden>
+      <h3>Toi</h3>
+      <div class="kv"><span class="kv-key">${icon('smile')}<span>Pseudo</span></span><span class="pill" id="account-name"></span></div>
+      <div class="kv"><span class="kv-key">${icon('log-in')}<span>Connexion</span></span><span class="pill" id="account-mode"></span></div>
+      <p>Ton pseudo et ta couleur se changent depuis « Mon personnage », dans le menu en haut à droite.</p>
+      <section><h3>Twitch</h3><div class="kv"><span class="kv-key">${icon('twitch')}<span>Chaîne</span></span><span class="pill" id="account-twitch-status">Non lié</span></div>
     <p>Lie ta chaîne pour faire apparaître tes viewers dans ta salle, plus tard.</p>
     <button id="twitch-link" class="primary">${icon('link-2')}<span>Lier mon compte Twitch</span></button>
     <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button></section>
+    </section>
+    <section class="panel-pane" data-pane="aide" hidden>
+      <p>Ce petit coin est à toi. Prends tes marques.</p>
+      <ul class="help-list"><li>${icon('mouse-pointer-2')}<span><strong>Un clic au sol ou sur un siège</strong>Ton personnage s’y rend en contournant les meubles, et s’installe si c’est une chaise ou le canapé.</span></li><li>${icon('move')}<span><strong>Cliquer et glisser</strong>Explore le café en déplaçant la caméra.</span></li><li>${icon('plus')}<span><strong>Molette ou boutons + / −</strong>Rapproche-toi ou prends un peu de recul.</span></li><li>${icon('locate-fixed')}<span><strong>Suivi du personnage</strong>Réactive-le pour que la caméra t’accompagne.</span></li></ul>
+      <p class="form-note">Au clavier : sélectionne la scène, puis utilise les flèches. L’orientation de la vue reste toujours fixe.</p>
+    </section>
   </div></dialog>
   <dialog id="guests-dialog" class="card card-sage"><header class="card-head"><span class="card-icon">${icon('home')}</span><span class="card-eyebrow">MA PIÈCE</span><h2>Ta pièce, tes invités.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body">
     <section><h3>Inviter</h3><p>Envoie ce lien à quelqu’un pour l’inviter directement chez toi.</p>
@@ -210,6 +230,7 @@ function maybeReady(){if(ready.room&&ready.tasks&&!pendingHome)showVeil(null);}
 const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined)??'';
 let twitch:{login:string|null;displayName:string|null}={login:null,displayName:null};
 function renderAccount(){
+  $('#account-name').textContent=identity.name||'—';$('#account-mode').textContent=load('gamitask.token',null)?'Google':'Invité·e';
   const linked=!!twitch.login;
   const st=$('#account-twitch-status') as HTMLElement;st.textContent=linked?`Lié · ${twitch.displayName||twitch.login}`:'Non lié';st.classList.toggle('on',linked);
   ($('#twitch-link') as HTMLElement).hidden=linked;($('#twitch-unlink') as HTMLElement).hidden=!linked;
@@ -222,7 +243,14 @@ function applyAuthUser(u:{userId:string;token:string;name:string;color:number;tw
   twitch={login:u.twitchLogin??null,displayName:u.twitchDisplayName??null};renderAccount();
   ($('#account-button') as HTMLElement).hidden=false;
 }
-($('#account-button') as HTMLButtonElement).onclick=()=>{renderAccount();($('#account-dialog') as HTMLDialogElement).showModal();};
+function openPanel(tab: 'ambiance'|'compte'|'aide'='ambiance'){
+  document.querySelectorAll('.panel-tabs [data-panel]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.panel===tab)));
+  document.querySelectorAll('.panel-pane').forEach((p: any)=>p.hidden=p.dataset.pane!==tab);
+  renderAccount();if(!$('#panel-dialog').open)($('#panel-dialog') as HTMLDialogElement).showModal();
+}
+$('#open-panel').onclick=()=>openPanel();
+document.querySelectorAll('.panel-tabs [data-panel]').forEach((b: any)=>b.onclick=()=>openPanel(b.dataset.panel));
+($('#account-button') as HTMLButtonElement).onclick=()=>openPanel('compte');
 ($('#twitch-link') as HTMLButtonElement).onclick=async()=>{
   const token=load('gamitask.token',null);if(!token){toast('Connecte-toi avec Google pour lier Twitch.');return;}
   const r=await startTwitchLink(API_URL,token);
@@ -495,16 +523,14 @@ function applyLight(){
   cafe?.setDaylight(night);$('.world').classList.toggle('evening',night>.5);
 }
 function renderLightChip(){
-  const ui=LIGHT_UI[lightMode];$('#light').innerHTML=icon(ui.icon)+`<span>${ui.label}</span>`;
-  $('#light').setAttribute('title',lightMode==='auto'?`Suit l’heure — ${momentLabel()}`:'Lumière figée, clique pour changer');
-  drawIcons();
+  document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.light===lightMode)));
+  $('#light-note').textContent=lightMode==='auto'?`La lumière suit l’heure — en ce moment, ${momentLabel()}.`:'Lumière figée, quelle que soit l’heure.';
 }
-$('#light').onclick=()=>{lightMode=LIGHT_UI[lightMode].next;save('gamitask.light',lightMode);renderLightChip();applyLight();toast(LIGHT_UI[lightMode].toast);};
-function renderClock(){$('#clock-time').textContent=clockLabel();if(lightMode==='auto')$('#light').setAttribute('title',`Suit l’heure — ${momentLabel()}`);}
+document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.onclick=()=>{lightMode=b.dataset.light;save('gamitask.light',lightMode);renderLightChip();applyLight();toast(LIGHT_UI[lightMode].toast);});
+function renderClock(){$('#clock-time').textContent=clockLabel();if(lightMode==='auto')renderLightChip();}
 // Une minute de lumière à la fois : la courbe bouge lentement, inutile de la recalculer à chaque image.
 setInterval(()=>{renderClock();if(lightMode==='auto')applyLight();},10000);
 renderClock();renderLightChip();applyLight();
-$('#help').onclick=()=>$('#help-dialog').showModal();
 $('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
 let drawerTab='tasks';
@@ -863,20 +889,15 @@ function rewardChime(){const now=Date.now();if(now-lastReward<600)return;lastRew
 function askNotify(){try{if(notifs&&typeof Notification!=='undefined'&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});}catch{}}
 function notify(title: string,body: string){if(notifs)showNotify(title,body);}
 function showNotify(title: string,body: string){try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,icon:'/favicon.svg',tag:'gamitask-pomo'});}catch{}}
-function renderAlerts(){
-  $('#sfx').setAttribute('aria-pressed',String(sfx));$('#sfx').innerHTML=icon(sfx?'volume-2':'volume-x')+`<span>${sfx?'Carillon':'Carillon coupé'}</span>`;
-  $('#notifs').setAttribute('aria-pressed',String(notifs));$('#notifs').innerHTML=icon(notifs?'bell':'bell-off')+`<span>${notifs?'Notifs':'Notifs coupées'}</span>`;
-  drawIcons();
-}
+function renderAlerts(){$('#sfx').checked=sfx;$('#notifs').checked=notifs;}
 renderAlerts();
-$('#sfx').onclick=()=>{sfx=!sfx;save('gamitask.sfx',sfx);renderAlerts();if(sfx)playChime('start');toast(sfx?'Les carillons sont de retour.':'Carillons coupés. Les notifications restent.');};
-$('#notifs').onclick=()=>{notifs=!notifs;save('gamitask.notifs',notifs);renderAlerts();if(notifs)askNotify();toast(notifs?'Les notifications sont activées.':'Notifications coupées. Les carillons restent.');};
-$('#alerts-preview').onclick=()=>$('#sounds-dialog').showModal();
-$('#sounds-dialog').addEventListener('click',(e: Event)=>{const b=(e.target as HTMLElement).closest('[data-play]') as HTMLElement|null;if(!b)return;
+$('#sfx').onchange=()=>{sfx=$('#sfx').checked;save('gamitask.sfx',sfx);if(sfx)playChime('start');toast(sfx?'Les carillons sont de retour.':'Carillons coupés. Les notifications restent.');};
+$('#notifs').onchange=()=>{notifs=$('#notifs').checked;save('gamitask.notifs',notifs);if(notifs)askNotify();toast(notifs?'Les notifications sont activées.':'Notifications coupées. Les carillons restent.');};
+$('#panel-dialog').addEventListener('click',(e: Event)=>{const b=(e.target as HTMLElement).closest('[data-play]') as HTMLElement|null;if(!b)return;
   if(b.dataset.play==='notify'){try{Notification.requestPermission().then(()=>showNotify('Le café te fait signe','Voilà à quoi ressemblera une alerte.'));}catch{toast('Les notifications ne sont pas disponibles ici.');}}
   else playChime(b.dataset.play as Chime);});
-$('#sound').onclick=()=>{
-  const ctx=ensureAudio();if(!ctx){toast('Le son n’est pas disponible dans ce navigateur.');return;}
+$('#sound').onchange=()=>{
+  const ctx=ensureAudio();if(!ctx){$('#sound').checked=false;toast('Le son n’est pas disponible dans ce navigateur.');return;}
   if(!rain){const buffer=ctx.createBuffer(1,ctx.sampleRate*4,ctx.sampleRate),data=buffer.getChannelData(0);let last=0;for(let i=0;i<data.length;i++){last=(last+Math.random()*.04-.02)/1.02;data[i]=last*4;}rain=ctx.createBufferSource();rain.buffer=buffer;rain.loop=true;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=1600;rainGain=ctx.createGain();rainGain.gain.value=0;rain.connect(filter);filter.connect(rainGain);rainGain.connect(ctx.destination);rain.start();}
-  soundOn=!soundOn;rainGain.gain.setTargetAtTime(soundOn?.35:0,ctx.currentTime,.3);$('#sound').setAttribute('aria-pressed',String(soundOn));$('#sound').classList.toggle('playing',soundOn);toast(soundOn?'Un fond de pluie pour se concentrer.':'Le calme, tout simplement.');
+  soundOn=$('#sound').checked;rainGain.gain.setTargetAtTime(soundOn?.35:0,ctx.currentTime,.3);$('#sound').closest('label').classList.toggle('playing',soundOn);toast(soundOn?'Un fond de pluie pour se concentrer.':'Le calme, tout simplement.');
 };
