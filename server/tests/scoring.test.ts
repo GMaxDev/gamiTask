@@ -43,10 +43,10 @@ test("rewards round the delta into coins and xp", () => {
   assert.deepEqual(rewards(0.1), { coins: 1, xp: 2 });
 });
 
-test("energy loss is 3 per delta and nothing under the immunity level", () => {
-  assert.equal(energyLoss(1, 3), 3);
-  assert.equal(energyLoss(2.6, 10), 8);
-  assert.equal(energyLoss(1, 2), 0);
+test("energy loss is 3 per delta, from level 0", () => {
+  assert.equal(energyLoss(1), 3);
+  assert.equal(energyLoss(2.6), 8);
+  assert.equal(energyLoss(0.1), 0);
 });
 
 test("value is clamped and tint has five steps", () => {
@@ -60,7 +60,6 @@ test("level curve is the one index.ts used", () => {
   assert.equal(levelOf(0), 0); assert.equal(levelOf(50), 1); assert.equal(levelOf(1250), 5);
 });
 
-const LVL = 10; // au-dessus de l'immunité
 const DAY = 86_400_000;
 // 2026-09-22 est un mardi. Minuit local Paris (UTC+2 → tzOffset -120 comme le renvoie getTimezoneOffset).
 const TUE = Date.UTC(2026, 8, 21, 22, 0, 0); // mardi 00:00 Paris
@@ -68,34 +67,34 @@ const TZ = -120;
 
 test("habit up adds value and rewards; down loses energy", () => {
   const h = task({ kind: "habit", up: true, down: true });
-  const up = score(h, "up", LVL)!;
+  const up = score(h, "up")!;
   assert.equal(up.task.countUp, 1); assert.equal(up.task.value, 1); assert.equal(up.coins, 10); assert.equal(up.energyDelta, 0);
-  const down = score(h, "down", LVL)!;
+  const down = score(h, "down")!;
   assert.equal(down.task.countDown, 1); assert.equal(down.task.value, -1); assert.equal(down.coins, 0); assert.equal(down.energyDelta, -3);
-  assert.equal(score(task({ kind: "habit", down: false }), "down", LVL), null);
-  assert.equal(score(task({ kind: "habit", up: false }), "up", LVL), null);
+  assert.equal(score(task({ kind: "habit", down: false }), "down"), null);
+  assert.equal(score(task({ kind: "habit", up: false }), "up"), null);
 });
 
 test("daily up ticks, streaks and gives +1 energy; down unticks and takes it back", () => {
   const d = task({ kind: "daily", streak: 4 });
-  const up = score(d, "up", LVL)!;
+  const up = score(d, "up")!;
   assert.equal(up.task.done, true); assert.equal(up.task.streak, 5); assert.equal(up.energyDelta, 1); assert.equal(up.coins, 10);
-  assert.equal(score(up.task, "up", LVL), null);
-  const down = score(up.task, "down", LVL)!;
+  assert.equal(score(up.task, "up"), null);
+  const down = score(up.task, "down")!;
   assert.equal(down.task.done, false); assert.equal(down.task.streak, 4); assert.equal(down.coins, -10); assert.equal(down.xp, -15);
   assert.equal(down.energyDelta, 0);
-  assert.equal(score(d, "down", LVL), null);
+  assert.equal(score(d, "down"), null);
 });
 
 test("todo completes with a timestamp and can be undone", () => {
-  const up = score(task(), "up", LVL)!;
+  const up = score(task(), "up")!;
   assert.equal(up.task.done, true); assert.ok(up.task.completedAt! > 0);
-  const down = score(up.task, "down", LVL)!;
+  const down = score(up.task, "down")!;
   assert.equal(down.task.done, false); assert.equal(down.task.completedAt, null);
 });
 
 test("score never pushes value past the bounds", () => {
-  assert.equal(score(task({ kind: "habit", value: 24.8 }), "up", LVL)!.task.value, 25);
+  assert.equal(score(task({ kind: "habit", value: 24.8 }), "up")!.task.value, 25);
 });
 
 test("dayBit and isDue follow the Monday=1 bitmask", () => {
@@ -118,7 +117,7 @@ test("rollover punishes yesterday's due dailies, resets ticks and counters, ages
   const habit = task({ id: "h", kind: "habit", countUp: 3, countDown: 1 });
   const todo = task({ id: "o", value: 1 });
   const done = task({ id: "d", done: true, value: 1 });
-  const r = rollover([missed, notDue, ticked, habit, todo, done], TUE - DAY, TUE + 3_600_000, TZ, LVL);
+  const r = rollover([missed, notDue, ticked, habit, todo, done], TUE - DAY, TUE + 3_600_000, TZ);
   const by = Object.fromEntries(r.tasks.map((t) => [t.id, t]));
   assert.equal(r.days, 1);
   assert.deepEqual(r.missed.map((t) => t.id), ["m"]);
@@ -132,16 +131,16 @@ test("rollover punishes yesterday's due dailies, resets ticks and counters, ages
 
 test("rollover replays each missed day, caps the energy loss and stops at 30 days", () => {
   const d = task({ kind: "daily", difficulty: "hard" });
-  const three = rollover([d], TUE - 5 * DAY, TUE, TZ, LVL);
+  const three = rollover([d], TUE - 5 * DAY, TUE, TZ);
   assert.equal(three.days, 5);
   assert.ok(three.tasks[0].value < -5);
   assert.equal(three.energyDelta, -CRON_ENERGY_CAP);
-  const long = rollover([task({ kind: "daily" })], TUE - 40 * DAY, TUE, TZ, LVL);
+  const long = rollover([task({ kind: "daily" })], TUE - 40 * DAY, TUE, TZ);
   assert.equal(long.days, 0); assert.equal(long.energyDelta, 0); assert.equal(long.tasks[0].value, 0);
 });
 
 test("rollover does nothing twice in the same day", () => {
-  const r = rollover([task({ kind: "daily" })], TUE, TUE + 3_600_000, TZ, LVL);
+  const r = rollover([task({ kind: "daily" })], TUE, TUE + 3_600_000, TZ);
   assert.equal(r.days, 0); assert.equal(r.missed.length, 0);
 });
 

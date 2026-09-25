@@ -703,7 +703,7 @@ function runRollover(
   const now = Date.now();
   // Même journée locale déjà traitée : rien à faire (un rollover > 30 jours renvoie aussi days = 0 mais doit écrire ses remises à zéro, d'où le test sur les minuits et pas sur r.days).
   if ((user.lastDailyResetAt ?? 0) > 0 && startOfDay(user.lastDailyResetAt, tz) === startOfDay(now, tz)) { sql.saveDailyReset.run(startOfDay(now, tz), tz, userId); return; }
-  const r = rollover(userTasks(userId), user.lastDailyResetAt ?? 0, now, tz, levelOf(user.xp ?? 0));
+  const r = rollover(userTasks(userId), user.lastDailyResetAt ?? 0, now, tz);
   sql.saveDailyReset.run(startOfDay(now, tz), tz, userId);
   const write = db.transaction((tasks: Task[]) => { for (const t of tasks) sql.updateTask.run(taskToRow(t)); });
   write(r.tasks);
@@ -919,7 +919,6 @@ function pomoTick(
           }
         }
       }
-      broadcastLeaderboard(io, room);
     } else {
       nextPhase = "focus";
     }
@@ -1027,32 +1026,6 @@ configureTwitchNpcs(
     return false;
   },
 );
-
-// Leaderboard par room : chaque room voit son propre classement
-function broadcastLeaderboard(
-  io: Server<ClientToServerEvents, ServerToClientEvents>,
-  room: RoomState,
-): void {
-  const entries = Array.from(room.players.values())
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      coins: p.coins ?? 0,
-      state: p.state,
-    }))
-    .sort((a, b) => b.coins - a.coins);
-  io.to(room.id).emit("leaderboard-update", entries);
-}
-
-/** Broadcast leaderboard for a socket's current room (convenience). */
-function broadcastLeaderboardForSocket(
-  io: Server<ClientToServerEvents, ServerToClientEvents>,
-  socketId: string,
-): void {
-  const r = getRoom(socketId);
-  if (r) broadcastLeaderboard(io, r);
-}
 
 /** Emit to all sockets in the sender's room except the sender. */
 function broadcastToOwnRoom<E extends keyof ServerToClientEvents>(
@@ -1166,10 +1139,6 @@ io.on("connection", (socket) => {
       previousSocket?.leave(prevRoomId ?? targetRoomId);
       previousSocket?.emit("session:replaced");
     }
-    for (const rid of affectedRooms) {
-      const r = rooms.get(rid);
-      if (r) broadcastLeaderboard(io, r);
-    }
 
     // Capacity check (après kick des sockets précédentes du même user pour éviter un faux full)
     if (targetRoom.players.size >= targetRoom.capacity) {
@@ -1261,7 +1230,6 @@ io.on("connection", (socket) => {
       positions: furniturePositionsPayload,
     });
     runRollover(socket, userId, tzOffsetMinutes);
-    broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
   });
 
@@ -1294,7 +1262,6 @@ io.on("connection", (socket) => {
     currentRoom.players.delete(socket.id);
     socket.to(currentRoom.id).emit("player-left", { id: socket.id });
     socket.leave(currentRoom.id);
-    broadcastLeaderboard(io, currentRoom);
     broadcastPomoState(io, currentRoom);
 
     // Re-spawn at entry point
@@ -1322,7 +1289,6 @@ io.on("connection", (socket) => {
     socket.emit("room-state", otherPlayers);
     socket.emit("npc:state", roomNpcSnapshot(roomId));
     socket.emit("pomo:state", pomoState(targetRoom));
-    broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
     console.log(`[room:switch] ${existing.name} ${currentRoom.id} → ${roomId}${userId ? " (" + userId.slice(0, 6) + ")" : ""}`);
   });
@@ -1364,7 +1330,6 @@ io.on("connection", (socket) => {
 
     room.players.delete(targetSocketId);
     io.to(room.id).emit("player-left", { id: targetSocketId });
-    broadcastLeaderboard(io, room);
     broadcastRoomsList(io);
 
     const targetSocket = io.sockets.sockets.get(targetSocketId);
@@ -1381,7 +1346,6 @@ io.on("connection", (socket) => {
       targetSocket.emit("room-state", others);
       targetSocket.emit("npc:state", roomNpcSnapshot(fallback.id));
       targetSocket.emit("room:kicked", { until });
-      broadcastLeaderboard(io, fallback);
     }
     console.log(`[room:kick] ${target.name} ← ${room.id} by ${callerUserId.slice(0, 6)} (${until === null ? "permanent" : `until ${new Date(until).toISOString()}`})`);
   });
@@ -1409,7 +1373,6 @@ io.on("connection", (socket) => {
     if (!p) return;
     p.state = state;
     broadcastToOwnRoom(socket,"player-state", { id: socket.id, state });
-    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   socket.on("chat", ({ text }) => {
@@ -1537,7 +1500,7 @@ io.on("connection", (socket) => {
     if (!row) return;
     const user = sql.getUser.get(userId) as UserRow;
     const level = levelOf(user.xp ?? 0);
-    const r = score(rowToTask(row), direction, level);
+    const r = score(rowToTask(row), direction);
     if (!r) return;
     sql.updateTask.run(taskToRow(r.task));
     // Pièces : gain de la coche + bonus mobilier appliqué signé (symétrique tick/untick), plancher 0.
@@ -1579,7 +1542,6 @@ io.on("connection", (socket) => {
       p.pendingTaskIds = userTasks(userId).filter(isPending).map((t) => t.id);
       broadcastToOwnRoom(socket, "tasks:public-update", { socketId: socket.id, taskIds: p.pendingTaskIds });
     }
-    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   // ── Acheter un meuble (Feng Shui) ────────────────────────────────────────────────────
@@ -1612,7 +1574,6 @@ io.on("connection", (socket) => {
     });
     const p = getPlayer(socket.id);
     if (p) p.coins = newCoins;
-    broadcastLeaderboardForSocket(io, socket.id);
   });
   // ── Déplacer un meuble (Feng Shui) ─────────────────────────────────────────────
   socket.on("furniture:move", ({ itemId, col, row }) => {
@@ -1734,7 +1695,6 @@ io.on("connection", (socket) => {
     });
     const p = getPlayer(socket.id);
     if (p) p.coins = newCoins;
-    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   // ── Équiper / déséquiper un cosmétique ───────────────────────────────────────────
@@ -1833,7 +1793,6 @@ io.on("connection", (socket) => {
     if (setB.xpPomo > 0) emitXpUpdate(socket, userId, setB.xpPomo);
     const p = getPlayer(socket.id);
     if (p) p.coins = coins;
-    broadcastLeaderboardForSocket(io, socket.id);
   });
 
   // ── Pomodoro collectif (par room) ────────────────────────────────────────
@@ -1870,7 +1829,6 @@ io.on("connection", (socket) => {
       room.players.delete(socket.id);
       socket.to(room.id).emit("player-left", { id: socket.id });
       if (leavePomo(room, socket.id)) broadcastPomoState(io, room);
-      broadcastLeaderboard(io, room);
       broadcastRoomsList(io);
     }
     socketToRoom.delete(socket.id);

@@ -7,8 +7,6 @@ export const VALUE_MIN = -25;
 export const VALUE_MAX = 25;
 export const DELTA_CAP = 3;
 export const ENERGY_MAX = 50;
-/** Pas de perte d'énergie avant ce niveau. */
-export const IMMUNITY_LEVEL = 3;
 /** Perte d'énergie maximale par cron, tous les jours manqués confondus. */
 export const CRON_ENERGY_CAP = 20;
 export const MAX_ROLLOVER_DAYS = 30;
@@ -33,8 +31,8 @@ export function rewards(d: number): { coins: number; xp: number } {
   return { coins: Math.round(10 * d), xp: Math.round(15 * d) };
 }
 
-export function energyLoss(d: number, level: number): number {
-  return level < IMMUNITY_LEVEL ? 0 : Math.round(3 * d);
+export function energyLoss(d: number): number {
+  return Math.round(3 * d);
 }
 
 /** Bonus mobilier appliqué signé : positif sur un gain, négatif (symétrique) sur un retrait. */
@@ -66,7 +64,7 @@ export interface ScoreResult {
 }
 
 /** Applique une coche. Renvoie null quand l'action n'a pas de sens pour ce kind / cet état. */
-export function score(t: Task, direction: "up" | "down", level: number, now = Date.now()): ScoreResult | null {
+export function score(t: Task, direction: "up" | "down", now = Date.now()): ScoreResult | null {
   const d = delta(t);
   const r = rewards(d);
   const none = { coins: 0, xp: 0 };
@@ -76,7 +74,7 @@ export function score(t: Task, direction: "up" | "down", level: number, now = Da
       return { task: { ...t, countUp: t.countUp + 1, value: clampValue(t.value + d) }, ...r, energyDelta: 0 };
     }
     if (!t.down) return null;
-    return { task: { ...t, countDown: t.countDown + 1, value: clampValue(t.value - d) }, ...none, energyDelta: -energyLoss(d, level) };
+    return { task: { ...t, countDown: t.countDown + 1, value: clampValue(t.value - d) }, ...none, energyDelta: -energyLoss(d) };
   }
   if (direction === "up") {
     if (t.done) return null;
@@ -126,7 +124,7 @@ export interface RolloverResult {
  * Cron : pour chaque jour manqué entre lastResetAt (exclu) et aujourd'hui (inclus),
  * punit les quotidiennes dues la veille et non cochées, décoche, remet les compteurs, vieillit les todo.
  */
-export function rollover(tasks: Task[], lastResetAt: number, now: number, tzOffsetMinutes: number, level: number): RolloverResult {
+export function rollover(tasks: Task[], lastResetAt: number, now: number, tzOffsetMinutes: number): RolloverResult {
   const today = startOfDay(now, tzOffsetMinutes);
   const last = startOfDay(lastResetAt, tzOffsetMinutes);
   const DAY = 86_400_000;
@@ -143,7 +141,7 @@ export function rollover(tasks: Task[], lastResetAt: number, now: number, tzOffs
       if (t.kind === "daily") {
         if (!t.done && isDue(t, yesterday)) {
           const d = delta(t);
-          energyDelta -= energyLoss(d, level);
+          energyDelta -= energyLoss(d);
           if (i === days - 1) missed.push(t);
           return { ...t, value: clampValue(t.value - d), streak: 0 };
         }

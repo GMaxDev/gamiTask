@@ -295,15 +295,6 @@ export interface ServerToClientEvents {
     session: number;
     names: string[];// who was in the session when the phase turned
   }) => void;
-  "leaderboard-update": (
-    entries: Array<{
-      id: string;
-      name: string;
-      color: number;
-      coins: number;
-      state: AvatarState;
-    }>,
-  ) => void;
   "task:completed-public": (payload: { socketId: string }) => void;
   "tasks:public-update": (payload: {
     socketId: string;

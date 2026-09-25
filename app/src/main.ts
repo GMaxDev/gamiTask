@@ -8,7 +8,6 @@ import {loadLook,type Look} from './look.ts';
 import {createEditor} from './editor.ts';
 import {createWorkshop} from './workshop.ts';
 import {ensureCsg,csgReady,needsCsg} from './recipe.ts';
-import {createBoard} from './board.ts';
 import {connect,type Net} from './net.ts';
 import {toCell,DIMS} from './coords.ts';
 import type {RoomKind} from './coords.ts';
@@ -199,7 +198,6 @@ const chat=createChat($('.world-left') as HTMLElement,{
   myName:()=>identity.name,
   onMention:ambience.mentionChime,
 });
-const board=createBoard($('.hud-top') as HTMLElement,{meId:()=>net?.socket.id??''});drawIcons();
 // the chat stays closed until asked for: an empty thread is noise on the first screen of a focus tool
 let chatRoomKnown=false;
 const roomLabel=()=>ROOM_UI[room].chat;
@@ -220,7 +218,7 @@ const workshop=createWorkshop($('#app') as HTMLElement,{items:()=>catalog,save(i
 $('#workshop-btn').onclick=()=>{($('#identity-menu') as HTMLDetailsElement).open=false;if(role!=='user')workshop.open();};
 function openEditor(){
   if(editing||!cafe||switching||placingId)return;editing=true;
-  openDrawer(false);board.close();($('.world') as HTMLElement).classList.add('editing');hudInert(true);
+  openDrawer(false);($('.world') as HTMLElement).classList.add('editing');hudInert(true);
   editor.open(look,identity.name,shop.hats);cafe.enterEditor();
 }
 function closeEditor(){
@@ -410,7 +408,6 @@ function bindServerEvents(){
   s.on('npc:moved',({id,col,row})=>cafe?.moveRemote(id,col,row));
   s.on('npc:left',({id})=>cafe?.removeRemote(id));
   s.on('chat-message',msg=>{const mine=msg.id===s.id,text=decodeEntities(msg.text);chat.add({...msg,mine});if(mine)cafe?.sayMe(msg.name,msg.color,text);else cafe?.say(msg.id,msg.name,msg.color,text);});
-  s.on('leaderboard-update',entries=>{board.update(entries);drawIcons();});
   s.on('tasks:public-update',({socketId,taskIds})=>cafe?.setTodo(socketId,taskIds.length));
   // the server sends a completion to the rest of the room only: our own +10 already shows up as a toast
   s.on('task:completed-public',({socketId})=>{if(socketId!==s.id)cafe?.float(socketId,'+10');});

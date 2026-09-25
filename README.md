@@ -50,7 +50,7 @@ L'éditeur v2 règle le visage au détail (yeux, sourcils, nez, bouche, avec cur
 
 Trois types, comme Habitica : **habitudes** (boutons + / −, cochables plusieurs fois par jour, compteurs remis à zéro chaque matin), **quotidiennes** (jours de la semaine, série, ratée = perte d'énergie) et **à-faire** (une fois, date butoir facultative, checklist qui augmente la récompense). Chaque tâche a une difficulté (Banal / Facile / Moyen / Difficile) et une valeur cachée qui monte quand on la tient et baisse quand on la rate : elle teinte la ligne et l'ardoise dans la pièce, et module les gains (`delta = 0,9747^valeur × difficulté`, plafonné à 3 ; pièces = 10·delta, XP = 15·delta, dégâts au boss = 5·delta). Les règles sont dans `server/src/scoring.ts`, partagé avec le client.
 
-L'**énergie** (0-50, jauge ☕ dans le HUD) remplace la dégradation : −3·delta par quotidienne ratée ou habitude « − » (immunité sous le niveau 3), +1 par tâche réussie, rechargée au level-up. À 0 : −30 % des pièces et un personnage épuisé jusqu'au lendemain. Le cron tourne à la première connexion du jour (`runRollover`, fuseau du client via `tzOffsetMinutes` dans `join`) et rejoue jusqu'à 30 jours manqués, perte plafonnée à 20.
+L'**énergie** (0-50, jauge ☕ dans le HUD) remplace la dégradation : −3·delta par quotidienne ratée ou habitude « − », +1 par tâche réussie, rechargée au level-up. À 0 : −30 % des pièces et un personnage épuisé jusqu'au lendemain. Le cron tourne à la première connexion du jour (`runRollover`, fuseau du client via `tzOffsetMinutes` dans `join`) et rejoue jusqu'à 30 jours manqués, perte plafonnée à 20.
 
 ## Comptes et rôles
 
