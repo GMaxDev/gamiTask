@@ -1089,6 +1089,18 @@ function broadcastPomoState(
   io.to(room.id).emit("pomo:state", pomoState(room));
 }
 
+/** Drops a socket from the room pomodoro, stopping the timer when nobody is left. Returns false if it was not a participant. */
+function leavePomo(room: RoomState, socketId: string): boolean {
+  if (!room.pomoParticipants.delete(socketId)) return false;
+  room.sharedPomo.participants = room.pomoParticipants.size;
+  if (room.pomoParticipants.size === 0 && room.sharedPomo.intervalId) {
+    clearInterval(room.sharedPomo.intervalId);
+    room.sharedPomo.intervalId = null;
+    room.sharedPomo.running = false;
+  }
+  return true;
+}
+
 function startPomoIfNeeded(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
   room: RoomState,
@@ -1249,15 +1261,7 @@ io.on("connection", (socket) => {
         const prevRoom = rooms.get(prevRoomId);
         if (!prevRoom) continue;
         prevRoom.players.delete(previousSocketId);
-        if (prevRoom.pomoParticipants.delete(previousSocketId)) {
-          prevRoom.sharedPomo.participants = prevRoom.pomoParticipants.size;
-          if (prevRoom.pomoParticipants.size === 0 && prevRoom.sharedPomo.intervalId) {
-            clearInterval(prevRoom.sharedPomo.intervalId);
-            prevRoom.sharedPomo.intervalId = null;
-            prevRoom.sharedPomo.running = false;
-          }
-          broadcastPomoState(io, prevRoom);
-        }
+        if (leavePomo(prevRoom, previousSocketId)) broadcastPomoState(io, prevRoom);
         io.to(prevRoom.id).emit("player-left", { id: previousSocketId });
         affectedRooms.add(prevRoomId);
       }
@@ -1388,15 +1392,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Leave pomo participation if any
-    if (currentRoom.pomoParticipants.delete(socket.id)) {
-      currentRoom.sharedPomo.participants = currentRoom.pomoParticipants.size;
-      if (currentRoom.pomoParticipants.size === 0 && currentRoom.sharedPomo.intervalId) {
-        clearInterval(currentRoom.sharedPomo.intervalId);
-        currentRoom.sharedPomo.intervalId = null;
-        currentRoom.sharedPomo.running = false;
-      }
-    }
+    leavePomo(currentRoom, socket.id); // broadcastPomoState follows below either way
 
     // Remove from old room
     currentRoom.players.delete(socket.id);
@@ -1968,14 +1964,7 @@ io.on("connection", (socket) => {
   socket.on("pomo:leave", () => {
     const room = getRoom(socket.id);
     if (!room) return;
-    if (!room.pomoParticipants.delete(socket.id)) return;
-    room.sharedPomo.participants = room.pomoParticipants.size;
-    if (room.pomoParticipants.size === 0 && room.sharedPomo.intervalId) {
-      clearInterval(room.sharedPomo.intervalId);
-      room.sharedPomo.intervalId = null;
-      room.sharedPomo.running = false;
-    }
-    broadcastPomoState(io, room);
+    if (leavePomo(room, socket.id)) broadcastPomoState(io, room);
   });
 
   socket.on("disconnect", () => {
@@ -1984,15 +1973,7 @@ io.on("connection", (socket) => {
     if (room) {
       room.players.delete(socket.id);
       socket.to(room.id).emit("player-left", { id: socket.id });
-      if (room.pomoParticipants.delete(socket.id)) {
-        room.sharedPomo.participants = room.pomoParticipants.size;
-        if (room.pomoParticipants.size === 0 && room.sharedPomo.intervalId) {
-          clearInterval(room.sharedPomo.intervalId);
-          room.sharedPomo.intervalId = null;
-          room.sharedPomo.running = false;
-        }
-        broadcastPomoState(io, room);
-      }
+      if (leavePomo(room, socket.id)) broadcastPomoState(io, room);
       broadcastLeaderboard(io, room);
       broadcastRoomsList(io);
     }
