@@ -8,7 +8,6 @@ import {tint,isDue} from '../../server/src/scoring.ts';
 export interface TasksDeps{
   cafe(): any;// la scène courante, ou null avant le premier montage
   socket(): any;// la socket du café
-  userId(): string;
 }
 export type TasksUi=ReturnType<typeof createTasksUi>;
 
@@ -58,7 +57,7 @@ export function createTasksUi(deps: TasksDeps){
     document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
     renderTaskForm();drawIcons();
   }
-  const emitUpdate=(id: string,patch: any)=>deps.socket().emit('task:update',{userId:deps.userId(),taskId:id,patch});
+  const emitUpdate=(id: string,patch: any)=>deps.socket().emit('task:update',{taskId:id,patch});
   $('#task-tabs').onclick=(e: any)=>{const b=e.target.closest('[data-kind]');if(!b)return;tasks.tab=b.dataset.kind;renderTasks();$('#task-text').focus();};
   $('#task-filter').onclick=(e: any)=>{const b=e.target.closest('[data-filter]');if(!b)return;tasks.filter=b.dataset.filter;renderTasks();};
   $('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
@@ -71,17 +70,17 @@ export function createTasksUi(deps: TasksDeps){
   $('#task-help-toggle').onclick=()=>{helpHidden=false;save('gamitask.taskHelp',false);renderTaskForm();};
   $('#task-form').onsubmit=(e: any)=>{e.preventDefault();const text=cleanText(($('#task-text') as HTMLInputElement).value);if(!text)return;
     const due=($('#task-due') as HTMLInputElement).value;const dueAt=due?new Date(due+'T12:00:00').getTime():null;
-    deps.socket().emit('task:add',{userId:deps.userId(),...newTaskPayload(tasks.tab,text,{difficulty:DIFFICULTIES[newDifficulty].id,category:newCategory,up:newUp,down:newDown,days:newDays,dueAt})});($('#task-text') as HTMLInputElement).value='';($('#task-due') as HTMLInputElement).value='';};
+    deps.socket().emit('task:add',{...newTaskPayload(tasks.tab,text,{difficulty:DIFFICULTIES[newDifficulty].id,category:newCategory,up:newUp,down:newDown,days:newDays,dueAt})});($('#task-text') as HTMLInputElement).value='';($('#task-due') as HTMLInputElement).value='';};
   $('#task-list').addEventListener('click',(e: Event)=>{
     const target=e.target as HTMLElement,li=target.closest('li[data-id]') as HTMLElement|null;if(!li)return;const id=li.dataset.id!;const t=tasks.list.find(t=>t.id===id);if(!t)return;
     const scoreBtn=target.closest('[data-dir]') as HTMLElement|null;
-    if(scoreBtn&&!target.closest('.checklist')){scoreBtn.setAttribute('disabled','');deps.socket().emit('task:score',{userId:deps.userId(),taskId:id,direction:scoreBtn.dataset.dir as 'up'|'down'});}
+    if(scoreBtn&&!target.closest('.checklist')){scoreBtn.setAttribute('disabled','');deps.socket().emit('task:score',{taskId:id,direction:scoreBtn.dataset.dir as 'up'|'down'});}
     else if(target.closest('.cat-dot')){const i=CATEGORIES.findIndex(c=>c.id===t.category);emitUpdate(id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
     else if(target.closest('.diff')){const i=DIFFICULTIES.findIndex(d=>d.id===t.difficulty);emitUpdate(id,{difficulty:DIFFICULTIES[(i+1)%DIFFICULTIES.length].id});}
     else if(target.closest('.toggle-list')){const ul=li.querySelector('.checklist') as HTMLElement,b=li.querySelector('.toggle-list')!;ul.hidden=!ul.hidden;b.setAttribute('aria-expanded',String(!ul.hidden));li.classList.toggle('open',!ul.hidden);}
     else if(target.closest('.checklist .check-button')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.map((i,j)=>j===idx?{...i,done:!i.done}:i)});}
     else if(target.closest('.remove-item')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.filter((_,j)=>j!==idx)});}
-    else if(target.closest('.remove-task'))deps.socket().emit('task:delete',{userId:deps.userId(),taskId:id});
+    else if(target.closest('.remove-task'))deps.socket().emit('task:delete',{taskId:id});
   });
   $('#task-list').addEventListener('keydown',(e: any)=>{
     if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}

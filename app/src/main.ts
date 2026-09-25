@@ -154,8 +154,8 @@ const editor=createEditor($('#app') as HTMLElement,{
   onPreview(l){previewLook=l;cafe?.setLook(l);},
   onDone(l,name){look=l;saveLook();cafe?.setLook(l);identity.name=name;identity.color=l.shirt;saveIdentity();
     // the server owns the worn hat: equip first, so the `cosmetics:state` echoed by `look:update` already carries the new hat
-    if(l.hat!==shop.hat){shop.hat=l.hat;net?.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:l.hat});renderShop();}
-    net?.socket.emit('look:update',{userId:identity.userId,look:l});// the server stores it and tells the room right away
+    if(l.hat!==shop.hat){shop.hat=l.hat;net?.socket.emit('cosmetic:equip',{hatId:l.hat});renderShop();}
+    net?.socket.emit('look:update',{look:l});// the server stores it and tells the room right away
     closeEditor();toast('C’est tout toi. Les autres te voient déjà ainsi.');},
   onExit(){cafe?.setLook(look);closeEditor();},
   resetView:()=>cafe?.resetView(),
@@ -231,7 +231,7 @@ function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(roomKind(b.dataset.room)===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
-  cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{userId:identity.userId,col,row});});
+  cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{col,row});});
   ambience.applyLight();// la nouvelle scène naît à l'heure qu'il est, pas en plein midi
   if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
   drawIcons();$('#move-hint-room').textContent=ROOM_UI[room].hint;renderCounts();
@@ -389,12 +389,12 @@ function renderShop(){
 }
 $('#tab-shop').addEventListener('click',(e: Event)=>{
   const b=(e.target as HTMLElement).closest('button');if(!b)return;const d=b.dataset;
-  if(d.buy)net.socket.emit('shop:buy',{userId:identity.userId,itemId:d.buy});
-  else if(d.buyFurniture)net.socket.emit('furniture:buy',{userId:identity.userId,itemId:d.buyFurniture});
-  else if(d.hat){const hatId=shop.hat===d.hat?null:d.hat;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId});
+  if(d.buy)net.socket.emit('shop:buy',{itemId:d.buy});
+  else if(d.buyFurniture)net.socket.emit('furniture:buy',{itemId:d.buyFurniture});
+  else if(d.hat){const hatId=shop.hat===d.hat?null:d.hat;net.socket.emit('cosmetic:equip',{hatId});
     shop.hat=hatId;look={...look,hat:hatId};saveLook();cafe?.setLook(look);renderShop();}// the server answers `player-hat` to the others only, so we apply it here
   else if(d.place||d.move)startPlacing(d.place||d.move!);
-  else if(d.unplace)net.socket.emit('furniture:toggle-place',{userId:identity.userId,itemId:d.unplace});
+  else if(d.unplace)net.socket.emit('furniture:toggle-place',{itemId:d.unplace});
 });
 // Placement: the room shows its free tiles, you click one, then confirm. Moving a piece starts from where it stands.
 function startPlacing(id:string){
@@ -403,7 +403,7 @@ function startPlacing(id:string){
   cafe.startPlacing(id,shop.placed[id]??null,takenCells(shop,id));
 }
 $('#place-ok').onclick=()=>{if(!placingId||!placingCell||!canPlace(shop,placingId,placingCell))return;
-  net.socket.emit(shop.placed[placingId]?'furniture:move':'furniture:place',{userId:identity.userId,itemId:placingId,...toServerCell(placingCell)});endPlacing();};
+  net.socket.emit(shop.placed[placingId]?'furniture:move':'furniture:place',{itemId:placingId,...toServerCell(placingCell)});endPlacing();};
 function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#place-bar').hidden=true;}
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
@@ -423,7 +423,7 @@ function renderProgress(){
   if(low&&!progress.exhausted&&!warnedLow){warnedLow=true;toast(`Énergie basse : ${progress.energy}/50. À zéro, tu perds 30 % de tes pièces — un niveau gagné la recharge.`);}
   if(!low)warnedLow=false;
 }
-function rewardPomodoro(){net.socket.emit('pomodoro:complete',{userId:identity.userId});note({kind:'pomo',text:'Focus terminé'});}
+function rewardPomodoro(){net.socket.emit('pomodoro:complete');note({kind:'pomo',text:'Focus terminé'});}
 renderProgress();
 // Everything the server says, applied as-is.
 function bindServerEvents(){
@@ -478,7 +478,7 @@ function bindServerEvents(){
   s.on('tasks:state',({tasks:list,coins,energy,exhausted})=>{tasksUi.setList(list);setCoins(progress,coins);setEnergy(progress,energy);setExhausted(progress,!!exhausted);cafe?.setEnergy?.(progress.energy,progress.exhausted);ready.tasks=true;maybeReady();tasksUi.render();renderProgress();tasksUi.sync();});
   // Notes and timer settings started on the landing page follow the visitor in, once.
   s.on('tasks:state',()=>{const h=load('gamitask.landing.handoff',null);if(!h)return;localStorage.removeItem('gamitask.landing.handoff');
-    for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{userId:identity.userId,text,category:null,kind:'todo',difficulty:'easy'});
+    for(const text of (h.notes??[]).slice(0,20))s.emit('task:add',{text,category:null,kind:'todo',difficulty:'easy'});
     if(h.durations)pomo.adoptDurations(h.durations);
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{tasksUi.added(t);tasksUi.render();tasksUi.sync();});
@@ -502,7 +502,7 @@ function bindServerEvents(){
     showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId(),tzOffsetMinutes:new Date().getTimezoneOffset()}),5000);});
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
-    if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{userId:identity.userId,hatId:wearNext});wearNext=null;}
+    if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{hatId:wearNext});wearNext=null;}
     look=loadLook(u.look??look,identity.color,shop.hats);look={...look,hat:shop.hat};saveLook();if(!editing)cafe?.setLook(look);renderShop();});// the server owns the look, localStorage is only a cache; mid-edit the sheet owns the avatar
   s.on('shop:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} est à toi.`);if(HATS.some(h=>h.id===itemId))wearNext=itemId;});
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
@@ -522,4 +522,4 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&cafe?.isViewingBoar
 // Sonde de développement : l'état de la scène et du pomodoro, lisibles depuis la console. Jamais en production.
 if(import.meta.env.DEV)(window as any).gamitask={scene:()=>cafe,pomo,canMove};
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
-const tasksUi=createTasksUi({cafe:()=>cafe,socket:()=>net.socket,userId:()=>identity.userId});
+const tasksUi=createTasksUi({cafe:()=>cafe,socket:()=>net.socket});

@@ -337,7 +337,6 @@ export interface ClientToServerEvents {
   chat: (payload: { text: string }) => void;
   "private-message": (payload: { to: string; text: string }) => void;
   "task:add": (payload: {
-    userId: string;
     text: string;
     kind?: TaskKind;
     difficulty?: Difficulty;
@@ -349,42 +348,32 @@ export interface ClientToServerEvents {
     dueAt?: number | null;
     checklist?: ChecklistItem[];
   }) => void;
-  "task:score": (payload: { userId: string; taskId: string; direction: "up" | "down" }) => void;
+  "task:score": (payload: { taskId: string; direction: "up" | "down" }) => void;
   "task:update": (payload: {
-    userId: string;
     taskId: string;
     patch: Partial<Pick<Task, "text" | "note" | "difficulty" | "category" | "up" | "down" | "days" | "dueAt" | "checklist">>;
   }) => void;
-  "task:delete": (payload: { userId: string; taskId: string }) => void;
-  "pomodoro:complete": (payload: { userId: string }) => void;
+  "task:delete": (payload: { taskId: string }) => void;
+  "pomodoro:complete": () => void;
   "pomo:join": () => void;
   "pomo:leave": () => void;
   "position:save": (payload: {
-    userId: string;
     col: number;
     row: number;
   }) => void;
-  "debug:unlock": (payload: { userId: string; key: string }) => void;
-  "debug:grant-xp": (payload: { userId: string; amount: number }) => void;
-  "debug:reset-xp": (payload: { userId: string }) => void;
-  "debug:set-energy": (payload: { userId: string; energy: number }) => void;
-  "debug:grant-coins": (payload: { userId: string; amount: number }) => void;
-  "shop:buy": (payload: { userId: string; itemId: string }) => void;
-  "cosmetic:equip": (payload: { userId: string; hatId: string | null }) => void;
-  "look:update": (payload: { userId: string; look: Look }) => void;
-  "furniture:buy": (payload: { userId: string; itemId: string }) => void;
+  "shop:buy": (payload: { itemId: string }) => void;
+  "cosmetic:equip": (payload: { hatId: string | null }) => void;
+  "look:update": (payload: { look: Look }) => void;
+  "furniture:buy": (payload: { itemId: string }) => void;
   "furniture:move": (payload: {
-    userId: string;
     itemId: string;
     col: number;
     row: number;
   }) => void;
   "furniture:toggle-place": (payload: {
-    userId: string;
     itemId: string;
   }) => void;
   "furniture:place": (payload: {
-    userId: string;
     itemId: string;
     col: number;
     row: number;

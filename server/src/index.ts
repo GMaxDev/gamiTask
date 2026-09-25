@@ -2003,7 +2003,8 @@ io.on("connection", (socket) => {
   // ── Tâches ───────────────────────────────────────────────────────────────
   socket.on("task:add", (payload) => {
     if (!allow(socket.id, "task:add", 10, 10000)) return;
-    const { userId } = payload;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const safe = sanitize(payload.text);
     if (!safe.trim()) return;
     sql.upsertUser.run(userId);
@@ -2039,8 +2040,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("task:delete", ({ userId, taskId }) => {
+  socket.on("task:delete", ({ taskId }) => {
     if (!allow(socket.id, "task:delete", 10, 10000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     sql.deleteTask.run(taskId, userId);
     socket.emit("task:deleted", { taskId });
     const p = getPlayer(socket.id);
@@ -2053,8 +2056,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("task:update", ({ userId, taskId, patch }) => {
+  socket.on("task:update", ({ taskId, patch }) => {
     if (!allow(socket.id, "task:update", 20, 10000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const row = sql.getTaskRow.get(taskId, userId) as TaskRow | undefined;
     if (!row || !patch || typeof patch !== "object") return;
     const t = rowToTask(row);
@@ -2076,8 +2081,10 @@ io.on("connection", (socket) => {
     socket.emit("task:updated", t);
   });
 
-  socket.on("task:score", ({ userId, taskId, direction }) => {
+  socket.on("task:score", ({ taskId, direction }) => {
     if (!allow(socket.id, "task:score", 30, 10000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     if (direction !== "up" && direction !== "down") return;
     const row = sql.getTaskRow.get(taskId, userId) as TaskRow | undefined;
     if (!row) return;
@@ -2141,53 +2148,17 @@ io.on("connection", (socket) => {
     broadcastLeaderboardForSocket(io, socket.id);
   });
 
-  socket.on("position:save", ({ userId, col, row }) => {
+  socket.on("position:save", ({ col, row }) => {
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     sql.upsertUser.run(userId);
     sql.savePosition.run(col, row, userId);
   });
 
-  // ── Debug : forcer le déclenchement d'un achievement ─────────────────────
-  socket.on("debug:unlock", ({ userId, key }) => {
-    sql.insertAchievement.run(userId, ""); // no-op flush
-    // Supprimer cet achievement pour permettre le re-déclenchement en debug
-    db.prepare("DELETE FROM achievements WHERE userId = ? AND key = ?").run(
-      userId,
-      key,
-    );
-    tryUnlock(io, socket, userId, key);
-  });
-
-  // ── Debug : octroyer des XP ───────────────────────────────────────────────
-  socket.on("debug:grant-xp", ({ userId, amount }) => {
-    sql.upsertUser.run(userId);
-    emitXpUpdate(socket, userId, amount);
-  });
-
-  // ── Debug : ajouter des pièces ────────────────────────────────────────────
-  socket.on("debug:grant-coins", ({ userId, amount }) => {
-    sql.upsertUser.run(userId);
-    sql.addCoins.run(amount, userId);
-    const coins = (sql.getCoins.get(userId) as UserRow).coins;
-    socket.emit("coins:update", { coins });
-  });
-
-  // ── Debug : forcer l'énergie ──────────────────────────────────────────────
-  socket.on("debug:set-energy", ({ userId, energy }) => {
-    sql.upsertUser.run(userId);
-    const e = Math.max(1, Math.min(ENERGY_MAX, Math.round(energy)));
-    sql.setEnergy.run(e, 0, userId);
-    socket.emit("energy:update", { energy: e });
-  });
-
-  // ── Debug : remettre les XP à zéro ───────────────────────────────────────
-  socket.on("debug:reset-xp", ({ userId }) => {
-    sql.upsertUser.run(userId);
-    db.prepare("UPDATE users SET xp = 0 WHERE id = ?").run(userId);
-    socket.emit("xp:update", { xp: 0, level: 0, xpToNext: 50, levelUp: false });
-  });
-
   // ── Acheter un meuble (Feng Shui) ────────────────────────────────────────────────────
-  socket.on("furniture:buy", ({ userId, itemId }) => {
+  socket.on("furniture:buy", ({ itemId }) => {
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const item = furnitureItem(itemId);
     if (!item) return;
     sql.upsertUser.run(userId);
@@ -2234,8 +2205,10 @@ io.on("connection", (socket) => {
     broadcastLeaderboardForSocket(io, socket.id);
   });
   // ── Déplacer un meuble (Feng Shui) ─────────────────────────────────────────────
-  socket.on("furniture:move", ({ userId, itemId, col, row }) => {
+  socket.on("furniture:move", ({ itemId, col, row }) => {
     if (!allow(socket.id, "furniture:move", 20, 5000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const r = getRoom(socket.id);
     if (!r?.isPrivate || r.ownerId !== userId) return; // Placement uniquement dans sa propre room privée
     const item = furnitureItem(itemId);
@@ -2274,8 +2247,10 @@ io.on("connection", (socket) => {
     });
   });
   // ── Ranger / Sortir un meuble de la chambre (toggle-place) ───────────────────
-  socket.on("furniture:toggle-place", ({ userId, itemId }) => {
+  socket.on("furniture:toggle-place", ({ itemId }) => {
     if (!allow(socket.id, "furniture:toggle-place", 20, 5000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const r = getRoom(socket.id);
     if (!r?.isPrivate || r.ownerId !== userId) return;
     sql.upsertUser.run(userId);
@@ -2310,8 +2285,10 @@ io.on("connection", (socket) => {
     });
   });
   // ── Confirmer le placement fantôme d'un meuble ─────────────────────────────
-  socket.on("furniture:place", ({ userId, itemId, col, row }) => {
+  socket.on("furniture:place", ({ itemId, col, row }) => {
     if (!allow(socket.id, "furniture:place", 20, 5000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const r = getRoom(socket.id);
     if (!r?.isPrivate || r.ownerId !== userId) return;
     const item = furnitureItem(itemId);
@@ -2363,7 +2340,9 @@ io.on("connection", (socket) => {
     });
   });
   // ── Acheter un item dans le shop ─────────────────────────────────────────────
-  socket.on("shop:buy", ({ userId, itemId }) => {
+  socket.on("shop:buy", ({ itemId }) => {
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const item = hatItem(itemId);
     if (!item) return;
     sql.upsertUser.run(userId);
@@ -2388,7 +2367,9 @@ io.on("connection", (socket) => {
   });
 
   // ── Équiper / déséquiper un cosmétique ───────────────────────────────────────────
-  socket.on("cosmetic:equip", ({ userId, hatId }) => {
+  socket.on("cosmetic:equip", ({ hatId }) => {
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     if (hatId !== null) {
       const user = sql.getUser.get(userId) as UserRow;
       const owned = (user.ownedItems ?? "").split(",").filter(Boolean);
@@ -2407,9 +2388,10 @@ io.on("connection", (socket) => {
   });
 
   // ── Mettre à jour son apparence ──────────────────────────────────────────────
-  socket.on("look:update", ({ userId, look: rawLook }) => {
+  socket.on("look:update", ({ look: rawLook }) => {
     if (!allow(socket.id, "look:update", 5, 5000)) return;
-    if (socketToUserId.get(socket.id) !== userId) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     const user = sql.getUser.get(userId) as UserRow | undefined;
     if (!user) return;
     const look = sanitizeLook(rawLook, user.equippedHat ?? null, user.avatarColor);
@@ -2429,8 +2411,10 @@ io.on("connection", (socket) => {
     });
   });
   // ── Pomodoro personnel complété ──────────────────────────────────────────
-  socket.on("pomodoro:complete", ({ userId }) => {
+  socket.on("pomodoro:complete", () => {
     if (!allow(socket.id, "pomodoro:complete", 2, 30000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
     sql.upsertUser.run(userId);
     const STREAK_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 heures
     const now = Date.now();
