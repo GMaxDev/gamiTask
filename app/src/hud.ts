@@ -3,6 +3,7 @@
 import {icon,hexOf} from './ui.ts';
 import {PALETTE} from './identity.ts';
 import {CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,DAY_LABELS,DIFFICULTIES} from './tasks.ts';
+import {ACHIEVEMENTS} from '@shared/types';
 
 export function hudMarkup(): string{return `
   <main class="workspace">
@@ -78,7 +79,7 @@ export function hudMarkup(): string{return `
         <p id="tasks-empty" class="tasks-empty">Rien pour l’instant. Une seule chose suffit pour commencer.</p>
         <div class="task-foot"><button type="button" class="icon-button" id="task-help-toggle" aria-label="Comment ça marche ?" title="Comment ça marche ?">${icon('help-circle')}</button><div class="task-filter" id="task-filter"><button type="button" data-filter="remaining" aria-pressed="true">Restantes</button><button type="button" data-filter="all" aria-pressed="false">Toutes</button></div></div>
       </section>
-      <p class="drawer-note">Coche pour terminer. Le menu ⋯ d’une tâche règle sa catégorie et sa difficulté, ou la supprime.</p>
+      <p class="drawer-note">Chaque tâche restante est aussi posée sur une table du café : clique dessus dans la salle pour la retrouver ici. Coche pour terminer ; le menu ⋯ règle catégorie et difficulté, ou supprime.</p>
       </div>
       <div id="tab-shop" role="tabpanel" hidden>
         <p class="shop-wallet">${icon('coins')}<strong id="shop-coins">0</strong> pièces à dépenser</p>
@@ -96,7 +97,7 @@ export function hudMarkup(): string{return `
     <div class="day-stats"><div><strong id="sessions">0</strong><span>sessions aujourd’hui</span></div><span class="stat-divider"></span><div><strong><span id="minutes">0</span><small> min</small></strong><span>rien que pour toi</span></div></div>
     <div class="session-dots"><span class="filled"></span><span></span><span></span><span></span><small id="cycle-label">Un pas après l’autre</small></div>
     <section><h3>Aujourd’hui <span class="pill" id="journal-summary" hidden></span></h3><ul class="journal-list" id="journal-list"></ul><p class="tasks-empty" id="journal-empty">Rien encore. Un focus ou une tâche cochée, et ça commence.</p></section>
-    <section><h3>Succès <span class="pill" id="achievements-count">0/7</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
+    <section><h3>Succès <span class="pill" id="achievements-count">0/${ACHIEVEMENTS.length}</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
   </div></dialog>
   <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><label>Focus avant la longue pause<input name="perCycle" type="number" min="2" max="12" required /></label><label>Enchaîner les phases<input name="autoChain" type="checkbox" /></label><label>S’asseoir en focus, se lever en pause<input name="seatOnFocus" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
   <dialog id="identity-dialog" class="card card-sage"><form id="identity-form" method="dialog"><header class="card-head"><span class="card-icon">${icon('smile')}</span><span class="card-eyebrow">ON SE PRÉSENTE ?</span><h2>Un pseudo, une couleur.</h2></header><div class="card-body">
@@ -128,7 +129,7 @@ export function hudMarkup(): string{return `
       <div class="kv"><span class="kv-key">${icon('log-in')}<span>Connexion</span></span><span class="pill" id="account-mode"></span></div>
       <p>Ton pseudo et ta couleur se changent depuis « Mon personnage », dans le menu en haut à droite.</p>
       <section><h3>Twitch</h3><div class="kv"><span class="kv-key">${icon('twitch')}<span>Chaîne</span></span><span class="pill" id="account-twitch-status">Non lié</span></div>
-    <p>Lie ta chaîne pour faire apparaître tes viewers dans ta salle, plus tard.</p>
+    <p>Lie ta chaîne : tes viewers apparaissent dans ta salle et leur chat s’affiche au-dessus d’eux.</p>
     <button id="twitch-link" class="primary">${icon('link-2')}<span>Lier mon compte Twitch</span></button>
     <button id="twitch-unlink" class="secondary" hidden>${icon('unlink')}<span>Délier Twitch</span></button></section>
     </section>
@@ -140,7 +141,7 @@ export function hudMarkup(): string{return `
       <h3>Énergie</h3>
       <ul class="help-list">
         <li>${icon('coffee')}<span><strong>50 au maximum</strong>Une quotidienne oubliée à minuit ou une habitude ratée en coûte un peu — d’autant plus que la tâche est difficile.</span></li>
-        <li>${icon('flame')}<span><strong>Sous 25, le café te prévient</strong>Ton personnage ralentit et cherche un siège. C’est le moment de finir quelque chose de facile.</span></li>
+        <li>${icon('flame')}<span><strong>Sous 10, ton personnage ralentit</strong>À zéro, tu perds 30 % de tes pièces et il reste épuisé jusqu’au lendemain : il grisonne et va s’asseoir. C’est le moment de finir quelque chose de facile.</span></li>
         <li>${icon('coins')}<span><strong>À zéro, épuisement</strong>Tu perds 30 % de tes pièces et tu restes épuisé·e jusqu’au lendemain. L’énergie repart à 50, et un niveau gagné la recharge aussi.</span></li>
       </ul>
     </section>

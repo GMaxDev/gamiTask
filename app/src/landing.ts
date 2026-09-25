@@ -109,7 +109,7 @@ root.innerHTML=`
       <div class="lp-faq-list">
         ${[['C’est vraiment gratuit ?','Oui. Le café, le pomodoro, les tâches, le personnage et une pièce privée sont gratuits, sans limite de temps. Le Pro ajoutera ce qui sert à recevoir : invités illimités, Twitch, cosmétiques exclusifs.'],
             ['Ai-je besoin d’un compte ?','Non pour commencer : un pseudo et une couleur suffisent, tout reste dans ton navigateur. Un compte Google permet de retrouver ton personnage et tes pièces sur n’importe quel appareil.'],
-            ['Que deviennent mes données ?','Tes tâches, pièces et réglages sont stockés sur nos serveurs en Europe, liés à ton compte. Pas de revente, pas de publicité. Tu peux tout supprimer depuis ton compte.'],
+            ['Que deviennent mes données ?','Tes tâches, pièces et réglages sont stockés sur un serveur en France, liés à ton compte. Pas de revente, pas de publicité. Tu peux demander l’effacement complet à tout moment.'],
             ['Ça marche sur mobile ?','Le café s’ouvre dans un navigateur mobile récent, mais il est pensé pour un écran d’ordinateur, à côté de ton travail. Une version mobile dédiée viendra avec le Pro.'],
             ['Je stream : comment mes viewers entrent ?','Depuis « Mon compte », lie ta chaîne Twitch. Les personnes qui écrivent dans ton chat apparaissent alors comme des personnages dans ta pièce, avec leur message au-dessus de la tête.']]
           .map(([q,a])=>`<details class="lp-faq-item reveal"><summary>${q}</summary><p>${a}</p></details>`).join('')}

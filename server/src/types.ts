@@ -382,7 +382,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { key: "task-10", label: "10 tâches !", desc: "10 tâches complétées", icon: "🔟" },
   { key: "task-50", label: "50 tâches !", desc: "50 tâches complétées", icon: "🏆" },
   { key: "first-pomo", label: "1er Pomodoro !", desc: "Premier pomodoro terminé", icon: "🍅" },
-  { key: "streak-5", label: "Streak ×5 !", desc: "5 pomodoros consécutifs", icon: "🔥" },
+  { key: "streak-5", label: "Streak ×5 !", desc: "5 focus d’affilée, moins de 2 h entre chacun", icon: "🔥" },
   { key: "coins-100", label: "100 pièces !", desc: "100 pièces accumulées", icon: "💰" },
   { key: "coins-500", label: "500 pièces !", desc: "500 pièces accumulées", icon: "👑" },
   { key: "first-collective", label: "Pomo collectif !", desc: "Premier pomo collectif terminé", icon: "🌐" },

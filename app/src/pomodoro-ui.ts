@@ -110,7 +110,7 @@ export function createPomodoro(deps: PomodoroDeps){
     $('#room-dial-progress').style.strokeDashoffset=609.47*fraction;
     document.querySelectorAll('[data-phase]').forEach((s: any)=>s.classList.toggle('selected',s.dataset.phase===roomPomo.phase));
     $('#room-subtitle').textContent=subtitle(roomPomo,roomPomo.names.filter(n=>n!==deps.myName()));
-    $('#room-kicker').textContent=`25 / 5 / 15 · SESSION ${roomPomo.session+1}`;
+    $('#room-kicker').textContent=`${DURATIONS.focus/60} / ${DURATIONS["short-break"]/60} / ${DURATIONS["long-break"]/60} · SESSION ${roomPomo.session+1}`;
     $('#room-dot').hidden=!roomPomo.running;
     $('#room-count').hidden=roomPomo.participants===0;$('#room-count').textContent=String(roomPomo.participants);
     if(lastRoomJoined!==roomPomo.joined){
