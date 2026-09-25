@@ -214,18 +214,6 @@ export interface SharedPomoState {
   names: string[];// display names of the participants, so the card can say who is there
 }
 
-export interface VideoState {
-  videoId: string | null;
-  playing: boolean;
-  /** Seconds into the video at the time of syncedAt */
-  timestamp: number;
-  /** Unix timestamp (seconds) when `timestamp` was recorded */
-  syncedAt: number;
-  playbackRate: number;
-  ownerId: string | null;
-  ownerName: string;
-}
-
 // ── Rooms ─────────────────────────────────────────────────────────────────────
 // `RoomId` peut être un id public fixe OU un UUID de room privée.
 export type RoomId = string;
@@ -392,13 +380,6 @@ export interface ClientToServerEvents {
   "chat:typing": () => void;
   "chat:react": (payload: { msgTs: number; emoji: string }) => void;
   "chat:emote": (payload: { emoji: string }) => void;
-  "video:set": (payload: { videoId: string }) => void;
-  "video:sync": (payload: {
-    timestamp: number;
-    playing: boolean;
-    rate: number;
-  }) => void;
-  "video:stop": () => void;
 }
 
 // Événements Serveur → Client
@@ -548,8 +529,6 @@ export interface ServerToClientEvents {
     isAdmin: boolean;
   }) => void;
   "session:replaced": () => void;
-  "video:state": (state: VideoState) => void;
-  "video:update": (state: VideoState) => void;
   "room:info": (payload: { roomId: RoomId }) => void;
   "rooms:list": (payload: { rooms: RoomSummary[] }) => void;
   "room:full": (payload: { roomId: RoomId }) => void;

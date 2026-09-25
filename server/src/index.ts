@@ -26,7 +26,6 @@ import {
   type ChecklistItem,
   type SharedPomoState,
   type PomodoroPhase,
-  type VideoState,
   type ClientToServerEvents,
   type ServerToClientEvents,
   type Look,
@@ -1043,7 +1042,6 @@ interface RoomState {
     intervalId: ReturnType<typeof setInterval> | null;
   };
   pomoParticipants: Set<string>;
-  sharedVideo: VideoState;
 }
 
 function createPublicRoomState(id: PublicRoomId): RoomState {
@@ -1071,15 +1069,6 @@ function createPublicRoomState(id: PublicRoomId): RoomState {
       intervalId: null,
     },
     pomoParticipants: new Set(),
-    sharedVideo: {
-      videoId: null,
-      playing: false,
-      timestamp: 0,
-      syncedAt: 0,
-      playbackRate: 1,
-      ownerId: null,
-      ownerName: "",
-    },
   };
 }
 
@@ -1112,15 +1101,6 @@ function createPrivateRoomState(
       intervalId: null,
     },
     pomoParticipants: new Set(),
-    sharedVideo: {
-      videoId: null,
-      playing: false,
-      timestamp: 0,
-      syncedAt: 0,
-      playbackRate: 1,
-      ownerId: null,
-      ownerName: "",
-    },
   };
 }
 
@@ -1438,14 +1418,6 @@ io.on("connection", (socket) => {
           }
           broadcastPomoState(io, prevRoom);
         }
-        if (prevRoom.sharedVideo.ownerId === previousSocketId) {
-          prevRoom.sharedVideo.videoId = null;
-          prevRoom.sharedVideo.playing = false;
-          prevRoom.sharedVideo.timestamp = 0;
-          prevRoom.sharedVideo.ownerId = null;
-          prevRoom.sharedVideo.ownerName = "";
-          io.to(prevRoom.id).emit("video:update", { ...prevRoom.sharedVideo });
-        }
         io.to(prevRoom.id).emit("player-left", { id: previousSocketId });
         affectedRooms.add(prevRoomId);
       }
@@ -1566,19 +1538,6 @@ io.on("connection", (socket) => {
     runRollover(socket, userId, tzOffsetMinutes);
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
-
-    // Send current video state of this room to the newcomer
-    const roomVideo = targetRoom.sharedVideo;
-    if (roomVideo.videoId) {
-      const elapsed = roomVideo.playing
-        ? Date.now() / 1000 - roomVideo.syncedAt
-        : 0;
-      socket.emit("video:state", {
-        ...roomVideo,
-        timestamp: roomVideo.timestamp + elapsed * roomVideo.playbackRate,
-        syncedAt: Date.now() / 1000,
-      });
-    }
   });
 
   // ── Room switch ──────────────────────────────────────────────────────────
@@ -1612,16 +1571,6 @@ io.on("connection", (socket) => {
         currentRoom.sharedPomo.intervalId = null;
         currentRoom.sharedPomo.running = false;
       }
-    }
-
-    // If owned video in old room, stop it for that room
-    if (currentRoom.sharedVideo.ownerId === socket.id) {
-      currentRoom.sharedVideo.videoId = null;
-      currentRoom.sharedVideo.playing = false;
-      currentRoom.sharedVideo.timestamp = 0;
-      currentRoom.sharedVideo.ownerId = null;
-      currentRoom.sharedVideo.ownerName = "";
-      io.to(currentRoom.id).emit("video:update", { ...currentRoom.sharedVideo });
     }
 
     // Remove from old room
@@ -1663,21 +1612,6 @@ io.on("connection", (socket) => {
     socket.emit("pomo:state", pomoState(targetRoom));
     broadcastLeaderboard(io, targetRoom);
     broadcastRoomsList(io);
-
-    // Send target room's current video state
-    const roomVideo = targetRoom.sharedVideo;
-    if (roomVideo.videoId) {
-      const elapsed = roomVideo.playing
-        ? Date.now() / 1000 - roomVideo.syncedAt
-        : 0;
-      socket.emit("video:state", {
-        ...roomVideo,
-        timestamp: roomVideo.timestamp + elapsed * roomVideo.playbackRate,
-        syncedAt: Date.now() / 1000,
-      });
-    } else {
-      socket.emit("video:update", { ...roomVideo });
-    }
     console.log(`[room:switch] ${existing.name} ${currentRoom.id} → ${roomId}${userId ? " (" + userId.slice(0, 6) + ")" : ""}`);
   });
 
@@ -2376,61 +2310,10 @@ io.on("connection", (socket) => {
     broadcastPomoState(io, room);
   });
 
-  // ── Video ambiance (par room) ────────────────────────────────────────────
-  socket.on("video:set", ({ videoId }) => {
-    if (!allow(socket.id, "video:set", 5, 10000)) return;
-    const room = getRoom(socket.id);
-    if (!room) return;
-    const p = room.players.get(socket.id);
-    if (!p) return;
-    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
-    room.sharedVideo.videoId = videoId;
-    room.sharedVideo.playing = true;
-    room.sharedVideo.timestamp = 0;
-    room.sharedVideo.syncedAt = Date.now() / 1000;
-    room.sharedVideo.playbackRate = 1;
-    room.sharedVideo.ownerId = socket.id;
-    room.sharedVideo.ownerName = p.name;
-    io.to(room.id).emit("video:update", { ...room.sharedVideo });
-    console.log(`[video] ${p.name} set video in room:${room.id}: ${videoId}`);
-  });
-
-  socket.on("video:sync", ({ timestamp, playing, rate }) => {
-    const room = getRoom(socket.id);
-    if (!room) return;
-    if (room.sharedVideo.ownerId !== socket.id) return;
-    room.sharedVideo.timestamp = Math.max(0, timestamp);
-    room.sharedVideo.playing = playing;
-    room.sharedVideo.playbackRate = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(rate) ? rate : 1;
-    room.sharedVideo.syncedAt = Date.now() / 1000;
-    socket.to(room.id).emit("video:update", { ...room.sharedVideo });
-  });
-
-  socket.on("video:stop", () => {
-    const room = getRoom(socket.id);
-    if (!room) return;
-    if (room.sharedVideo.ownerId !== socket.id) return;
-    room.sharedVideo.videoId = null;
-    room.sharedVideo.playing = false;
-    room.sharedVideo.timestamp = 0;
-    room.sharedVideo.ownerId = null;
-    room.sharedVideo.ownerName = "";
-    io.to(room.id).emit("video:update", { ...room.sharedVideo });
-    console.log(`[video] stopped in room:${room.id} by ${socket.id}`);
-  });
-
   socket.on("disconnect", () => {
     cleanRateLimit(socket.id);
     const room = getRoom(socket.id);
     if (room) {
-      if (room.sharedVideo.ownerId === socket.id) {
-        room.sharedVideo.videoId = null;
-        room.sharedVideo.playing = false;
-        room.sharedVideo.timestamp = 0;
-        room.sharedVideo.ownerId = null;
-        room.sharedVideo.ownerName = "";
-        io.to(room.id).emit("video:update", { ...room.sharedVideo });
-      }
       room.players.delete(socket.id);
       socket.to(room.id).emit("player-left", { id: socket.id });
       if (room.pomoParticipants.delete(socket.id)) {
