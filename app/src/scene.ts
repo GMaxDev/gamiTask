@@ -18,7 +18,7 @@ import { tint } from '../../server/src/scoring.ts';
 import { decodeEntities } from './chat.ts';
 
 export interface SceneState { board?: boolean; seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; kind: string}; hotspot?: {id: string; title: string; sub: string}; up?: boolean; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
-export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective'; wander?: boolean }
+export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
 interface LightSet { hemi: [string,string,number]; sun: [string,number]; fill: number; lamps: number }
 // Daylight and evening per room: the two ends of the curve `setDaylight` interpolates between.
 const CAFE_LIGHT: {day: LightSet; evening: LightSet}={
@@ -541,28 +541,15 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   // Remote players: one person + walker each, driven by the cells the server sends.
   const cellCentreOf=(col: number,row: number)=>({x:-HW+col+.5,z:-HD+row+.5});
   const seatNear=(p: {x: number;z: number})=>seats.find(s=>!s.taken&&Math.hypot(s.x-p.x,s.z-p.z)<.75)??null;
-  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null;todo: THREE.Sprite|null;wander:boolean;wait:number}
+  interface Remote{p: Rig;w: ReturnType<typeof walker>;tag: THREE.Sprite;bubble: THREE.Sprite|null;todo: THREE.Sprite|null}
   const remotes=new Map<string, Remote>();
   function addRemote(id: string,info: RemoteInfo){
     removeRemote(id);const at=cellCentreOf(info.col,info.row);
     const p=ground(buildAvatar(P,at.x,at.z,info.look??lookFor(info.color,info.hat))),w=walker(p,2.4);
     const tag=nameTag(info.name,info.color);p.g.add(tag);
-    // Local decorative NPCs (a Twitch crowd) wander on their own; real players are driven by moveRemote instead — never both.
-    const r: Remote={p,w,tag,bubble:null,todo:null,wander:!!info.wander,wait:1+Math.random()*3};remotes.set(id,r);restage();
+    const r: Remote={p,w,tag,bubble:null,todo:null};remotes.set(id,r);restage();
     setRemoteState(id,info.state);
     const seat=seatNear(at);if(seat)w.go(seat,seat);
-  }
-  // Same wander/rest/sit rhythm as the café host, just without its counter-work spots.
-  function remoteThink(dt: number){
-    for(const r of remotes.values()){
-      if(!r.wander)continue;
-      r.wait-=dt;if(r.w.route.length||r.wait>0)continue;
-      if(Math.random()<.4){const free=seats.filter(s=>!s.taken);const seat=free[Math.floor(Math.random()*free.length)];
-        if(seat&&r.w.go(seat,seat)){r.wait=8+Math.random()*12;continue;}}
-      let moved=false;
-      for(let i=0;i<6;i++)if(r.w.go({x:(Math.random()-.5)*(W-2),z:(Math.random()-.5)*(D-2)})){moved=true;break;}
-      r.wait=moved?1+Math.random()*4:1;
-    }
   }
   function moveRemote(id: string,col: number,row: number){const r=remotes.get(id);if(!r)return;const at=cellCentreOf(col,row),seat=seatNear(at);r.w.go(seat??at,seat);}
   function setRemoteState(id: string,state: RemoteInfo['state']){
@@ -841,7 +828,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     dusk?.(n);restage();
   }
   function simulate(dt: number){
-    me.step(dt);npcThink(dt);bar?.step(dt);remoteThink(dt);
+    me.step(dt);npcThink(dt);bar?.step(dt);
     // Yawning is pure flourish and respects reducedMotion; walking to a seat is the actual spec'd behaviour and must not be gated by it.
     if(energy<25&&!me.seated&&!me.route.length){
       if(!idleSince)idleSince=time;

@@ -27,16 +27,6 @@ export async function unlinkTwitch(apiUrl:string,token:string):Promise<boolean>{
   }catch{return false;}
 }
 
-export interface Chatter{id:string;login:string;name:string}
-// Real chat roster of the caller's own linked channel — Twitch refuses this for any channel that isn't yours.
-export async function getMyChatters(apiUrl:string,token:string):Promise<Chatter[]|null>{
-  try{
-    const res=await fetch(`${apiUrl}/twitch/chatters`,{headers:{Authorization:`Bearer ${token}`}});
-    if(!res.ok)return null;
-    return (await res.json()).chatters as Chatter[];
-  }catch{return null;}
-}
-
 let gsi: Promise<void>|null=null;
 function loadGsi():Promise<void>{
   return gsi??=new Promise((resolve,reject)=>{

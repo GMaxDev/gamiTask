@@ -64,7 +64,7 @@ import { userIdFromToken, canEdit, type Role } from "./auth.js";
 import { sanitizeItem, type CatalogItem } from "./catalog.js";
 import { cleanEmail } from "./waitlist.js";
 import { parseKey, seal, open, isSealed } from "./secretbox.js";
-import { buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
+import { buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser } from "./twitch.js";
 import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
 import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot, configureTwitchNpcs } from "./twitchNpcs.js";
 
@@ -758,31 +758,6 @@ async function getValidTwitchAccessToken(userId: string): Promise<string | null>
   }
 }
 
-// Real chatters: only ever the caller's own linked channel — Twitch itself refuses to let anyone
-// read another broadcaster's chat list without that broadcaster's own token.
-app.get("/twitch/chatters", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
-  const row = sql.getTwitchTokens.get(userId) as { twitchId: string | null } | undefined;
-  if (!row?.twitchId) {
-    res.status(400).json({ error: "Compte Twitch non lié" });
-    return;
-  }
-  const accessToken = await getValidTwitchAccessToken(userId);
-  if (!accessToken) {
-    res.status(401).json({ error: "Reconnecte ton compte Twitch" });
-    return;
-  }
-  try {
-    // The broadcaster shows up in their own chatters list, but they already have a player avatar in the room — skip that duplicate.
-    const chatters = (await getChatters(row.twitchId, accessToken)).filter((c) => c.id !== row.twitchId);
-    res.json({ chatters });
-  } catch (err) {
-    console.error("[twitch/chatters]", err);
-    res.status(502).json({ error: "Twitch lookup failed" });
-  }
-});
-
 /**
  * Applique une variation d'énergie. À 0 : épuisement — jauge remise à 50, −30 % des pièces,
  * personnage « épuisé » jusqu'au prochain minuit. Renvoie l'énergie finale.
@@ -1440,7 +1415,7 @@ io.on("connection", (socket) => {
         connectTwitchChat(userId, twitchRow.twitchId, () => getValidTwitchAccessToken(userId), (msg) => {
           const color = msg.color ? parseInt(msg.color.slice(1), 16) : 0x9146ff; // Twitch purple when the chatter has none set
           emitToUsersRoom(userId, "chat-message", {
-            id: `twitch-chatter-${msg.chatterId}`, // matches the id spawnMyChatters gives that NPC, so the message also floats above them if they're in the room
+            id: `twitch-chatter-${msg.chatterId}`, // matches the id twitchNpcs gives that NPC, so the message also floats above them if they're in the room
             name: msg.chatterName || msg.chatterLogin,
             color, text: sanitize(msg.text), ts: Date.now(),
           });

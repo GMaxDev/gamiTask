@@ -3,7 +3,7 @@ import {$,icon,drawIcons,load,save,toast,showRecap,esc,today} from './ui.ts';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
-import {loadLook,randomLook,type Look} from './look.ts';
+import {loadLook,type Look} from './look.ts';
 import {createEditor} from './editor.ts';
 import {createWorkshop} from './workshop.ts';
 import {ensureCsg,csgReady,needsCsg} from './recipe.ts';
@@ -22,7 +22,7 @@ import {createTasksUi} from './tasks-ui.ts';
 import {createJournal,record,summaryLine,timeLabel} from './journal.ts';
 import {focusDoneLine,focusWithLine} from './pomo.ts';
 import {hudMarkup} from './hud.ts';
-import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch,getMyChatters} from './auth.ts';
+import {verifyToken,loginWithGoogle,renderGoogleButton,startTwitchLink,unlinkTwitch} from './auth.ts';
 import './style.css';
 
 const shop=createShop();// declared here: mountRoom() reads shop.placed / shop.hat before the shop block runs
@@ -302,32 +302,6 @@ try{
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
 start();// the room is built behind the veil, then the server fills it
 
-// Prototype: spawn the real chatters of MY OWN linked Twitch channel — Twitch only lets a broadcaster read their own chat list.
-// Still random-looking (a chatter's real gamitask look only exists once they link their own account too), but tagged with their real name.
-(window as any).spawnMyChatters=async()=>{
-  const token=load('gamitask.token',null);
-  if(!token){console.log('[twitch] connecte-toi avec Google et lie ton compte Twitch d’abord.');return;}
-  const chatters=await getMyChatters(API_URL,token);
-  if(!chatters){console.error('[twitch] lookup failed — compte Twitch lié ?');return;}
-  const {w,d}=DIMS[room];
-  console.log(`[twitch] ${chatters.length} chatters, spawning…`);
-  for(const c of chatters){
-    cafe.addRemote(`twitch-chatter-${c.id}`,{
-      name:c.name||c.login,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
-      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
-    });
-  }
-};
-// Dev-only: spawn made-up names to check the name tag/look rendering without needing a live channel to test against.
-(window as any).spawnFakeChatters=(names:string[])=>{
-  const {w,d}=DIMS[room];
-  for(const name of names){
-    cafe.addRemote(`fake-chatter-${name}`,{
-      name,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
-      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
-    });
-  }
-};
 $('#zoom-in').onclick=()=>cafe?.zoomIn();$('#zoom-out').onclick=()=>cafe?.zoomOut();$('#recenter').onclick=()=>cafe?.recenter();$('#follow').onclick=()=>cafe?.setFollow();
 $('#progress-chip').onclick=()=>{net.socket.emit('profile:request',{socketId:null});renderJournal();($('#progress-dialog') as HTMLDialogElement).showModal();};
 // The task list lives in a drawer: opened from the HUD button, the counter in the room, or a slate.
