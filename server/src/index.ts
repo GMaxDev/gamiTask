@@ -79,7 +79,6 @@ interface UserRow {
   googleId: string | null;
   displayName: string | null;
   avatarColor: number;
-  isAdmin: number;
   role: Role;
   look: string | null;
   twitchId: string | null;
@@ -324,7 +323,7 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, streak, lastPomoAt, xp, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName, energy, exhaustedUntil, tzOffset FROM users WHERE id = ?",
+    "SELECT id, coins, streak, lastPomoAt, xp, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName, energy, exhaustedUntil, tzOffset FROM users WHERE id = ?",
   ),
   setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
@@ -371,12 +370,12 @@ const sql = {
   ),
   getUserByGoogleId: db.prepare("SELECT * FROM users WHERE googleId = ?"),
   insertGoogleUser: db.prepare(
-    "INSERT INTO users (id, coins, email, googleId, displayName, avatarColor, isAdmin) VALUES (?, 0, ?, ?, ?, 0, ?)",
+    "INSERT INTO users (id, coins, email, googleId, displayName, avatarColor) VALUES (?, 0, ?, ?, ?, 0)",
   ),
   updateGoogleAuth: db.prepare(
     "UPDATE users SET email = ?, displayName = COALESCE(NULLIF(displayName, ''), ?) WHERE id = ?",
   ),
-  setAdminFlag: db.prepare("UPDATE users SET isAdmin = 1, role = 'admin' WHERE id = ?"),
+  setAdminFlag: db.prepare("UPDATE users SET role = 'admin' WHERE id = ?"),
   listItems: db.prepare("SELECT data FROM items ORDER BY updatedAt"),
   getItem: db.prepare("SELECT data FROM items WHERE id = ?"),
   upsertItem: db.prepare("INSERT INTO items (id, data, updatedAt) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt"),
@@ -558,13 +557,7 @@ app.post("/auth/google", async (req, res): Promise<void> => {
     let userId: string;
     if (!user) {
       userId = randomUUID();
-      sql.insertGoogleUser.run(
-        userId,
-        email,
-        googleId,
-        googleName,
-        isAdminLogin ? 1 : 0,
-      );
+      sql.insertGoogleUser.run(userId, email, googleId, googleName);
       if (isAdminLogin) sql.setAdminFlag.run(userId);
       user = sql.getUserByGoogleId.get(googleId) as UserRow;
     } else {
@@ -2160,7 +2153,7 @@ io.on("connection", (socket) => {
       streak: user.streak ?? 0,
       energy: user.energy ?? ENERGY_MAX,
       achievements: achievementKeys,
-      isAdmin: !!user.isAdmin,
+      isAdmin: user.role === "admin",
     });
   });
 });
