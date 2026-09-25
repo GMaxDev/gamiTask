@@ -515,14 +515,11 @@ app.post("/auth/google", async (req, res): Promise<void> => {
 });
 
 // ponytail: per-IP throttle in memory, a real limiter if the landing ever draws a crowd
-const waitlistHits = new Map<string, number[]>();
 app.post("/api/waitlist", (req, res): void => {
-  const ip = req.ip ?? "?", now = Date.now(), hits = (waitlistHits.get(ip) ?? []).filter((t) => now - t < 60_000);
-  if (hits.length >= 5) { res.status(429).json({ error: "Doucement." }); return; }
-  hits.push(now); waitlistHits.set(ip, hits);
+  if (!allow(req.ip ?? "?", "waitlist", 5, 60_000)) { res.status(429).json({ error: "Doucement." }); return; }
   const email = cleanEmail((req.body as { email?: unknown })?.email);
   if (!email) { res.status(400).json({ error: "Adresse invalide." }); return; }
-  sqlWaitlist.run(email, now);
+  sqlWaitlist.run(email, Date.now());
   res.json({ ok: true });
 });
 
