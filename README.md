@@ -21,6 +21,7 @@ Variables utiles :
 | server | `GOOGLE_CLIENT_ID` | — | Client OAuth Google ; sans lui, `/auth/google` refuse et l'app reste en mode invité. |
 | server | `ADMIN_EMAIL` | — | Le compte Google qui porte cette adresse obtient `role = 'admin'` à la connexion. |
 | server | `JWT_SECRET` | — | **Obligatoire, 32 caractères minimum** : le serveur refuse de démarrer sans. Signe les jetons de session (30 jours). |
+| server | `TOKEN_KEY` | — | **Obligatoire, 32 octets en hex** (`openssl rand -hex 32`) : chiffre les jetons Twitch en base. Le serveur refuse de démarrer sans. |
 | app | `VITE_GOOGLE_CLIENT_ID` | — | Le même client id, pour le bouton « Continuer avec Google ». Fichier `app/.env.local` en local. |
 
 Les fichiers `.env` et `.env.local` sont ignorés par git.

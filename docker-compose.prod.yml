@@ -10,6 +10,7 @@ services:
       - PORT=3001
       - DB_PATH=/data/gamitask.db
       - JWT_SECRET=${JWT_SECRET}
+      - TOKEN_KEY=${TOKEN_KEY}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - CORS_ORIGIN=${CORS_ORIGIN}

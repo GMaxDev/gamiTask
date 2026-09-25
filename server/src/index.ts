@@ -66,6 +66,7 @@ import { sanitizeLook, cleanName, cleanColor } from "./look.js";
 import { userIdFromToken, canEdit, type Role } from "./auth.js";
 import { sanitizeItem, type CatalogItem } from "./catalog.js";
 import { cleanEmail } from "./waitlist.js";
+import { parseKey, seal, open, isSealed } from "./secretbox.js";
 import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
 import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
 import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot, configureTwitchNpcs } from "./twitchNpcs.js";
@@ -662,6 +663,19 @@ if (JWT_SECRET.length < 32) {
   process.exit(1);
 }
 const JWT_ALGS: jwt.Algorithm[] = ["HS256"]; // pin the algorithm on verify: a token may not pick its own
+// Twitch tokens rest encrypted under TOKEN_KEY (32 bytes, hex or base64). Same rule as the JWT secret: no key, no start.
+const TOKEN_KEY: Buffer = parseKey(process.env.TOKEN_KEY) ?? ((): never => {
+  console.error("[config] TOKEN_KEY must be 32 bytes in hex or base64 (see README, .env.prod.example)");
+  return process.exit(1);
+})();
+// Rows written before the key existed: seal them once, now.
+{
+  const legacy = db.prepare("SELECT id, twitchAccessToken, twitchRefreshToken FROM users WHERE twitchRefreshToken IS NOT NULL").all() as { id: string; twitchAccessToken: string | null; twitchRefreshToken: string }[];
+  const sealRow = db.prepare("UPDATE users SET twitchAccessToken = ?, twitchRefreshToken = ? WHERE id = ?");
+  let n = 0;
+  for (const r of legacy) if (!isSealed(r.twitchRefreshToken)) { sealRow.run(r.twitchAccessToken && seal(r.twitchAccessToken, TOKEN_KEY), seal(r.twitchRefreshToken, TOKEN_KEY), r.id); n++; }
+  if (n) console.log(`[config] sealed ${n} Twitch token row(s) that were stored in clear`);
+}
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -854,7 +868,7 @@ app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
     }
     sql.linkTwitch.run(
       twitchUser.id, twitchUser.login, twitchUser.display_name,
-      tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId,
+      seal(tokens.accessToken, TOKEN_KEY), seal(tokens.refreshToken, TOKEN_KEY), tokens.expiresAt, userId,
     );
     res.redirect(`${APP_URL}/app/?twitch=linked`);
   } catch (err) {
@@ -878,10 +892,11 @@ async function getValidTwitchAccessToken(userId: string): Promise<string | null>
     | { twitchId: string | null; twitchAccessToken: string | null; twitchRefreshToken: string | null; twitchTokenExpiresAt: number }
     | undefined;
   if (!row?.twitchId || !row.twitchRefreshToken) return null;
-  if (row.twitchAccessToken && Date.now() < row.twitchTokenExpiresAt - 60_000) return row.twitchAccessToken;
+  const accessToken = open(row.twitchAccessToken, TOKEN_KEY);
+  if (accessToken && Date.now() < row.twitchTokenExpiresAt - 60_000) return accessToken;
   try {
-    const tokens = await refreshUserToken(row.twitchRefreshToken);
-    sql.saveTwitchTokens.run(tokens.accessToken, tokens.refreshToken, tokens.expiresAt, userId);
+    const tokens = await refreshUserToken(open(row.twitchRefreshToken, TOKEN_KEY)!);
+    sql.saveTwitchTokens.run(seal(tokens.accessToken, TOKEN_KEY), seal(tokens.refreshToken, TOKEN_KEY), tokens.expiresAt, userId);
     return tokens.accessToken;
   } catch {
     sql.clearTwitchTokens.run(userId);
