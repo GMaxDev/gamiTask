@@ -340,11 +340,11 @@ function renderShop(){
   $('#shop-coins').textContent=String(progress.coins);$('#shop-where').textContent=home?'— chez toi':'— à installer chez toi';
   $('#shop-hats').innerHTML=HATS.map(h=>{const owned=shop.hats.includes(h.id),worn=shop.hat===h.id;
     return `<li class="${owned?'owned':''}"><span class="shop-emoji">${esc(h.emoji)}</span><span class="shop-name">${esc(h.name)}<small>${owned?(worn?'Porté':'À toi'):`${h.price} pièces`}</small></span><span class="shop-actions">${owned?`<button data-hat="${h.id}">${worn?'Retirer':'Porter'}</button>`:`<button data-buy="${h.id}" ${progress.coins<h.price?'disabled':''}>Acheter</button>`}</span></li>`;}).join('');
-  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.furniture.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.set);
+  $('#shop-furniture').innerHTML=FURNITURE.map(f=>{const owned=shop.furniture.includes(f.id),placed=f.id in shop.placed,set=SETS.find(s=>s.id===f.setId);
     const action=!owned?`<button data-buy-furniture="${f.id}" ${progress.coins<f.price?'disabled':''}>Acheter</button>`:!home?'<small>chez toi</small>':placed?`<button data-move="${f.id}">Déplacer</button><button data-unplace="${f.id}" class="quiet">Ranger</button>`:`<button data-place="${f.id}">Placer</button>`;
     return `<li class="${owned?'owned':''}"><span class="shop-emoji">${esc(f.emoji)}</span><span class="shop-name">${esc(f.name)}<small>${owned?(placed?'Installé':'Rangé'):`${f.price} pièces`}${set?` · set ${set.emoji}`:''}</small></span><span class="shop-actions">${action}</span></li>`;}).join('');
   $('#shop-sets').innerHTML=SETS.map(s=>{const have=s.items.filter(id=>shop.furniture.includes(id)).length,full=done.includes(s);
-    return `<li class="${full?'owned':''}"><span class="shop-emoji">${s.emoji}</span><span class="shop-name">${s.name}<small>${s.desc} · ${have}/${s.items.length}</small></span></li>`;}).join('');
+    return `<li class="${full?'owned':''}"><span class="shop-emoji">${s.emoji}</span><span class="shop-name">${s.name}<small>${s.bonusDescription} · ${have}/${s.items.length}</small></span></li>`;}).join('');
 }
 $('#tab-shop').addEventListener('click',(e: Event)=>{
   const b=(e.target as HTMLElement).closest('button');if(!b)return;const d=b.dataset;

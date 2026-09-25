@@ -58,78 +58,20 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "hat-wizard", name: "Sorcier", price: 300, emoji: "🧙" },
 ];
 
-export interface FurnitureItem {
-  id: string;
-  name: string;
-  price: number;
-  emoji: string;
-  bonus: string;
+/** col/row: the default spot in the owner's room until placed by hand. */
+export interface FurnitureItem extends ShopItem {
   setId?: string;
   col: number;
   row: number;
 }
 
 export const FURNITURE_ITEMS: FurnitureItem[] = [
-  {
-    id: "plant",
-    name: "Plante",
-    price: 80,
-    emoji: "🪴",
-    bonus: "+2🪙 par tâche",
-    setId: "jardin",
-    col: 1,
-    row: 5,
-  },
-  {
-    id: "lamp",
-    name: "Lampe",
-    price: 120,
-    emoji: "💡",
-    bonus: "+10 XP par pomo",
-    setId: "bureau",
-    col: 6,
-    row: 1,
-  },
-  {
-    id: "coffee",
-    name: "Café",
-    price: 100,
-    emoji: "☕",
-    bonus: "+5🪙 par pomo",
-    setId: "salon",
-    col: 10,
-    row: 5,
-  },
-  {
-    id: "bookshelf",
-    name: "Étagère",
-    price: 150,
-    emoji: "📚",
-    bonus: "+2🪙 par tâche",
-    setId: "bureau",
-    col: 6,
-    row: 10,
-  },
-  {
-    id: "couch",
-    name: "Canapé",
-    price: 200,
-    emoji: "🛋️",
-    bonus: "Nettoyage -10🪙",
-    setId: "salon",
-    col: 1,
-    row: 10,
-  },
-  {
-    id: "cactus",
-    name: "Cactus",
-    price: 85,
-    emoji: "🌵",
-    bonus: "+1🪙 par tâche",
-    setId: "jardin",
-    col: 3,
-    row: 7,
-  },
+  { id: "plant", name: "Plante", price: 80, emoji: "🪴", setId: "jardin", col: 1, row: 5 },
+  { id: "cactus", name: "Cactus", price: 85, emoji: "🌵", setId: "jardin", col: 3, row: 7 },
+  { id: "lamp", name: "Lampe", price: 120, emoji: "💡", setId: "bureau", col: 6, row: 1 },
+  { id: "bookshelf", name: "Étagère", price: 150, emoji: "📚", setId: "bureau", col: 6, row: 10 },
+  { id: "coffee", name: "Café", price: 100, emoji: "☕", setId: "salon", col: 10, row: 5 },
+  { id: "couch", name: "Canapé", price: 200, emoji: "🛋️", setId: "salon", col: 1, row: 10 },
 ];
 
 export interface FurnitureSet {
@@ -144,30 +86,9 @@ export interface FurnitureSet {
 }
 
 export const FURNITURE_SETS: FurnitureSet[] = [
-  {
-    id: "bureau",
-    name: "Set Bureau Studieux",
-    emoji: "📖",
-    items: ["lamp", "bookshelf"],
-    bonusDescription: "+20 XP par pomo",
-    xpPomoBonus: 20,
-  },
-  {
-    id: "salon",
-    name: "Set Salon Cosy",
-    emoji: "🫖",
-    items: ["coffee", "couch"],
-    bonusDescription: "+10🪙 par pomo",
-    coinsPomoBonus: 10,
-  },
-  {
-    id: "jardin",
-    name: "Set Jardin Zen",
-    emoji: "🌿",
-    items: ["plant", "cactus"],
-    bonusDescription: "+4🪙 par tâche",
-    coinsTaskBonus: 4,
-  },
+  { id: "bureau", name: "Set Bureau Studieux", emoji: "📖", items: ["lamp", "bookshelf"], bonusDescription: "+20 XP par pomo", xpPomoBonus: 20 },
+  { id: "salon", name: "Set Salon Cosy", emoji: "🫖", items: ["coffee", "couch"], bonusDescription: "+10🪙 par pomo", coinsPomoBonus: 10 },
+  { id: "jardin", name: "Set Jardin Zen", emoji: "🌿", items: ["plant", "cactus"], bonusDescription: "+4🪙 par tâche", coinsTaskBonus: 4 },
 ];
 
 export type TaskKind = "habit" | "daily" | "todo";

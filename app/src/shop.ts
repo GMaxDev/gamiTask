@@ -1,27 +1,10 @@
 // Pure shop model: catalogue, purchases, the hat you wear and the furniture placed in your own room.
 import type {CatalogItem} from '@shared/catalog';
-export interface CatalogueItem { id: string; name: string; price: number; emoji: string; set?: string; custom?: CatalogItem }
-export interface SetDef { id: string; name: string; emoji: string; items: string[]; desc: string; xpPomo?: number; coinsPomo?: number; coinsTask?: number }
-export const HATS: CatalogueItem[]=[
-  {id:'hat-party',name:'Chapeau de fête',price:100,emoji:'🎉'},
-  {id:'hat-halo',name:'Halo',price:150,emoji:'😇'},
-  {id:'hat-crown',name:'Couronne',price:200,emoji:'👑'},
-  {id:'hat-cowboy',name:'Cowboy',price:250,emoji:'🤠'},
-  {id:'hat-wizard',name:'Sorcier',price:300,emoji:'🧙'},
-];
-export const FURNITURE: CatalogueItem[]=[
-  {id:'plant',name:'Plante',price:80,emoji:'🪴',set:'jardin'},
-  {id:'cactus',name:'Cactus',price:85,emoji:'🌵',set:'jardin'},
-  {id:'lamp',name:'Lampe',price:120,emoji:'💡',set:'bureau'},
-  {id:'bookshelf',name:'Étagère',price:150,emoji:'📚',set:'bureau'},
-  {id:'coffee',name:'Coin café',price:100,emoji:'☕',set:'salon'},
-  {id:'couch',name:'Fauteuil',price:200,emoji:'🛋️',set:'salon'},
-];
-export const SETS: SetDef[]=[
-  {id:'bureau',name:'Bureau studieux',emoji:'📖',items:['lamp','bookshelf'],desc:'+20 XP par pomodoro',xpPomo:20},
-  {id:'salon',name:'Salon cosy',emoji:'🫖',items:['coffee','couch'],desc:'+10 pièces par pomodoro',coinsPomo:10},
-  {id:'jardin',name:'Jardin zen',emoji:'🌿',items:['plant','cactus'],desc:'+4 pièces par tâche',coinsTask:4},
-];
+import {SHOP_ITEMS,FURNITURE_ITEMS,FURNITURE_SETS,type ShopItem} from '@shared/types';
+export interface CatalogueItem extends ShopItem { setId?: string; custom?: CatalogItem }
+export const HATS: CatalogueItem[]=[...SHOP_ITEMS];
+export const FURNITURE: CatalogueItem[]=[...FURNITURE_ITEMS];
+export const SETS=FURNITURE_SETS;
 // Editor-made items are spliced into the built-in lists, so every consumer sees one catalogue. An item under a
 // built-in id (shop piece or room decor) is an override: the code's metadata stays, only its recipe is read.
 const BUILT_IN={hats:HATS.length,furniture:FURNITURE.length},BUILT_IN_IDS=new Set([...HATS,...FURNITURE].map(i=>i.id));
