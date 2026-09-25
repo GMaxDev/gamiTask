@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import {$,icon,hexOf,drawIcons,registerIcons,load,save,toast,showRecap,esc,today} from './ui.ts';
-import {Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn} from 'lucide';
+import {Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Ellipsis,Trash2,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
 import {loadIdentity,cleanName,PALETTE} from './identity.ts';
@@ -29,7 +29,7 @@ import './style.css';
 const shop=createShop();// declared here: mountRoom() reads shop.placed / shop.hat before the shop block runs
 let placingId: string|null=null,placingCell: {c: number; r: number}|null=null;
 
-registerIcons({Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn});
+registerIcons({Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Ellipsis,Trash2,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn});
 $('#app').innerHTML=hudMarkup();
 drawIcons();
 // Who you are: kept locally, sent to the server at every `join`.

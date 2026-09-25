@@ -2,7 +2,7 @@
 // il ne lit aucun état, tout ce qui bouge est posé ensuite par les modules qui possèdent chaque zone.
 import {icon,hexOf} from './ui.ts';
 import {PALETTE} from './identity.ts';
-import {CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,DAY_LABELS} from './tasks.ts';
+import {CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,DAY_LABELS,DIFFICULTIES} from './tasks.ts';
 
 export function hudMarkup(): string{return `
   <main class="workspace">
@@ -65,9 +65,10 @@ export function hudMarkup(): string{return `
         <div class="task-tabs" id="task-tabs" role="tablist" aria-label="Type de tâche">${(['habit','daily','todo'] as const).map(k=>`<button type="button" role="tab" data-kind="${k}" aria-selected="${k==='todo'}">${KIND_LABELS[k].many}<span class="tab-count" data-count="${k}"></span></button>`).join('')}</div>
         <p class="task-help" id="task-help"><span id="task-help-text"></span><button type="button" class="icon-button" id="task-help-close" aria-label="Masquer l’aide">${icon('x')}</button></p>
         <form id="task-form" class="task-form" autocomplete="off">
-          <div class="task-row"><input id="task-text" maxlength="120" placeholder="Une chose à faire…" aria-label="Nouvelle tâche" /><button type="button" id="task-difficulty" class="diff-chip" aria-label="Difficulté" title="${DIFFICULTY_HINT}"></button><button type="button" id="task-more" class="icon-button" aria-expanded="false" aria-label="Options de la tâche" title="Catégorie, jours, sens, échéance">${icon('settings-2')}</button><button type="submit" class="icon-button add-task" aria-label="Ajouter la tâche">${icon('plus')}</button></div>
+          <div class="task-row"><input id="task-text" maxlength="120" placeholder="Une chose à faire…" aria-label="Nouvelle tâche" /><button type="button" id="task-more" class="icon-button" aria-expanded="false" aria-label="Options de la tâche" title="Catégorie, difficulté, jours, sens, échéance">${icon('settings-2')}</button><button type="submit" class="icon-button add-task" aria-label="Ajouter la tâche">${icon('plus')}</button></div>
           <div class="task-options" id="task-options" hidden>
             <div class="opt"><span class="opt-label">Catégorie</span><div class="chips" id="task-cats" role="group" aria-label="Catégorie">${CATEGORIES.map(c=>`<button type="button" data-cat="${c.id}" style="--cat:${c.color}" aria-pressed="false">${c.label}</button>`).join('')}</div></div>
+            <div class="opt"><span class="opt-label">Difficulté</span><div class="chips" id="task-diffs" role="group" aria-label="Difficulté" title="${DIFFICULTY_HINT}">${DIFFICULTIES.map(d=>`<button type="button" data-diff="${d.id}" aria-pressed="${d.id==='easy'}">${d.label}</button>`).join('')}</div></div>
             <div class="opt" id="task-days-opt" hidden><span class="opt-label">Jours</span><div class="days" id="task-days" role="group" aria-label="Jours">${DAY_LABELS.map((d,i)=>`<button type="button" data-day="${i}" aria-pressed="true">${d}</button>`).join('')}</div></div>
             <div class="opt" id="task-dirs-opt" hidden><span class="opt-label">Sens</span><div class="chips" id="task-dirs" role="group" aria-label="Sens"><button type="button" data-dir="up" aria-pressed="true" title="On peut la cocher en +">${icon('plus')} Bonne</button><button type="button" data-dir="down" aria-pressed="false" title="On peut la cocher en −">${icon('minus')} Mauvaise</button></div></div>
             <div class="opt" id="task-due-opt" hidden><span class="opt-label">Échéance</span><label class="due-field" id="task-due-field">${icon('calendar')}<input type="date" id="task-due" aria-label="Date butoir" /></label></div>
@@ -77,7 +78,7 @@ export function hudMarkup(): string{return `
         <p id="tasks-empty" class="tasks-empty">Rien pour l’instant. Une seule chose suffit pour commencer.</p>
         <div class="task-foot"><button type="button" class="icon-button" id="task-help-toggle" aria-label="Comment ça marche ?" title="Comment ça marche ?">${icon('help-circle')}</button><div class="task-filter" id="task-filter"><button type="button" data-filter="remaining" aria-pressed="true">Restantes</button><button type="button" data-filter="all" aria-pressed="false">Toutes</button></div></div>
       </section>
-      <p class="drawer-note">Chaque tâche devient une petite ardoise posée sur une table du café. Coche-la ici, ou clique dessus dans la salle pour la retrouver.</p>
+      <p class="drawer-note">Coche pour terminer. Le menu ⋯ d’une tâche règle sa catégorie et sa difficulté, ou la supprime.</p>
       </div>
       <div id="tab-shop" role="tabpanel" hidden>
         <p class="shop-wallet">${icon('coins')}<strong id="shop-coins">0</strong> pièces à dépenser</p>

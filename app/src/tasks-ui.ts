@@ -22,10 +22,10 @@ export function createTasksUi(deps: TasksDeps){
     $('#task-days-opt').hidden=k!=='daily';$('#task-dirs-opt').hidden=k!=='habit';$('#task-due-opt').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
     $('#task-help').hidden=helpHidden;$('#task-help-text').textContent=KIND_LABELS[k].help;$('#task-help-toggle').hidden=!helpHidden;
     $('#task-options').hidden=!optionsOpen;$('#task-more').setAttribute('aria-expanded',String(optionsOpen));
-    const tweaked=newCategory!==null||(k==='daily'&&newDays!==127)||(k==='habit'&&(newDown||!newUp))||(k==='todo'&&!!($('#task-due') as HTMLInputElement).value);$('#task-more').classList.toggle('tweaked',tweaked);// a dot on the toggle says "something is set in there"
+    const tweaked=newCategory!==null||newDifficulty!==1||(k==='daily'&&newDays!==127)||(k==='habit'&&(newDown||!newUp))||(k==='todo'&&!!($('#task-due') as HTMLInputElement).value);$('#task-more').classList.toggle('tweaked',tweaked);// a dot on the toggle says "something is set in there"
     document.querySelectorAll('#task-days button').forEach((b: any)=>b.setAttribute('aria-pressed',String(!!(newDays&(1<<Number(b.dataset.day))))));
     document.querySelectorAll('#task-dirs button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.dir==='up'?newUp:newDown)));
-    const d=DIFFICULTIES[newDifficulty];$('#task-difficulty').innerHTML=`${pips(d.pips)}<span>${d.label}</span>`;
+    document.querySelectorAll('#task-diffs button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.diff===DIFFICULTIES[newDifficulty].id)));
     document.querySelectorAll('#task-tabs [role=tab]').forEach((b: any)=>b.setAttribute('aria-selected',String(b.dataset.kind===k)));
     document.querySelectorAll('#task-filter button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.filter===tasks.filter)));
   }
@@ -37,13 +37,26 @@ export function createTasksUi(deps: TasksDeps){
       const li=document.createElement('li');li.dataset.id=t.id;const cat=catOf(t.category),d=DIFFICULTIES.find(x=>x.id===t.difficulty)!;
       const tn=tint(t.value);li.className=`kind-${t.kind} tint-${tn}${t.done?' done':''}${t.kind==='daily'&&!isDue(t,today)?' not-due':''}`;if(TINT_LABELS[tn])li.title=TINT_LABELS[tn];
       const dt=esc(decodeEntities(t.text));
+      // Two reading levels: the title, then one quiet line of metadata. Everything else waits in the ⋯ menu.
       const text=`<span class="task-text" contenteditable="plaintext-only" spellcheck="false">${dt}</span>`;
-      const common=`<button class="cat-dot${cat?'':' empty'}" style="--cat:${cat?cat.color:'#c9cdbd'}" title="Catégorie : ${cat?cat.label:'aucune'} — cliquer pour changer" aria-label="Changer la catégorie"></button><button class="pips diff" title="Difficulté : ${d.label} — cliquer pour changer. ${DIFFICULTY_HINT}" aria-label="Changer la difficulté">${pips(d.pips)}</button>`;
-      if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" title="J’ai craqué (−)" aria-label="Craquée : ${dt}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${text}${common}<small class="counts" title="Aujourd’hui : fois tenue / fois craquée">${t.up?`<b class="up">+${t.countUp}</b>`:''}${t.down?`<b class="down">−${t.countDown}</b>`:''}</small>${t.up?`<button class="score-button up" data-dir="up" title="Je l’ai tenue (+)" aria-label="Tenue : ${dt}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}<button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
-      else if(t.kind==='daily')li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.streak>1?`<small class="streak-count" title="Série">${icon('flame')}${t.streak}</small>`:''}<small class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</small><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>`;
-      else{const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
-        li.innerHTML=`<button class="check-button${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${text}${common}${t.dueAt?`<small class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</small>`:''}<button class="icon-button toggle-list" aria-expanded="false" aria-label="Étapes" title="Étapes">${icon('chevron-down')}${n?`<b>${k}/${n}</b>`:''}</button><button class="icon-button remove-task" aria-label="Supprimer">${icon('x')}</button>
-        <ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(decodeEntities(i.text))}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
+      const meta: string[]=[];
+      if(cat)meta.push(`<span class="cat-dot" style="--cat:${cat.color}"></span>${cat.label}`);
+      meta.push(`<span title="${DIFFICULTY_HINT}">${d.label}</span>`);
+      if(t.kind==='habit')meta.push(`<span class="counts" title="Aujourd’hui : fois tenue / fois craquée">${t.up?`<b class="up">+${t.countUp}</b>`:''}${t.down?`<b class="down">−${t.countDown}</b>`:''}</span>`);
+      if(t.kind==='daily'){if(t.streak>1)meta.push(`<span class="streak-count" title="Série">${icon('flame')}${t.streak}</span>`);meta.push(`<span class="days-mini" aria-label="Jours">${DAY_LABELS.map((l,i)=>`<b class="${t.days&(1<<i)?'on':''}">${l}</b>`).join('')}</span>`);}
+      let checklist='';
+      if(t.kind==='todo'){const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
+        if(t.dueAt)meta.push(`<span class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</span>`);
+        meta.push(`<button class="toggle-list" aria-expanded="false" aria-label="Étapes">${icon('list-checks')}${n?`${k}/${n}`:'étapes'}</button>`);
+        checklist=`<ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(decodeEntities(i.text))}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
+      const body=`<div class="task-body">${text}<div class="task-meta">${meta.join('<i class="sep">·</i>')}</div></div>`;
+      // The ⋯ menu: category, difficulty, delete. Nothing on the row cycles silently any more.
+      const menu=`<div class="task-acts"><button class="icon-button task-more-btn" aria-haspopup="menu" aria-expanded="false" aria-label="Options">${icon('ellipsis')}</button>
+        <div class="task-menu" role="menu" hidden><div class="opt"><span class="opt-label">Catégorie</span><div class="chips">${CATEGORIES.map(c=>`<button type="button" data-set-cat="${c.id}" style="--cat:${c.color}" aria-pressed="${t.category===c.id}">${c.label}</button>`).join('')}</div></div>
+        <div class="opt"><span class="opt-label">Difficulté</span><div class="chips">${DIFFICULTIES.map(x=>`<button type="button" data-set-diff="${x.id}" aria-pressed="${t.difficulty===x.id}">${pips(x.pips)}${x.label}</button>`).join('')}</div></div>
+        <button type="button" class="remove-task danger">${icon('trash-2')}Supprimer</button></div></div>`;
+      if(t.kind==='habit')li.innerHTML=`${t.down?`<button class="score-button down" data-dir="down" title="J’ai craqué (−)" aria-label="Craquée : ${dt}">${icon('minus')}</button>`:'<span class="score-spacer"></span>'}${body}${t.up?`<button class="score-button up" data-dir="up" title="Je l’ai tenue (+)" aria-label="Tenue : ${dt}">${icon('plus')}</button>`:'<span class="score-spacer"></span>'}${menu}`;
+      else li.innerHTML=`<button class="check-button big${t.done?' done':''}" data-dir="${t.done?'down':'up'}" aria-label="${t.done?'Reprendre':'Terminer'} : ${dt}" aria-pressed="${t.done}">${icon('check')}</button>${body}${menu}${checklist}`;
       list.append(li);
     }
     for(const li of list.querySelectorAll('li[data-id]') as NodeListOf<HTMLElement>){
@@ -61,7 +74,7 @@ export function createTasksUi(deps: TasksDeps){
   $('#task-cats').onclick=(e: any)=>{const b=e.target.closest('[data-cat]');if(!b)return;newCategory=newCategory===b.dataset.cat?null:b.dataset.cat;renderTasks();$('#task-text').focus();};
   $('#task-days').onclick=(e: any)=>{const b=e.target.closest('[data-day]');if(!b)return;newDays=toggleDay(newDays,Number(b.dataset.day));renderTaskForm();};
   $('#task-dirs').onclick=(e: any)=>{const b=e.target.closest('[data-dir]');if(!b)return;if(b.dataset.dir==='up')newUp=!newUp;else newDown=!newDown;if(!newUp&&!newDown)newUp=true;renderTaskForm();};
-  $('#task-difficulty').onclick=()=>{newDifficulty=(newDifficulty+1)%DIFFICULTIES.length;renderTaskForm();};
+  $('#task-diffs').onclick=(e: any)=>{const b=e.target.closest('[data-diff]');if(!b)return;newDifficulty=DIFFICULTIES.findIndex(d=>d.id===b.dataset.diff);renderTaskForm();};
   $('#task-more').onclick=()=>{optionsOpen=!optionsOpen;renderTaskForm();};
   $('#task-due').onchange=()=>renderTaskForm();
   $('#task-help-close').onclick=()=>{helpHidden=true;save('gamitask.taskHelp',true);renderTaskForm();};
@@ -73,13 +86,18 @@ export function createTasksUi(deps: TasksDeps){
     const target=e.target as HTMLElement,li=target.closest('li[data-id]') as HTMLElement|null;if(!li)return;const id=li.dataset.id!;const t=tasks.list.find(t=>t.id===id);if(!t)return;
     const scoreBtn=target.closest('[data-dir]') as HTMLElement|null;
     if(scoreBtn&&!target.closest('.checklist')){scoreBtn.setAttribute('disabled','');deps.socket().emit('task:score',{taskId:id,direction:scoreBtn.dataset.dir as 'up'|'down'});}
-    else if(target.closest('.cat-dot')){const i=CATEGORIES.findIndex(c=>c.id===t.category);emitUpdate(id,{category:i+1<CATEGORIES.length?CATEGORIES[i+1].id:null});}
-    else if(target.closest('.diff')){const i=DIFFICULTIES.findIndex(d=>d.id===t.difficulty);emitUpdate(id,{difficulty:DIFFICULTIES[(i+1)%DIFFICULTIES.length].id});}
+    else if(target.closest('.task-more-btn')){const open=!li.classList.contains('menu-open');closeMenus();if(open){li.classList.add('menu-open');(li.querySelector('.task-menu') as HTMLElement).hidden=false;li.querySelector('.task-more-btn')!.setAttribute('aria-expanded','true');}}
+    else if(target.closest('[data-set-cat]')){const c=(target.closest('[data-set-cat]') as HTMLElement).dataset.setCat!;emitUpdate(id,{category:t.category===c?null:c});}
+    else if(target.closest('[data-set-diff]'))emitUpdate(id,{difficulty:(target.closest('[data-set-diff]') as HTMLElement).dataset.setDiff});
     else if(target.closest('.toggle-list')){const ul=li.querySelector('.checklist') as HTMLElement,b=li.querySelector('.toggle-list')!;ul.hidden=!ul.hidden;b.setAttribute('aria-expanded',String(!ul.hidden));li.classList.toggle('open',!ul.hidden);}
     else if(target.closest('.checklist .check-button')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.map((i,j)=>j===idx?{...i,done:!i.done}:i)});}
     else if(target.closest('.remove-item')){const idx=Number((target.closest('[data-idx]') as HTMLElement).dataset.idx);emitUpdate(id,{checklist:t.checklist.filter((_,j)=>j!==idx)});}
     else if(target.closest('.remove-task'))deps.socket().emit('task:delete',{taskId:id});
   });
+  // One ⋯ menu open at a time; a click anywhere else, or Escape, closes it. A server update re-renders the row, which closes it too.
+  function closeMenus(){for(const li of document.querySelectorAll('#task-list li.menu-open') as NodeListOf<HTMLElement>){li.classList.remove('menu-open');(li.querySelector('.task-menu') as HTMLElement).hidden=true;li.querySelector('.task-more-btn')!.setAttribute('aria-expanded','false');}}
+  document.addEventListener('pointerdown',e=>{if(!(e.target as HTMLElement).closest('.task-acts'))closeMenus();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('#task-list li.menu-open')){e.stopPropagation();closeMenus();}},true);
   $('#task-list').addEventListener('keydown',(e: any)=>{
     if(e.target.matches('.task-text')&&e.key==='Enter'){e.preventDefault();e.target.blur();}
     if(e.target.matches('.add-item input')&&e.key==='Enter'){e.preventDefault();const li=e.target.closest('li[data-id]'),t=tasks.list.find(t=>t.id===li.dataset.id);const text=cleanChecklistItem(e.target.value);if(!t||!text)return;emitUpdate(t.id,{checklist:[...t.checklist,{text,done:false}]});e.target.value='';}
