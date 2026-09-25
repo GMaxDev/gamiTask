@@ -166,7 +166,7 @@ const members=new Map<string,{name: string; color: number}>();
 function renderGuests(){
   const list=$('#guests-list') as HTMLElement;
   const others=[...members].filter(([id])=>id!==net?.socket.id);
-  list.innerHTML=others.map(([id,m])=>`<li data-id="${id}"><span class="guest-name" style="--swatch:#${m.color.toString(16).padStart(6,'0')}">${m.name}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
+  list.innerHTML=others.map(([id,m])=>`<li data-id="${esc(id)}"><span class="guest-name" style="--swatch:#${((Number(m.color)||0)>>>0).toString(16).padStart(6,'0').slice(-6)}">${esc(String(m.name))}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
   ($('#guests-empty') as HTMLElement).hidden=others.length>0;($('#guests-count') as HTMLElement).textContent=String(others.length);
 }
 ($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};
