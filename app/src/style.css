@@ -181,7 +181,7 @@
 
 /* ── Cards: every modal opens with a coloured head (icon, eyebrow, serif title) over a sectioned body ── */
 .card{--card:#657757;--card-deep:#4f6144;padding:0;overflow:hidden;width:440px;border:0;border-radius:24px;box-shadow:0 30px 90px #2e382a33,0 2px 0 #fff8 inset}
-.card-sage{--card:#657757;--card-deep:#4f6144}.card-honey{--card:#c9a24b;--card-deep:#a9863a}.card-terra{--card:#c9764f;--card-deep:#a85d3b}.card-sky{--card:#7f9fb3;--card-deep:#607f93}
+.card-sage{--card:#657757;--card-deep:#4f6144}.card-honey{--card:#c9a24b;--card-deep:#a9863a}.card-sky{--card:#7f9fb3;--card-deep:#607f93}
 .card-head{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:14px;align-items:center;padding:22px 26px 20px;color:#fffdf2;background:linear-gradient(135deg,var(--card),var(--card-deep))}
 .card-head::after{content:"";position:absolute;right:-30px;top:-40px;width:150px;height:150px;border-radius:50%;background:#fff;opacity:.08;pointer-events:none}
 .card-icon{grid-row:1/3;width:48px;height:48px;border-radius:50%;background:#fffdf233;display:grid;place-items:center;box-shadow:0 0 0 1px #fffdf24d inset}.card-icon svg{width:24px;height:24px;color:#fffdf2}
@@ -232,20 +232,18 @@ dialog.card[open]{display:flex;flex-direction:column;max-height:calc(100vh - 40p
 .task-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px}.task-foot .task-filter{margin-top:0}#task-help-toggle{width:24px;height:24px}#task-help-toggle[hidden]{display:none}#task-help-toggle svg{width:14px;height:14px}
 .counts{display:inline-flex;gap:6px}.counts b{font-weight:600}.counts b.up{color:#5b6b4e}.counts b.down{color:#a04050}
 
-.sound-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}.sound-list li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:#f3f4ec}.sound-list li>div{flex:1;min-width:0}.sound-list strong{display:block;font-size:14px;font-weight:600;color:#657459}.sound-list small{font-size:12px;line-height:1.55;color:#97a088}.sound-list button{display:flex;align-items:center;gap:6px;padding:8px 11px;border-radius:9px;background:#fffefa;border:1px solid #e3e6d8;color:#7a866a;font-size:13px;flex-shrink:0}.sound-list button svg{width:13px;height:13px}
 
 .clock-chip{font-variant-numeric:tabular-nums;letter-spacing:.2px;cursor:default}
 
-.world .clock-chip{height:42px;padding:0 17px;gap:9px;font-family:Manrope,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.8px;font-variant-numeric:tabular-nums;color:#5d6b52;cursor:default}.world .clock-chip svg{width:19px;height:19px;opacity:.75}.world .clock-chip:hover{background:var(--chip-bg)}.field-rows input[type=checkbox]{width:auto;accent-color:#657757;margin:0}
+.world .clock-chip{height:42px;padding:0 17px;gap:9px;font-family:Manrope,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.8px;font-variant-numeric:tabular-nums;color:#5d6b52;cursor:default}.world .clock-chip:hover{background:var(--chip-bg)}.field-rows input[type=checkbox]{width:auto;accent-color:#657757;margin:0}
 
 /* Panneau Paramètres : onglets, segmenté lumière, lignes à cocher */
 .panel-tabs{margin:0 0 4px}.panel-tabs button svg{width:13px;height:13px}.panel-pane h3{font-size:12px;letter-spacing:1.1px;text-transform:uppercase;font-weight:650;color:#8b917f;margin:18px 0 8px}.panel-pane h3:first-child{margin-top:4px}.panel-pane .kv+.kv{margin-top:6px}
-.segmented{display:flex;gap:3px;background:#f0f1e9;padding:4px;border-radius:9px}.segmented button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 4px;border-radius:6px;background:transparent;font-size:13px;color:#949a87}.segmented button svg{width:14px;height:14px}.segmented button[aria-pressed=true]{background:#fffefa;color:#627452;box-shadow:0 1px 5px #3e4e3410;font-weight:600}
-.panel-pane .field-rows label{gap:9px;justify-content:flex-start}.panel-pane .field-rows label>span:first-of-type{flex:1}.panel-pane .field-rows label svg{width:16px;height:16px;color:#8b9271;flex-shrink:0}.panel-pane .field-rows .sound-bars{margin:0 6px 0 0}.panel-pane .field-rows input[type=checkbox]{width:18px;height:18px;margin-left:auto}
+.panel-pane .field-rows label{gap:9px;justify-content:flex-start}.panel-pane .field-rows label>span:first-of-type{flex:1}.panel-pane .field-rows label svg{width:16px;height:16px;color:#8b9271;flex-shrink:0}.panel-pane .field-rows input[type=checkbox]{width:18px;height:18px;margin-left:auto}
 
 /* Bilan du matin : reste affiché jusqu'à fermeture */
 .recap{position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:12px;max-width:min(560px,90%);padding:12px 12px 12px 16px;background:#fafbf2f0;border:1px solid #fff;border-radius:14px;box-shadow:0 8px 30px #58664120;font-size:14px;color:#67765a;backdrop-filter:blur(10px)}.recap[hidden]{display:none}.recap>svg{width:18px;height:18px;color:#a98a3e;flex-shrink:0}.recap>div{display:flex;flex-direction:column;gap:2px;min-width:0}.recap strong{font-weight:600;color:#55624a}.recap span{color:#8b947d;overflow-wrap:anywhere}.recap .icon-button{flex-shrink:0}
-.world .clock-chip .clock-light{display:inline-flex;margin-left:2px;opacity:.7}.world .clock-chip .clock-light svg{width:16px;height:16px}.world .clock-chip:hover{background:#fbfcf3}
+.world .clock-chip:hover{background:#fbfcf3}
 
 /* Téléphone : le HUD se réorganise en deux lignes en haut, une bande de commandes au-dessus du minuteur en bas.
    La scène reste la scène — on marche et on s'assoit au doigt. */
@@ -255,7 +253,6 @@ dialog.card[open]{display:flex;flex-direction:column;max-height:calc(100vh - 40p
 .hud-center{flex:1 1 auto;justify-content:flex-start;min-width:0}
 .hud-right{flex:0 0 auto;gap:6px;justify-content:flex-end}
 .world .clock-chip{height:34px;padding:0 10px;gap:6px;font-size:16px;letter-spacing:-.4px}
-.world .clock-chip .clock-light svg{width:14px;height:14px}
 .view-controls{position:static}/* dans la seconde ligne, plus flottant sur la scène */
 .world .chip-group.view-controls #zoom-out,.world .chip-group.view-controls #zoom-in,.world .chip-group.view-controls #zoom-value,.world .chip-group.view-controls .divider{display:none}/* pas de zoom ± au doigt : suivi et recentrage suffisent */
 .world-bottom,.world .chip.open-tasks{bottom:150px}/* au-dessus du dock du minuteur, qui a gagné sa ligne d'onglets */

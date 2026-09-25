@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createNavigator} from '../src/navigation.ts';
-import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from '../src/timer.ts';
+import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance,PER_CYCLE} from '../src/timer.ts';
 
 test('avatar routes around a counter without crossing furniture',()=>{
  const nav=createNavigator([{x:0,z:0,w:2,d:3}]);
@@ -52,23 +52,16 @@ test('un cycle enchaîne 4 focus, 3 petites pauses et une longue, puis repart',(
  assert.notEqual(state.endAt,null);assert.equal(state.mode,'focus');
 });
 
-test('advance respecte perCycle et l’enchaînement coupé',()=>{
- const two=createTimer({perCycle:2} as any);advance(two,1,1000);assert.equal(two.mode,'short');
- advance(two,1,1000);assert.equal(two.mode,'focus');
- assert.equal(advance(two,2,1000).to,'long');
+test('advance : la longue pause tombe tous les PER_CYCLE focus, l’enchaînement coupé attend le clic',()=>{
+ assert.equal(PER_CYCLE,4);
+ const st=createTimer();for(const [done,to] of [[1,'short'],[3,'short'],[4,'long'],[8,'long'],[5,'short']] as const){resetTimer(st,'focus');assert.equal(advance(st,done,1000).to,to);}
  const manual=createTimer({autoChain:false} as any);
  const r=advance(manual,1,1000);assert.equal(r.to,'short');assert.equal(r.started,false);assert.equal(manual.endAt,null);
 });
 
-test('perCycle borné et enchaînement actif par défaut',()=>{
- assert.equal(createTimer().perCycle,4);assert.equal(createTimer().autoChain,true);
- assert.equal(createTimer({perCycle:99} as any).perCycle,12);
- assert.equal(createTimer({perCycle:0} as any).perCycle,2);
- assert.equal(createTimer({perCycle:'oops'} as any).perCycle,4);
-});
-
-test('seatOnFocus est actif par défaut et se coupe explicitement',()=>{
- assert.equal(createTimer().seatOnFocus,true);
- assert.equal(createTimer({seatOnFocus:false} as any).seatOnFocus,false);
- assert.equal(createTimer({seatOnFocus:'oops'} as any).seatOnFocus,true);
+test('enchaînement actif par défaut, les anciennes clés perCycle / seatOnFocus sont ignorées',()=>{
+ assert.equal(createTimer().autoChain,true);
+ const old=createTimer({perCycle:2,seatOnFocus:false,autoChain:false} as any);
+ assert.equal(old.autoChain,false);assert.equal('perCycle' in old,false);assert.equal('seatOnFocus' in old,false);
+ resetTimer(old,'focus');assert.equal(advance(old,2,1000).to,'short');// pas de cycle raccourci : 2 focus ne font pas une longue pause
 });

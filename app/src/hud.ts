@@ -12,7 +12,7 @@ export function hudMarkup(): string{return `
       <div class="hud-top">
         <div class="hud-zone hud-left">
           <a class="brand chip" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
-          <button class="chip clock-chip" id="clock"><span id="clock-time">--:--</span><span id="clock-light" class="clock-light"></span></button>
+          <button class="chip clock-chip" id="clock"><span id="clock-time">--:--</span></button>
           <div class="chip-group room-switch" role="group" aria-label="Changer de salle"><button class="chip" data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button class="chip" data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button class="chip" data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
         </div>
         <div class="hud-zone hud-center"><div class="chip-group progress-group">
@@ -99,7 +99,6 @@ export function hudMarkup(): string{return `
     <section><h3>Aujourd’hui <span class="pill" id="journal-summary" hidden></span></h3><ul class="journal-list" id="journal-list"></ul><p class="tasks-empty" id="journal-empty">Rien encore. Un focus ou une tâche cochée, et ça commence.</p></section>
     <section><h3>Succès <span class="pill" id="achievements-count">0/${ACHIEVEMENTS.length}</span></h3><ul class="achievements-list" id="achievements-list"></ul></section>
   </div></dialog>
-  <dialog id="settings-dialog" class="card card-terra"><form id="settings-form"><header class="card-head"><span class="card-icon">${icon('clock-3')}</span><span class="card-eyebrow">TON RYTHME</span><h2>À ton tempo.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header><div class="card-body"><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label>Concentration<input name="focus" type="number" min="1" max="90" required /></label><label>Petite pause<input name="short" type="number" min="1" max="90" required /></label><label>Longue pause<input name="long" type="number" min="1" max="90" required /></label><label>Focus avant la longue pause<input name="perCycle" type="number" min="2" max="12" required /></label><label>Enchaîner les phases<input name="autoChain" type="checkbox" /></label><label>S’asseoir en focus, se lever en pause<input name="seatOnFocus" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></div></form></dialog>
   <dialog id="identity-dialog" class="card card-sage"><form id="identity-form" method="dialog"><header class="card-head"><span class="card-icon">${icon('smile')}</span><span class="card-eyebrow">ON SE PRÉSENTE ?</span><h2>Un pseudo, une couleur.</h2></header><div class="card-body">
     <p>Un pseudo et une couleur, c’est tout ce qu’il faut pour entrer au café.</p>
     <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
@@ -107,21 +106,14 @@ export function hudMarkup(): string{return `
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
   </div></form></dialog>
   <dialog id="panel-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('settings-2')}</span><span class="card-eyebrow">PARAMÈTRES</span><h2>Le café, à ta main.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header>
-  <div class="task-tabs panel-tabs" role="tablist"><button role="tab" data-panel="ambiance" aria-selected="true">${icon('sun-moon')}Ambiance</button><button role="tab" data-panel="compte" aria-selected="false">${icon('user-cog')}Compte</button><button role="tab" data-panel="aide" aria-selected="false">${icon('help-circle')}Aide</button></div>
+  <div class="task-tabs panel-tabs" role="tablist"><button role="tab" data-panel="rythme" aria-selected="true">${icon('clock-3')}Rythme</button><button role="tab" data-panel="ambiance" aria-selected="false">${icon('sun-moon')}Ambiance</button><button role="tab" data-panel="compte" aria-selected="false">${icon('user-cog')}Compte</button><button role="tab" data-panel="aide" aria-selected="false">${icon('help-circle')}Aide</button></div>
   <div class="card-body">
-    <section class="panel-pane" data-pane="ambiance">
-      <h3>Lumière</h3>
-      <div class="segmented" id="light" role="radiogroup" aria-label="Lumière de la scène"><button data-light="auto">${icon('sun-moon')}<span>Auto</span></button><button data-light="day">${icon('sun')}<span>Plein jour</span></button><button data-light="evening">${icon('moon')}<span>Soirée</span></button></div>
-      <p class="form-note" id="light-note"></p>
+    <section class="panel-pane" data-pane="rythme">
+      <form id="settings-form"><h3>Ton rythme</h3><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label><span>Concentration</span><input name="focus" type="number" min="1" max="90" required /></label><label><span>Petite pause</span><input name="short" type="number" min="1" max="90" required /></label><label><span>Longue pause</span><input name="long" type="number" min="1" max="90" required /></label><label><span>Enchaîner les phases</span><input name="autoChain" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></form>
+    </section>
+    <section class="panel-pane" data-pane="ambiance" hidden>
       <h3>Sons</h3>
-      <div class="field-rows"><label>${icon('headphones')}<span>Pluie douce</span><span class="sound-bars"><b></b><b></b><b></b></span><input id="sound" type="checkbox" /></label><label>${icon('volume-2')}<span>Carillon du minuteur</span><input id="sfx" type="checkbox" /></label><label>${icon('bell')}<span>Notifications système</span><input id="notifs" type="checkbox" /></label></div>
-      <h3>Écouter</h3>
-      <ul class="sound-list">
-    <li><div><strong>Début de session</strong><small>Deux notes montantes, quand tu lances un pomodoro ou rejoins la salle.</small></div><button data-play="start">${icon('play')}<span>Écouter</span></button></li>
-    <li><div><strong>Fin de session</strong><small>Un carillon de trois notes, à la fin d’un focus ou d’une pause.</small></div><button data-play="end">${icon('play')}<span>Écouter</span></button></li>
-    <li><div><strong>Récompense</strong><small>Trois notes brèves, à chaque pièce ou point d’expérience gagné.</small></div><button data-play="reward">${icon('play')}<span>Écouter</span></button></li>
-    <li><div><strong>Notification système</strong><small>Le même message, hors de l’onglet. Ton navigateur doit l’autoriser.</small></div><button data-play="notify">${icon('bell')}<span>Tester</span></button></li>
-  </ul>
+      <div class="field-rows"><label>${icon('volume-2')}<span>Carillon du minuteur</span><input id="sfx" type="checkbox" /></label><label>${icon('bell')}<span>Notifications système</span><input id="notifs" type="checkbox" /></label></div>
     </section>
     <section class="panel-pane" data-pane="compte" hidden>
       <h3>Toi</h3>

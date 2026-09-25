@@ -149,7 +149,7 @@ const ROOM_UI: Record<RoomKind,{label: string; icon: string; toast: string; hint
 };
 const roomKind=(v: string): RoomKind=>Object.hasOwn(ROOM_UI,v)?v as RoomKind:'cafe';// a saved 'public' from before the garden, or anything unknown, means the café
 let cafe: any,room=roomKind(load('gamitask.room','cafe'));
-const ambience=createAmbience({cafe:()=>cafe,onOpen:renderAccount});
+const ambience=createAmbience({cafe:()=>cafe,onOpen(tab){renderAccount();if(tab==='rythme')pomo.fillRhythmForm();}});// `pomo` est créé plus bas : le panneau ne s'ouvre qu'au clic, bien après
 let look: Look=loadLook(load('gamitask.look',null),identity.color,[]);
 function saveLook(){save('gamitask.look',look);}
 // Character editor: a sheet over the scene, the café avatar itself is the preview.
@@ -293,7 +293,7 @@ function onSceneState(state: SceneState){
     if(state.focusTask){openDrawer(true);tasksUi.revealKind(state.focusTask);const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as HTMLElement|null;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
     if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
-    if(state.hotspot==='timer')$('#settings').click();
+    if(state.hotspot==='timer')ambience.openPanel('rythme');
     if(state.hotspot==='shop')openDrawer(true,'shop');
     if(state.placing){placingCell=state.placing.cell;$('#place-ok').disabled=!placingCell;if(state.placing.refused)toast('Pas la place ici.');}
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}

@@ -1,7 +1,7 @@
 // Le pomodoro tel qu'on le voit : le minuteur solo, la session de la salle, les réglages du rythme, et le personnage
 // qui s'assoit ou se lève avec les phases. Le balisage vit dans le HUD de main.ts ; ce module possède le comportement.
 import {$,icon,drawIcons,load,save,today,toast} from './ui.ts';
-import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from './timer.ts';
+import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance,PER_CYCLE} from './timer.ts';
 import type {TimerMode} from './timer.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice} from './pomo.ts';
 import {DURATIONS} from '@shared/types';
@@ -28,8 +28,8 @@ export function createPomodoro(deps: PomodoroDeps){
   // Un focus qui commence envoie le personnage s'asseoir, une pause le fait se relever — solo comme en salle.
   // Une fenêtre ouverte a priorité sur le déplacement : la demande attend sa fermeture, la dernière l'emporte.
   let pendingMove: null|'seat'|'stand'=null;
-  function seatForFocus(){if(!timer.seatOnFocus)return;if(deps.canMove())deps.cafe()?.takeSeat?.();else pendingMove='seat';}
-  function standForBreak(){if(!timer.seatOnFocus)return;if(deps.canMove())deps.cafe()?.leaveSeat?.();else pendingMove='stand';}
+  function seatForFocus(){if(deps.canMove())deps.cafe()?.takeSeat?.();else pendingMove='seat';}
+  function standForBreak(){if(deps.canMove())deps.cafe()?.leaveSeat?.();else pendingMove='stand';}
   function resumeMove(){if(!pendingMove||!deps.canMove())return;const m=pendingMove;pendingMove=null;if(m==='seat')deps.cafe()?.takeSeat?.();else deps.cafe()?.leaveSeat?.();}
   // The server clocks every focus from its start: a completion it did not see begin earns nothing. Resuming after a pause is not a new start.
   const announceFocus=()=>deps.socket()?.emit('pomodoro:start',{minutes:timer.durations.focus});
@@ -67,7 +67,7 @@ export function createPomodoro(deps: PomodoroDeps){
       deps.socket()?.emit('avatar-state',{state:avatarState()});
     }
     $('#sessions').textContent=stats.sessions;$('#minutes').textContent=stats.minutes;
-    const dots=$('.session-dots'),per=timer.perCycle;
+    const dots=$('.session-dots'),per=PER_CYCLE;
     if(dots.querySelectorAll('span').length!==per)dots.innerHTML='<span></span>'.repeat(per)+'<small id="cycle-label"></small>';
     const cycle=stats.sessions%per||(stats.sessions?per-1:0);// a completed cycle keeps every dot lit instead of dropping back to one
     dots.querySelectorAll('span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
@@ -81,20 +81,21 @@ export function createPomodoro(deps: PomodoroDeps){
     renderTimer();};
   $('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};
   document.querySelectorAll('[data-mode]').forEach((b: any)=>b.onclick=()=>{resetTimer(timer,b.dataset.mode);persistTimer();lastRunning=null;renderTimer();});
-  function cyclePreview(f: any){const per=Math.min(12,Math.max(2,Number(f.perCycle.value)||4));
+  function cyclePreview(f: any){
     $('#cycle-preview').textContent=f.autoChain.checked
-      ?`Un cycle : ${per} focus de ${f.focus.value} min, ${per-1} pauses de ${f.short.value} min, puis ${f.long.value} min. Tout s’enchaîne et repart en boucle jusqu’à ta pause.`
-      :`Un cycle : ${per} focus, puis la longue pause. Chaque phase attend ton clic.`;}
-  $('#settings').onclick=()=>{const f=$('#settings-form').elements;
+      ?`Un cycle : ${PER_CYCLE} focus de ${f.focus.value} min, ${PER_CYCLE-1} pauses de ${f.short.value} min, puis ${f.long.value} min. Tout s’enchaîne et repart en boucle jusqu’à ta pause.`
+      :`Un cycle : ${PER_CYCLE} focus, puis la longue pause. Chaque phase attend ton clic.`;}
+  // Le formulaire vit dans l'onglet Rythme du panneau : main.ts le fait remplir à chaque ouverture de cet onglet.
+  function fillRhythmForm(){const f=$('#settings-form').elements;
     for(const [key,value] of Object.entries(timer.durations))f[key].value=value;
-    f.perCycle.value=timer.perCycle;f.autoChain.checked=timer.autoChain;f.seatOnFocus.checked=timer.seatOnFocus;
-    cyclePreview(f);$('#settings-dialog').showModal();};
+    f.autoChain.checked=timer.autoChain;cyclePreview(f);}
+  $('#settings').onclick=()=>deps.ambience.openPanel('rythme');
   $('#settings-form').oninput=()=>cyclePreview($('#settings-form').elements);
   $('#settings-form').onsubmit=(e: any)=>{e.preventDefault();const f=$('#settings-form').elements;
     const durations={...timer.durations};for(const key of Object.keys(durations) as TimerMode[])durations[key]=Number(f[key].value);
     // createTimer borne tout : c'est lui qui valide, pas le formulaire
-    timer=createTimer({durations,mode:timer.mode,perCycle:Number(f.perCycle.value),autoChain:f.autoChain.checked,seatOnFocus:f.seatOnFocus.checked});
-    resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#settings-dialog').close();toast('Ton nouveau rythme est prêt.');};
+    timer=createTimer({durations,mode:timer.mode,autoChain:f.autoChain.checked});
+    resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#panel-dialog').close();toast('Ton nouveau rythme est prêt.');};
 
   // Pomodoro de la salle : le serveur tient l'horloge, on l'affiche et on extrapole entre deux ticks.
   let roomPomo=createRoomPomo(),timerTab: 'solo'|'room'=load('gamitask.timerTab','solo')==='room'?'room':'solo';
@@ -152,5 +153,5 @@ export function createPomodoro(deps: PomodoroDeps){
   function leaveRoom(){roomPomo.joined=false;renderRoomPomo();}
   function adoptDurations(d: Partial<Record<TimerMode,number>>){Object.assign(timer.durations,d);resetTimer(timer);persistTimer();}
 
-  return {avatarState,onRoomState,onRoomTick,onRoomPhase,resetRoom,leaveRoom,adoptDurations,resumeMove};
+  return {avatarState,onRoomState,onRoomTick,onRoomPhase,resetRoom,leaveRoom,adoptDurations,resumeMove,fillRhythmForm};
 }
