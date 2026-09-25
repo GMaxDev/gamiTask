@@ -9,8 +9,8 @@ test('level curve matches the server',()=>{
  assert.deepEqual(levelInfo({xp:120}),{level:1,into:70,span:150,next:200});
 });
 test('server updates are applied verbatim',()=>{
- const p=createProgress();setCoins(p,42);setXp(p,{xp:120,level:1,xpToNext:80});setStreak(p,3);
- assert.equal(p.coins,42);assert.equal(p.xp,120);assert.equal(p.level,1);assert.equal(p.xpToNext,80);assert.equal(p.streak,3);
+ const p=createProgress();setCoins(p,42);setXp(p,{xp:120,level:1});setStreak(p,3);
+ assert.equal(p.coins,42);assert.equal(p.xp,120);assert.equal(p.level,1);assert.equal(p.streak,3);
 });
 test('achievements unlock once and unknown keys are ignored',()=>{
  const p=createProgress();

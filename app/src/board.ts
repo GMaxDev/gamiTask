@@ -3,7 +3,7 @@
 import {hexOf} from './ui.ts';
 export interface Entry{id: string; name: string; color: number; coins: number; state: string}
 export interface BoardDeps{meId(): string}
-export interface Board{update(entries: Entry[]): void; open(): void; close(): void; toggle(): void; isOpen(): boolean; dispose(): void}
+export interface Board{update(entries: Entry[]): void; close(): void}
 
 /** 1-based place in the board the server already sorted, null when that id is not in the room. */
 export function rankOf(entries: Entry[],id: string): number|null{
@@ -71,7 +71,6 @@ export function createBoard(host: HTMLElement,deps: BoardDeps): Board{
       if(moved==='up'){chip.classList.remove('bump');void chip.offsetWidth;chip.classList.add('bump');
         clearTimeout(bumpTimer);bumpTimer=setTimeout(()=>chip.classList.remove('bump'),400);}
     },
-    open:()=>setOpen(true),close:()=>setOpen(false),toggle:()=>setOpen(!open),isOpen:()=>open,
-    dispose(){clearTimeout(bumpTimer);document.removeEventListener('pointerdown',onDocDown);document.removeEventListener('keydown',onKey);anchor.remove();},
+    close:()=>setOpen(false),
   };
 }

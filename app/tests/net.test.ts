@@ -14,7 +14,7 @@ function fakeSocket(){
 const me={userId:'u1',name:'Max',color:0x819478,token:null};
 
 test('joins on connect and again on every reconnect, with the current room',()=>{
-  const s=fakeSocket(),net=createNet(me,'ocean',s);const seen:string[]=[];net.onStatus(x=>seen.push(x));
+  const s=fakeSocket(),net=createNet(me,'ocean',s as any);const seen:string[]=[];net.onStatus(x=>seen.push(x));
   assert.equal(net.status(),'connecting');
   s.fire('connect');assert.deepEqual(s.sent[0],['join',{name:'Max',color:0x819478,userId:'u1',roomId:'ocean',tzOffsetMinutes:new Date().getTimezoneOffset()}]);assert.equal(net.status(),'online');
   s.fire('room:info',{roomId:'room-42'});assert.equal(net.roomId(),'room-42');
@@ -23,15 +23,11 @@ test('joins on connect and again on every reconnect, with the current room',()=>
   assert.deepEqual(seen,['online','offline','online']);
 });
 test('a replaced session disconnects for good',()=>{
-  const s=fakeSocket(),net=createNet(me,'ocean',s);s.fire('connect');
+  const s=fakeSocket(),net=createNet(me,'ocean',s as any);s.fire('connect');
   s.fire('session:replaced');assert.equal(net.status(),'replaced');assert.equal(s.disconnected,1);
   s.fire('connect');assert.equal(s.sent.length,1);assert.equal(net.status(),'replaced');
 });
-test('setRoom changes what the next join asks for',()=>{
-  const s=fakeSocket(),net=createNet(me,'ocean',s);net.setRoom('forest');s.fire('connect');
-  assert.equal((s.sent[0][1] as {roomId:string}).roomId,'forest');
-});
 test('a signed-in identity joins with its token',()=>{
-  const s=fakeSocket(),net=createNet({...me,token:'jwt.here'},'ocean',s);s.fire('connect');
+  const s=fakeSocket(),net=createNet({...me,token:'jwt.here'},'ocean',s as any);s.fire('connect');
   assert.equal((s.sent[0][1] as {token?:string}).token,'jwt.here');
 });

@@ -443,7 +443,7 @@ function bindServerEvents(){
     if(h.durations)pomo.adoptDurations(h.durations);
     if(h.notes?.length)toast('Tes notes sont posées sur la table.');});
   s.on('task:added',t=>{tasksUi.added(t);tasksUi.render();tasksUi.sync();});
-  s.on('task:scored',({task:t,coins,energy,xp,level,xpToNext})=>{const before=progress.coins,xpBefore=progress.xp;tasksUi.scored(t);setCoins(progress,coins);setXp(progress,{xp,level,xpToNext});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);tasksUi.render();renderProgress();renderShop();tasksUi.sync();
+  s.on('task:scored',({task:t,coins,energy,xp,level})=>{const before=progress.coins,xpBefore=progress.xp;tasksUi.scored(t);setCoins(progress,coins);setXp(progress,{xp,level});setEnergy(progress,energy);cafe?.setEnergy?.(progress.energy,progress.exhausted);tasksUi.render();renderProgress();renderShop();tasksUi.sync();
     const dc=coins-before;if(dc>0||xp>0){ambience.rewardChime();note({kind:'task',text:t.text,coins:dc,xp:Math.max(0,xp-xpBefore)});const parts=[];if(dc>0)parts.push(`+${dc} pièces`);toast(`${t.kind==='daily'?'Fait pour aujourd’hui.':t.kind==='habit'?'Bien joué.':'C’est fait.'} ${parts.join(' · ')}`);}
     else if(t.kind==='habit')toast('Noté. Demain sera mieux.');});
   s.on('task:updated',t=>{tasksUi.updated(t);tasksUi.render();tasksUi.sync();});

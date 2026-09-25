@@ -4,7 +4,7 @@ import {hexOf} from './ui.ts';
 export interface ChatMsg{id: string; name: string; color: number; text: string; ts: number; mine: boolean}
 export interface Member{id: string; name: string; color: number}
 export interface ChatDeps{send(text: string): boolean; typing(): void; emote(emoji: string): void; members(): Member[]; myName(): string; onMention?(): void}
-export interface Chat{open(): void; close(): void; toggle(): void; focus(): void; isOpen(): boolean; add(msg: ChatMsg): void; system(text: string): void; typing(id: string,name: string): void; setRoom(label: string): void; clear(): void; emotes: string[]; dispose(): void}
+export interface Chat{open(): void; focus(): void; add(msg: ChatMsg): void; system(text: string): void; typing(id: string,name: string): void; setRoom(label: string): void}
 
 const ENTITIES: Record<string,string>={'&lt;':'<','&gt;':'>','&amp;':'&','&quot;':'"','&#39;':'\'','&#x27;':'\''};
 export const decodeEntities=(s: string): string=>s.replace(/&(?:lt|gt|amp|quot|#39|#x27);/g,m=>ENTITIES[m]??m);
@@ -154,18 +154,15 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
     }
     if(e.key==='Escape'){e.stopPropagation();if(!emotesEl.hidden){showEmotes(false);return;}setOpen(false);toggleBtn.focus();}
   };
-  const tick=setInterval(()=>{if(typers.size)renderTyping();},1000);
+  setInterval(()=>{if(typers.size)renderTyping();},1000);
 
   return {
-    open:()=>setOpen(true),close:()=>setOpen(false),toggle:()=>setOpen(!open),focus:()=>input.focus(),isOpen:()=>open,
+    open:()=>setOpen(true),focus:()=>input.focus(),
     add,system,typing(id: string,name: string){typers.set(id,{name,at:Date.now()});renderTyping();},
     setRoom(label: string){
       thread.clear();list.replaceChildren();typers.clear();renderTyping();
       eyebrow.textContent=label;
       const sep=document.createElement('li');sep.className='chat-sep';sep.textContent=SEPARATORS[label]??'Tu es au café';list.append(sep);
     },
-    clear(){thread.clear();list.replaceChildren();},
-    emotes:EMOTES,
-    dispose(){clearInterval(tick);clearTimeout(warnTimer);root.remove();},
   };
 }

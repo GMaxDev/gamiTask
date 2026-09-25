@@ -165,10 +165,6 @@ export const PUBLIC_ROOM_NAMES: Record<PublicRoomId, string> = {
   forest: "Café-jardin",
 };
 
-export function isPublicRoomId(v: unknown): v is PublicRoomId {
-  return typeof v === "string" && (PUBLIC_ROOM_IDS as readonly string[]).includes(v);
-}
-
 /** Résumé d'une room envoyé par le serveur aux clients pour l'écran de sélection */
 export interface RoomSummary {
   id: RoomId;
