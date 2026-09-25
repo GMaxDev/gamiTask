@@ -50,3 +50,10 @@ test("a part may cut instead of fill", () => {
   const it = sanitizeItem({ ...ok, parts: [part, { ...part, op: "cut" }, { ...part, op: "weird" }] })!;
   assert.equal(it.parts[0].op, undefined); assert.equal(it.parts[1].op, "cut"); assert.equal(it.parts[2].op, undefined);
 });
+
+test("names and emojis cannot smuggle markup", () => {
+  const it = sanitizeItem({ ...ok, name: '<img src=x onerror="x">Tab', emoji: "<b>" })!;
+  assert.equal(it.name, "img src=x onerror=xTab"); assert.equal(it.emoji, "📦");
+  assert.equal(sanitizeItem({ ...ok, emoji: "🧑‍🚀" })!.emoji, "🧑‍🚀");
+  assert.equal(sanitizeItem({ ...ok, emoji: "abc" })!.emoji, "📦");
+});

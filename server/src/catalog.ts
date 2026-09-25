@@ -56,9 +56,10 @@ export function sanitizeItem(raw: unknown): CatalogItem | null {
   const r = raw as Record<string, unknown>;
   if (typeof r.id !== "string" || !/^[a-z0-9][a-z0-9-]{1,39}$/.test(r.id)) return null;
   if (r.kind !== "hat" && r.kind !== "furniture" && r.kind !== "decor") return null;
-  const name = typeof r.name === "string" ? r.name.replace(/\s+/g, " ").trim().slice(0, 30) : "";
+  // Both land in innerHTML on every client: no markup characters in a name, and an emoji is pictographs only.
+  const name = typeof r.name === "string" ? r.name.replace(/[<>&"'\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 30) : "";
   if (!name) return null;
-  const emoji = typeof r.emoji === "string" && r.emoji.trim() ? r.emoji.trim().slice(0, 8) : "📦";
+  const emoji = typeof r.emoji === "string" && /^[\p{Extended_Pictographic}\p{Emoji_Component}‍]{1,8}$/u.test(r.emoji.trim()) ? r.emoji.trim() : "📦";
   const price = typeof r.price === "number" && Number.isFinite(r.price) ? Math.max(0, Math.min(99999, Math.round(r.price))) : 0;
   const cells = (v: unknown) => (r.kind !== "furniture" ? 1 : typeof v === "number" && Number.isFinite(v) ? Math.max(1, Math.min(4, Math.round(v))) : 1);
   if (!Array.isArray(r.parts) || r.parts.length === 0 || r.parts.length > MAX_PARTS) return null;

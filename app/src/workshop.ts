@@ -9,6 +9,7 @@ import {createDecor,DECOR_PIECES} from './decor.ts';
 import {defaultLook,createHistory} from './look.ts';
 import {PALETTE} from './identity.ts';
 import {newItem,addPart,slugId,duplicate,setFunction} from './workshop-model.ts';
+import {esc} from './ui.ts';
 import {createIcons,Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2,Eye,EyeOff,FlipHorizontal2,Eraser} from 'lucide';
 
 export interface WorkshopDeps{items():CatalogItem[];save(item:CatalogItem):void;remove(id:string):void;onExit():void}
@@ -97,7 +98,7 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
   // Left column: what exists. Clicking loads a copy, so a half-done edit never leaks into the list.
   function renderItems(){
     const row=(it:{id:string;emoji:string;name:string},sub:string,open:()=>void)=>{const li=document.createElement('li');const b=document.createElement('button');b.className='ws-item';b.setAttribute('aria-current',String(it.id===draft.id));
-      b.innerHTML=`<span class="ws-emoji">${it.emoji}</span><span>${it.name}<small>${sub}</small></span>`;b.onclick=()=>guard(open);li.appendChild(b);return li;};
+      b.innerHTML=`<span class="ws-emoji">${esc(it.emoji)}</span><span>${esc(it.name)}<small>${sub}</small></span>`;b.onclick=()=>guard(open);li.appendChild(b);return li;};
     const heading=(t:string)=>{const li=document.createElement('li');li.className='ws-group';li.textContent=t;return li;};
     const mine=deps.items().filter(it=>!isBuiltIn(it.id)&&it.kind!=='decor');
     itemsEl.replaceChildren(heading('Mes objets'),...mine.map(it=>row(it,it.kind==='hat'?'chapeau':`mobilier · ${it.w}×${it.d}`,()=>load(structuredClone(it)))),
