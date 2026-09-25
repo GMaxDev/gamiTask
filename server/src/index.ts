@@ -494,18 +494,6 @@ function getFurniturePosPayload(
   return out;
 }
 
-/** Retourne les meubles effectivement placés dans la chambre (avec fallback pour migration) */
-function getEffectivePlaced(
-  placedFurniture: string,
-  ownedFurniture: string,
-): string[] {
-  const placed = (placedFurniture ?? "").split(",").filter(Boolean);
-  if (placed.length === 0 && (ownedFurniture ?? "").length > 0) {
-    return (ownedFurniture ?? "").split(",").filter(Boolean);
-  }
-  return placed;
-}
-
 // ── HTTP Auth endpoints ───────────────────────────────────────────────────
 // No fallback: a guessable secret signs admin sessions. The server refuses to start rather than run with one.
 const JWT_SECRET = process.env.JWT_SECRET ?? "";
@@ -1360,10 +1348,7 @@ io.on("connection", (socket) => {
     const ownedFurnitureList = (user.ownedFurniture ?? "")
       .split(",")
       .filter(Boolean);
-    const placedFurnitureList = getEffectivePlaced(
-      user.placedFurniture ?? "",
-      user.ownedFurniture ?? "",
-    );
+    const placedFurnitureList = (user.placedFurniture ?? "").split(",").filter(Boolean);
     const furniturePositionsPayload = getFurniturePosPayload(
       user.furniturePositions ?? "{}",
     );
@@ -1731,7 +1716,7 @@ io.on("connection", (socket) => {
     let bonus = 0;
     if (r.coins !== 0) {
       const furnitureRow = sql.getFurniture.get(userId) as { ownedFurniture: string; placedFurniture: string };
-      const placed = getEffectivePlaced(furnitureRow?.placedFurniture ?? "", furnitureRow?.ownedFurniture ?? "");
+      const placed = (furnitureRow?.placedFurniture ?? "").split(",").filter(Boolean);
       if (placed.includes("plant")) bonus += 2;
       if (placed.includes("bookshelf")) bonus += 2;
       if (placed.includes("cactus")) bonus += 1;
@@ -1782,10 +1767,7 @@ io.on("connection", (socket) => {
     sql.addCoins.run(-item.price, userId);
     const newOwned = [...owned, itemId].join(",");
     sql.setOwnedFurniture.run(newOwned, userId);
-    const newPlacedOnBuy = getEffectivePlaced(
-      user.placedFurniture ?? "",
-      user.ownedFurniture ?? "",
-    );
+    const newPlacedOnBuy = (user.placedFurniture ?? "").split(",").filter(Boolean);
     const newPlacedList = [...newPlacedOnBuy, itemId];
     sql.setPlacedFurniture.run(newPlacedList.join(","), userId);
     const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
@@ -1822,10 +1804,7 @@ io.on("connection", (socket) => {
     ) as Record<string, { col: number; row: number }>;
     positions[itemId] = { col, row };
     sql.setFurniturePositions.run(JSON.stringify(positions), userId);
-    const movedPlaced = getEffectivePlaced(
-      user.placedFurniture ?? "",
-      user.ownedFurniture ?? "",
-    );
+    const movedPlaced = (user.placedFurniture ?? "").split(",").filter(Boolean);
     const movedPositionsPayload = getFurniturePosPayload(
       JSON.stringify(positions),
     );
@@ -1846,10 +1825,7 @@ io.on("connection", (socket) => {
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
     if (!owned.includes(itemId)) return;
-    const placed = getEffectivePlaced(
-      user.placedFurniture ?? "",
-      user.ownedFurniture ?? "",
-    );
+    const placed = (user.placedFurniture ?? "").split(",").filter(Boolean);
     const newPlaced = placed.includes(itemId)
       ? placed.filter((id) => id !== itemId)
       : [...placed, itemId];
@@ -1877,10 +1853,7 @@ io.on("connection", (socket) => {
     const user = sql.getUser.get(userId) as UserRow;
     const owned = (user.ownedFurniture ?? "").split(",").filter(Boolean);
     if (!owned.includes(itemId)) return;
-    const placedIds = getEffectivePlaced(
-      user.placedFurniture ?? "",
-      user.ownedFurniture ?? "",
-    );
+    const placedIds = (user.placedFurniture ?? "").split(",").filter(Boolean);
     const effectivePos = getFurniturePosPayload(
       user.furniturePositions ?? "{}",
     );
@@ -2010,10 +1983,7 @@ io.on("connection", (socket) => {
       ownedFurniture: string;
       placedFurniture: string;
     };
-    const pFurniture = getEffectivePlaced(
-      pFurnitureRow?.placedFurniture ?? "",
-      pFurnitureRow?.ownedFurniture ?? "",
-    );
+    const pFurniture = (pFurnitureRow?.placedFurniture ?? "").split(",").filter(Boolean);
     const setB = getSetBonuses(pFurniture);
     let pomoFengBonus = 0;
     if (pFurniture.includes("coffee")) pomoFengBonus += 5;
