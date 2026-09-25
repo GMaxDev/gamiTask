@@ -29,8 +29,8 @@ export function delta(t: Pick<Task, "value" | "difficulty" | "kind" | "checklist
   return Math.min(DELTA_CAP, d);
 }
 
-export function rewards(d: number): { coins: number; xp: number; bossDamage: number } {
-  return { coins: Math.round(10 * d), xp: Math.round(15 * d), bossDamage: Math.round(5 * d) };
+export function rewards(d: number): { coins: number; xp: number } {
+  return { coins: Math.round(10 * d), xp: Math.round(15 * d) };
 }
 
 export function energyLoss(d: number, level: number): number {
@@ -60,7 +60,6 @@ export interface ScoreResult {
   task: Task;
   coins: number;
   xp: number;
-  bossDamage: number;
   energyDelta: number;
 }
 
@@ -68,7 +67,7 @@ export interface ScoreResult {
 export function score(t: Task, direction: "up" | "down", level: number, now = Date.now()): ScoreResult | null {
   const d = delta(t);
   const r = rewards(d);
-  const none = { coins: 0, xp: 0, bossDamage: 0 };
+  const none = { coins: 0, xp: 0 };
   if (t.kind === "habit") {
     if (direction === "up") {
       if (!t.up) return null;
@@ -90,7 +89,7 @@ export function score(t: Task, direction: "up" | "down", level: number, now = Da
     t.kind === "daily"
       ? { ...t, done: false, streak: Math.max(0, t.streak - 1), value: clampValue(t.value - d) }
       : { ...t, done: false, completedAt: null, value: clampValue(t.value - d) };
-  return { task, coins: -r.coins, xp: -r.xp, bossDamage: 0, energyDelta: 0 };
+  return { task, coins: -r.coins, xp: -r.xp, energyDelta: 0 };
 }
 
 /** Lundi = 1 … dimanche = 64, sur la date locale passée. */

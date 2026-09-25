@@ -29,7 +29,6 @@ import {
   type VideoState,
   type ClientToServerEvents,
   type ServerToClientEvents,
-  type GuildData,
   type Look,
 } from "./types.js";
 import {
@@ -297,23 +296,10 @@ db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`,
 );
 
-// ── Tables Guildes ───────────────────────────────────────────────────────────
+// Guilds and their boss are gone; existing databases drop the tables.
 db.exec(`
-  CREATE TABLE IF NOT EXISTS guilds (
-    id          TEXT    PRIMARY KEY,
-    name        TEXT    NOT NULL UNIQUE,
-    ownerId     TEXT    NOT NULL,
-    level       INTEGER NOT NULL DEFAULT 1,
-    bossHp      INTEGER NOT NULL DEFAULT 100,
-    bossMaxHp   INTEGER NOT NULL DEFAULT 100,
-    bossLevel   INTEGER NOT NULL DEFAULT 1,
-    bossDefeated INTEGER NOT NULL DEFAULT 0,
-    createdAt   INTEGER NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS guild_members (
-    userId  TEXT PRIMARY KEY,
-    guildId TEXT NOT NULL
-  );
+  DROP TABLE IF EXISTS guilds;
+  DROP TABLE IF EXISTS guild_members;
 `);
 
 // ── Table Items (editor-made catalogue) ─────────────────────────────────────
@@ -444,35 +430,6 @@ const sql = {
   getUserAchievements: db.prepare(
     "SELECT key FROM achievements WHERE userId = ?",
   ),
-  // Guildes
-  getGuild: db.prepare("SELECT * FROM guilds WHERE id = ?"),
-  getGuildByName: db.prepare("SELECT * FROM guilds WHERE name = ?"),
-  insertGuild: db.prepare(
-    "INSERT INTO guilds (id, name, ownerId, bossHp, bossMaxHp, bossLevel, bossDefeated, level, createdAt) VALUES (?, ?, ?, 100, 100, 1, 0, 1, ?)",
-  ),
-  deleteGuild: db.prepare("DELETE FROM guilds WHERE id = ?"),
-  getGuildMembers: db.prepare(
-    "SELECT gm.userId, COALESCE(u.displayName, u.id) as name, u.avatarColor as color FROM guild_members gm JOIN users u ON u.id = gm.userId WHERE gm.guildId = ?",
-  ),
-  getGuildMemberIds: db.prepare(
-    "SELECT userId FROM guild_members WHERE guildId = ?",
-  ),
-  getUserGuild: db.prepare(
-    "SELECT g.* FROM guilds g JOIN guild_members gm ON gm.guildId = g.id WHERE gm.userId = ?",
-  ),
-  insertGuildMember: db.prepare(
-    "INSERT OR IGNORE INTO guild_members (userId, guildId) VALUES (?, ?)",
-  ),
-  deleteGuildMember: db.prepare("DELETE FROM guild_members WHERE userId = ?"),
-  deleteGuildMembers: db.prepare("DELETE FROM guild_members WHERE guildId = ?"),
-  updateBossHp: db.prepare("UPDATE guilds SET bossHp = ? WHERE id = ?"),
-  defeatBoss: db.prepare(
-    "UPDATE guilds SET bossHp = ?, bossMaxHp = ?, bossLevel = ?, bossDefeated = bossDefeated + 1 WHERE id = ?",
-  ),
-  transferGuildOwner: db.prepare("UPDATE guilds SET ownerId = ? WHERE id = ?"),
-  countGuildMembers: db.prepare(
-    "SELECT COUNT(*) as cnt FROM guild_members WHERE guildId = ?",
-  ),
   // Private rooms
   getAllPrivateRooms: db.prepare("SELECT * FROM private_rooms"),
   getPrivateRoomByOwner: db.prepare(
@@ -538,88 +495,6 @@ interface PrivateRoomRow {
   name: string;
   ownerId: string;
   createdAt: number;
-}
-
-interface GuildRow {
-  id: string;
-  name: string;
-  ownerId: string;
-  level: number;
-  bossHp: number;
-  bossMaxHp: number;
-  bossLevel: number;
-  bossDefeated: number;
-  createdAt: number;
-}
-interface GuildMemberRow {
-  userId: string;
-  name: string;
-  color: number;
-}
-
-/** Émet guild:state à tous les membres en ligne d'une guilde */
-function emitGuildState(
-  io: Server<ClientToServerEvents, ServerToClientEvents>,
-  socketToUserId: Map<string, string>,
-  guildId: string,
-): void {
-  const guild = sql.getGuild.get(guildId) as GuildRow | undefined;
-  if (!guild) return;
-  const rawMembers = sql.getGuildMembers.all(guildId) as GuildMemberRow[];
-  const onlineUserIds = new Set(socketToUserId.values());
-  const members = rawMembers.map((m) => ({
-    userId: m.userId,
-    name: m.name,
-    color: m.color ?? 0x4f8ef7,
-    isOwner: m.userId === guild.ownerId,
-    isOnline: onlineUserIds.has(m.userId),
-  }));
-  const payload: GuildData = {
-    id: guild.id,
-    name: guild.name,
-    ownerId: guild.ownerId,
-    level: guild.level,
-    bossHp: guild.bossHp,
-    bossMaxHp: guild.bossMaxHp,
-    bossLevel: guild.bossLevel,
-    bossDefeated: guild.bossDefeated,
-    members,
-  };
-  for (const [socketId, userId] of socketToUserId.entries()) {
-    if (members.some((m) => m.userId === userId)) {
-      io.to(socketId).emit("guild:state", payload);
-    }
-  }
-}
-
-/** Gère la défaite du boss : récompense les membres, monte le boss de niveau */
-function handleBossDefeat(
-  io: Server<ClientToServerEvents, ServerToClientEvents>,
-  guild: GuildRow,
-): void {
-  const newBossLevel = guild.bossLevel + 1;
-  const newBossMaxHp = 100 * newBossLevel;
-  sql.defeatBoss.run(newBossMaxHp, newBossMaxHp, newBossLevel, guild.id);
-  const reward = 50 * guild.bossLevel;
-  const memberIds = (
-    sql.getGuildMemberIds.all(guild.id) as { userId: string }[]
-  ).map((m) => m.userId);
-  for (const userId of memberIds) {
-    sql.addCoins.run(reward, userId);
-    const newCoins = (sql.getCoins.get(userId) as UserRow).coins;
-    for (const [socketId, uid] of socketToUserId.entries()) {
-      if (uid === userId) {
-        io.to(socketId).emit("coins:update", { coins: newCoins });
-        io.to(socketId).emit("guild:boss-defeated", {
-          bossLevel: guild.bossLevel,
-          reward,
-        });
-        const p = getPlayer(socketId);
-        if (p) p.coins = newCoins;
-        break;
-      }
-    }
-  }
 }
 
 // Editor-made items live in `items`; the built-in lists stay the code's. One lookup serves the shop, the room and the hats.
@@ -964,13 +839,6 @@ function runRollover(
   const write = db.transaction((tasks: Task[]) => { for (const t of tasks) sql.updateTask.run(taskToRow(t)); });
   write(r.tasks);
   const energy = r.energyDelta ? applyEnergy(socket, userId, r.energyDelta) : (user.energy ?? ENERGY_MAX);
-  if (r.missed.length > 0) {
-    const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
-    if (guild) {
-      sql.updateBossHp.run(Math.min(guild.bossMaxHp, guild.bossHp + r.missed.length * 5), guild.id);
-      emitGuildState(io, socketToUserId, guild.id);
-    }
-  }
   socket.emit("day:rollover", { missed: r.missed, energy, energyDelta: r.energyDelta });
   const freshUser = sql.getUser.get(userId) as UserRow;
   socket.emit("tasks:state", {
@@ -1324,24 +1192,6 @@ function pomoTick(
             if (coins >= 100) tryUnlock(io, sock, userId, "coins-100");
             if (coins >= 500) tryUnlock(io, sock, userId, "coins-500");
             emitXpUpdate(sock, userId, 75);
-          }
-          const memberGuild = sql.getUserGuild.get(userId) as
-            | GuildRow
-            | undefined;
-          if (memberGuild) {
-            const freshGuild = sql.getGuild.get(memberGuild.id) as GuildRow;
-            const newBossHp = Math.max(0, freshGuild.bossHp - 15);
-            sql.updateBossHp.run(newBossHp, freshGuild.id);
-            if (newBossHp <= 0) {
-              handleBossDefeat(io, freshGuild);
-            } else {
-              io.to(sid).emit("guild:boss-attacked", {
-                damage: 15,
-                newHp: newBossHp,
-                maxHp: freshGuild.bossMaxHp,
-              });
-              emitGuildState(io, socketToUserId, freshGuild.id);
-            }
           }
         }
       }
@@ -2152,21 +2002,8 @@ io.on("connection", (socket) => {
     socket.emit("task:scored", {
       task: r.task, coins, xp, level: newLevel,
       xpToNext: 50 * (newLevel + 1) * (newLevel + 1) - xp,
-      levelUp: newLevel > level, energy, bossDamage: r.bossDamage,
+      levelUp: newLevel > level, energy,
     });
-    if (r.bossDamage > 0) {
-      const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
-      if (guild) {
-        const fresh = sql.getGuild.get(guild.id) as GuildRow;
-        const hp = Math.max(0, fresh.bossHp - r.bossDamage);
-        sql.updateBossHp.run(hp, fresh.id);
-        if (hp <= 0) handleBossDefeat(io, fresh);
-        else {
-          socket.emit("guild:boss-attacked", { damage: r.bossDamage, newHp: hp, maxHp: fresh.bossMaxHp });
-          emitGuildState(io, socketToUserId, fresh.id);
-        }
-      }
-    }
     if (r.coins > 0) {
       const taskCount = (sql.countDoneTasks.get(userId) as { cnt: number }).cnt;
       if (taskCount === 1) tryUnlock(io, socket, userId, "first-task");
@@ -2500,22 +2337,6 @@ io.on("connection", (socket) => {
     if (pFurniture.includes("lamp")) emitXpUpdate(socket, userId, 10);
     // Bonus Set Feng Shui XP
     if (setB.xpPomo > 0) emitXpUpdate(socket, userId, setB.xpPomo);
-    // Boss de guilde : un pomo personnel inflige 10 dégâts au boss
-    const memberGuild = sql.getUserGuild.get(userId) as GuildRow | undefined;
-    if (memberGuild) {
-      const newBossHp = Math.max(0, memberGuild.bossHp - 10);
-      sql.updateBossHp.run(newBossHp, memberGuild.id);
-      if (newBossHp <= 0) {
-        handleBossDefeat(io, memberGuild);
-      } else {
-        socket.emit("guild:boss-attacked", {
-          damage: 10,
-          newHp: newBossHp,
-          maxHp: memberGuild.bossMaxHp,
-        });
-      }
-      emitGuildState(io, socketToUserId, memberGuild.id);
-    }
     const p = getPlayer(socket.id);
     if (p) p.coins = coins;
     broadcastLeaderboardForSocket(io, socket.id);
@@ -2751,79 +2572,6 @@ io.on("connection", (socket) => {
       achievements: achievementKeys,
       isAdmin: !!user.isAdmin,
     });
-  });
-
-  // ── Guildes ───────────────────────────────────────────────────────────────
-  socket.on("guild:create", ({ name }) => {
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    // Valider le nom
-    const trimmed = name.trim().slice(0, 30);
-    if (!trimmed) return;
-    // Vérifier que l'user n'est déjà dans une guilde
-    const existing = sql.getUserGuild.get(userId) as GuildRow | undefined;
-    if (existing) return;
-    // Vérifier unicité du nom
-    if (sql.getGuildByName.get(trimmed)) return;
-    const guildId = randomUUID();
-    sql.insertGuild.run(guildId, trimmed, userId, Date.now());
-    sql.insertGuildMember.run(userId, guildId);
-    emitGuildState(io, socketToUserId, guildId);
-  });
-
-  socket.on("guild:join", ({ guildId }) => {
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    // Vérifier que l'user n'est pas déjà dans une guilde
-    const existing = sql.getUserGuild.get(userId) as GuildRow | undefined;
-    if (existing) return;
-    const guild = sql.getGuild.get(guildId) as GuildRow | undefined;
-    if (!guild) return;
-    sql.insertGuildMember.run(userId, guildId);
-    emitGuildState(io, socketToUserId, guildId);
-  });
-
-  socket.on("guild:leave", () => {
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
-    if (!guild) return;
-    sql.deleteGuildMember.run(userId);
-    const remaining = (sql.countGuildMembers.get(guild.id) as { cnt: number })
-      .cnt;
-    if (remaining === 0) {
-      // Dissoudre la guilde
-      sql.deleteGuild.run(guild.id);
-    } else if (guild.ownerId === userId) {
-      // Transférer la propriété au premier membre restant
-      const [nextMember] = sql.getGuildMemberIds.all(guild.id) as {
-        userId: string;
-      }[];
-      if (nextMember) sql.transferGuildOwner.run(nextMember.userId, guild.id);
-      emitGuildState(io, socketToUserId, guild.id);
-    } else {
-      emitGuildState(io, socketToUserId, guild.id);
-    }
-    // Émettre une guilde vide au joueur qui part
-    socket.emit("guild:state", {
-      id: "",
-      name: "",
-      ownerId: "",
-      level: 0,
-      bossHp: 0,
-      bossMaxHp: 100,
-      bossLevel: 1,
-      bossDefeated: 0,
-      members: [],
-    } as GuildData);
-  });
-
-  socket.on("guild:state-request", () => {
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    const guild = sql.getUserGuild.get(userId) as GuildRow | undefined;
-    if (!guild) return;
-    emitGuildState(io, socketToUserId, guild.id);
   });
 });
 

@@ -37,10 +37,10 @@ test("a todo with a checklist earns up to x1.5 for its ticked steps", () => {
   assert.equal(delta(task({ kind: "daily", checklist: list })), 1); // daily ignore la checklist
 });
 
-test("rewards round the delta into coins, xp and boss damage", () => {
-  assert.deepEqual(rewards(1), { coins: 10, xp: 15, bossDamage: 5 });
-  assert.deepEqual(rewards(2.6), { coins: 26, xp: 39, bossDamage: 13 });
-  assert.deepEqual(rewards(0.1), { coins: 1, xp: 2, bossDamage: 1 });
+test("rewards round the delta into coins and xp", () => {
+  assert.deepEqual(rewards(1), { coins: 10, xp: 15 });
+  assert.deepEqual(rewards(2.6), { coins: 26, xp: 39 });
+  assert.deepEqual(rewards(0.1), { coins: 1, xp: 2 });
 });
 
 test("energy loss is 3 per delta and nothing under the immunity level", () => {

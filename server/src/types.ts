@@ -392,10 +392,6 @@ export interface ClientToServerEvents {
   "chat:typing": () => void;
   "chat:react": (payload: { msgTs: number; emoji: string }) => void;
   "chat:emote": (payload: { emoji: string }) => void;
-  "guild:create": (payload: { name: string }) => void;
-  "guild:join": (payload: { guildId: string }) => void;
-  "guild:leave": () => void;
-  "guild:state-request": () => void;
   "video:set": (payload: { videoId: string }) => void;
   "video:sync": (payload: {
     timestamp: number;
@@ -443,7 +439,6 @@ export interface ServerToClientEvents {
     xpToNext: number;
     levelUp: boolean;
     energy: number;
-    bossDamage: number;
   }) => void;
   "task:updated": (task: Task) => void;
   "day:rollover": (payload: { missed: Task[]; energy: number; energyDelta: number }) => void;
@@ -552,16 +547,6 @@ export interface ServerToClientEvents {
     achievements: string[];
     isAdmin: boolean;
   }) => void;
-  "guild:state": (data: GuildData) => void;
-  "guild:boss-attacked": (payload: {
-    damage: number;
-    newHp: number;
-    maxHp: number;
-  }) => void;
-  "guild:boss-defeated": (payload: {
-    bossLevel: number;
-    reward: number;
-  }) => void;
   "session:replaced": () => void;
   "video:state": (state: VideoState) => void;
   "video:update": (state: VideoState) => void;
@@ -572,24 +557,4 @@ export interface ServerToClientEvents {
     roomId: RoomId;
     fallbackRoomId: RoomId;
   }) => void;
-}
-
-export interface GuildMember {
-  userId: string;
-  name: string;
-  color: number;
-  isOwner: boolean;
-  isOnline: boolean;
-}
-
-export interface GuildData {
-  id: string;
-  name: string;
-  ownerId: string;
-  level: number;
-  bossHp: number;
-  bossMaxHp: number;
-  bossLevel: number;
-  bossDefeated: number;
-  members: GuildMember[];
 }
