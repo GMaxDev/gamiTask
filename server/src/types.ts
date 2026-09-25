@@ -367,12 +367,6 @@ export interface ClientToServerEvents {
     col: number;
     row: number;
   }) => void;
-  "admin:give-coins": (payload: {
-    targetUserId: string;
-    amount: number;
-  }) => void;
-  "admin:give-xp": (payload: { targetUserId: string; xp: number }) => void;
-  "admin:announce": (payload: { message: string }) => void;
   "catalog:save": (payload: { item: unknown }) => void;
   "catalog:delete": (payload: { id: string }) => void;
   "room:refresh": () => void;
@@ -512,7 +506,6 @@ export interface ServerToClientEvents {
     placed: string[];
     positions: Record<string, { col: number; row: number }>;
   }) => void;
-  "admin:announce": (payload: { message: string }) => void;
   "profile:data": (data: {
     userId: string;
     name: string;

@@ -2338,48 +2338,6 @@ io.on("connection", (socket) => {
     console.log(`[-] disconnected: ${socket.id}`);
   });
 
-  // ── Admin ─────────────────────────────────────────────────────────────────
-  function isAdmin(): boolean {
-    const uid = socketToUserId.get(socket.id);
-    if (!uid) return false;
-    const u = sql.getUser.get(uid) as UserRow | undefined;
-    return u?.role === "admin";
-  }
-
-  socket.on("admin:give-coins", ({ targetUserId, amount }) => {
-    if (!isAdmin()) return;
-    if (amount <= 0 || amount > 100_000) return;
-    sql.upsertUser.run(targetUserId);
-    sql.addCoins.run(amount, targetUserId);
-    const user = sql.getUser.get(targetUserId) as UserRow;
-    for (const [sid, uid] of socketToUserId.entries()) {
-      if (uid === targetUserId) {
-        io.to(sid).emit("coins:update", { coins: user.coins });
-        const p = getPlayer(sid);
-        if (p) p.coins = user.coins;
-        break;
-      }
-    }
-    broadcastLeaderboardForSocket(io, socket.id);
-  });
-
-  socket.on("admin:give-xp", ({ targetUserId, xp: amount }) => {
-    if (!isAdmin()) return;
-    if (amount <= 0 || amount > 1_000_000) return;
-    sql.upsertUser.run(targetUserId);
-    for (const [sid, uid] of socketToUserId.entries()) {
-      if (uid === targetUserId) {
-        const sock = io.sockets.sockets.get(sid) as
-          | Socket<ClientToServerEvents, ServerToClientEvents>
-          | undefined;
-        if (sock) emitXpUpdate(sock, targetUserId, amount);
-        break;
-      }
-    }
-    // If user is offline, just add XP to DB
-    sql.addXp.run(amount, targetUserId);
-  });
-
   // ── Catalogue editor ─────────────────────────────────────────────────────
   function canEditCatalog(): boolean {
     const uid = socketToUserId.get(socket.id);
@@ -2403,25 +2361,6 @@ io.on("connection", (socket) => {
     if (!canEditCatalog()) return;
     sql.deleteItem.run(id);
     io.emit("catalog:state", { items: catalogItems() });
-  });
-
-  socket.on("admin:announce", ({ message }) => {
-    if (!isAdmin()) return;
-    const safe = message
-      .replace(
-        /[<>&"']/g,
-        (c) =>
-          ({
-            "<": "&lt;",
-            ">": "&gt;",
-            "&": "&amp;",
-            '"': "&quot;",
-            "'": "&#39;",
-          })[c] ?? c,
-      )
-      .slice(0, 200);
-    if (!safe.trim()) return;
-    io.emit("admin:announce", { message: safe });
   });
 
   // ── Profil joueur ──────────────────────────────────────────────────────────
