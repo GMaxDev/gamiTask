@@ -1,9 +1,8 @@
 // Progression state fed by the server: coins, XP, streak and achievements. Rules live server-side.
 import {ACHIEVEMENTS} from '@shared/types';
+import {levelOf,xpForLevel} from '@shared/scoring';
 export interface Progress{coins:number;xp:number;level:number;xpToNext:number;streak:number;achievements:string[];energy:number;exhausted:boolean}
 const KEYS=new Set(ACHIEVEMENTS.map(a=>a.key));
-export const levelOf=(xp:number):number=>Math.floor(Math.sqrt(Math.max(0,xp)/50));
-export const xpForLevel=(level:number):number=>level*level*50;
 export function createProgress():Progress{return {coins:0,xp:0,level:0,xpToNext:50,streak:0,achievements:[],energy:50,exhausted:false};}
 export function setEnergy(p:Progress,energy:number):void{p.energy=Math.max(0,Math.min(50,Math.round(energy)));}
 export function setExhausted(p:Progress,flag:boolean):void{p.exhausted=flag;}

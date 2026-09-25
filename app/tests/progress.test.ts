@@ -1,7 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelOf,levelInfo,setEnergy,setExhausted} from '../src/progress.ts';
+import {createProgress,setCoins,setXp,setStreak,unlock,setAchievements,levelInfo,setEnergy,setExhausted} from '../src/progress.ts';
 import {ACHIEVEMENTS} from '@shared/types';
+import {levelOf} from '@shared/scoring';
 
 test('level curve matches the server',()=>{
  assert.equal(levelOf(0),0);assert.equal(levelOf(50),1);assert.equal(levelOf(199),1);assert.equal(levelOf(200),2);assert.equal(levelOf(1250),5);

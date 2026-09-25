@@ -1,5 +1,5 @@
 // Pure decision for the « Chez moi » flow, fed by the server's rooms:list.
-import type {RoomSummary} from '@shared/types';
+import {PUBLIC_ROOM_IDS,type RoomSummary} from '@shared/types';
 import type {RoomKind} from './coords.ts';
 export type HomeDecision='switch'|'create'|'wait';
 export const myPrivateRoom=(rooms:RoomSummary[],userId:string):RoomSummary|null=>rooms.find(r=>r.isPrivate&&r.ownerId===userId)??null;
@@ -9,7 +9,7 @@ export function homeDecision(rooms:RoomSummary[],userId:string,asked:boolean):Ho
   return asked?'wait':'create';
 }
 // The two public rooms the server knows. Anything else is a private room — yours, or a friend's you were invited into.
-export const PUBLIC_IDS={cafe:'ocean',garden:'forest'} as const;
+export const PUBLIC_IDS={cafe:PUBLIC_ROOM_IDS[0],garden:PUBLIC_ROOM_IDS[1]} as const;
 export function kindOfRoomId(id:string,rooms:RoomSummary[],userId:string):RoomKind{
   if(id===PUBLIC_IDS.garden)return 'garden';
   if(id===PUBLIC_IDS.cafe)return 'cafe';

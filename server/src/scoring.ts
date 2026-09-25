@@ -46,6 +46,8 @@ export function coinsDelta(base: number, bonus: number): number {
 export function levelOf(xp: number): number {
   return Math.floor(Math.sqrt(Math.max(0, xp) / 50));
 }
+/** XP total au seuil d'un niveau : l'inverse de levelOf. */
+export const xpForLevel = (level: number): number => 50 * level * level;
 
 /** Cinq paliers de teinte : 0 = bien tenue … 4 = négligée. */
 export function tint(value: number): 0 | 1 | 2 | 3 | 4 {

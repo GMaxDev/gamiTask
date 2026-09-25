@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import {
   ACHIEVEMENTS,
+  DURATIONS,
   SHOP_ITEMS,
   FURNITURE_ITEMS,
   FURNITURE_SETS,
@@ -32,6 +33,7 @@ import {
   score,
   rollover,
   levelOf,
+  xpForLevel,
   escapeHtml,
   startOfDay,
   cleanKind,
@@ -744,8 +746,7 @@ function emitXpUpdate(
   sql.addXp.run(xpGained, userId);
   const { xp } = sql.getXp.get(userId) as { xp: number };
   const level = levelOf(xp);
-  const xpForNextLevel = 50 * (level + 1) * (level + 1);
-  const xpToNext = xpForNextLevel - xp;
+  const xpToNext = xpForLevel(level + 1) - xp;
   const prevLevel = levelOf(xp - xpGained);
   const levelUp = level > prevLevel;
   socket.emit("xp:update", { xp, level, xpToNext, levelUp });
@@ -816,13 +817,6 @@ function tryUnlock(
     icon: def.icon,
   });
 }
-
-// ── Pomodoro collectif ───────────────────────────────────────────────────────
-const DURATIONS: Record<PomodoroPhase, number> = {
-  focus: 25 * 60,
-  "short-break": 5 * 60,
-  "long-break": 15 * 60,
-};
 
 // ── État par-room ────────────────────────────────────────────────────────────
 interface RoomState {
@@ -1255,7 +1249,7 @@ io.on("connection", (socket) => {
     });
     const xp = user.xp ?? 0;
     const level = levelOf(xp);
-    const xpToNext = 50 * (level + 1) * (level + 1) - xp;
+    const xpToNext = xpForLevel(level + 1) - xp;
     socket.emit("xp:update", { xp, level, xpToNext, levelUp: false });
     const ownedList = (user.ownedItems ?? "").split(",").filter(Boolean);
     socket.emit("cosmetics:state", {
@@ -1570,7 +1564,7 @@ io.on("connection", (socket) => {
     const newLevel = levelOf(xp);
     socket.emit("task:scored", {
       task: r.task, coins, xp, level: newLevel,
-      xpToNext: 50 * (newLevel + 1) * (newLevel + 1) - xp,
+      xpToNext: xpForLevel(newLevel + 1) - xp,
       levelUp: newLevel > level, energy,
     });
     if (r.coins > 0) {
@@ -1931,8 +1925,8 @@ io.on("connection", (socket) => {
     ).map((r) => r.key);
     const xp = user.xp ?? 0;
     const lvl = levelOf(xp);
-    const xpForThisLevel = 50 * lvl * lvl;
-    const xpForNextLevel = 50 * (lvl + 1) * (lvl + 1);
+    const xpForThisLevel = xpForLevel(lvl);
+    const xpForNextLevel = xpForLevel(lvl + 1);
     socket.emit("profile:data", {
       userId: targetUserId,
       name: inMemoryPlayer?.name ?? user.displayName ?? "Invité",

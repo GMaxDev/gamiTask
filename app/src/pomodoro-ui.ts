@@ -3,7 +3,8 @@
 import {$,icon,drawIcons,load,save,today,toast} from './ui.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance} from './timer.ts';
 import type {TimerMode} from './timer.ts';
-import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice,DURATION} from './pomo.ts';
+import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice} from './pomo.ts';
+import {DURATIONS} from '@shared/types';
 import type {Phase} from './pomo.ts';
 import type {Ambience} from './ambience.ts';
 
@@ -104,7 +105,7 @@ export function createPomodoro(deps: PomodoroDeps){
     $('#pane-solo').hidden=tab!=='solo';$('#pane-room').hidden=tab!=='room';
   }
   function renderRoomPomo(){
-    const remaining=remainingAt(roomPomo,Date.now()),text=format(remaining),fraction=1-remaining/DURATION[roomPomo.phase];
+    const remaining=remainingAt(roomPomo,Date.now()),text=format(remaining),fraction=1-remaining/DURATIONS[roomPomo.phase];
     if(text!==lastRoomShown){$('#room-value').textContent=text;lastRoomShown=text;}
     $('#room-dial-progress').style.strokeDashoffset=609.47*fraction;
     document.querySelectorAll('[data-phase]').forEach((s: any)=>s.classList.toggle('selected',s.dataset.phase===roomPomo.phase));

@@ -1,11 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createRoomPomo,applyState,applyTick,remainingAt,DURATION,phaseLabel,phaseNotice,subtitle,format,focusDoneLine,focusWithLine} from '../src/pomo.ts';
+import {createRoomPomo,applyState,applyTick,remainingAt,phaseLabel,phaseNotice,subtitle,format,focusDoneLine,focusWithLine} from '../src/pomo.ts';
+import {DURATIONS} from '@shared/types';
 
 test('a fresh room pomodoro is idle on a full focus',()=>{
  const p=createRoomPomo();
  assert.deepEqual({...p,syncedAt:0},{phase:'focus',remaining:1500,running:false,participants:0,session:0,names:[],joined:false,syncedAt:0});
- assert.equal(DURATION['focus'],1500);assert.equal(DURATION['short-break'],300);assert.equal(DURATION['long-break'],900);
+ assert.equal(DURATIONS['focus'],1500);assert.equal(DURATIONS['short-break'],300);assert.equal(DURATIONS['long-break'],900);
 });
 
 test('applyState copies the server state and stamps the sync time, leaving `joined` alone',()=>{
@@ -61,7 +62,7 @@ test('phaseLabel and format speak the café’s language',()=>{
  assert.equal(format(-5),'00:00');
 });
 
-test('phaseNotice names the phase and reads its length from DURATION',()=>{
+test('phaseNotice names the phase and reads its length from DURATIONS',()=>{
  assert.equal(phaseNotice('focus').body,'25 minutes avec la salle.');
  assert.match(phaseNotice('focus').title,/Focus/);
  assert.equal(phaseNotice('short-break').body,'5 minutes avec la salle.');

@@ -1,16 +1,15 @@
 // The room pomodoro, as the client sees it: a snapshot the server sends, plus the drift between two ticks.
 // Pure on purpose — main.ts owns the DOM, this file owns the arithmetic and the wording.
-import type {PomodoroPhase} from '@shared/types';
+import {DURATIONS,type PomodoroPhase} from '@shared/types';
 
 export type Phase=PomodoroPhase;
 export interface RoomPomo{phase: Phase; remaining: number; running: boolean; participants: number; session: number; names: string[]; joined: boolean; syncedAt: number}
 
-export const DURATION: Record<Phase,number>={focus:25*60,'short-break':5*60,'long-break':15*60};
 const LABELS: Record<Phase,string>={focus:'Focus','short-break':'Pause','long-break':'Longue'};
 export const phaseLabel=(phase: Phase): string=>LABELS[phase];
 
 export function createRoomPomo(): RoomPomo{
-  return {phase:'focus',remaining:DURATION['focus'],running:false,participants:0,session:0,names:[],joined:false,syncedAt:Date.now()};
+  return {phase:'focus',remaining:DURATIONS['focus'],running:false,participants:0,session:0,names:[],joined:false,syncedAt:Date.now()};
 }
 
 export function applyState(p: RoomPomo,s: {phase: Phase; remaining: number; running: boolean; participants: number; session: number; names?: string[]},now: number): void{
@@ -45,9 +44,9 @@ export function format(seconds: number): string{
   return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
 
-// Wording for the sound/notification pair fired on each phase change; durations stay tied to DURATION.
+// Wording for the sound/notification pair fired on each phase change; durations stay tied to DURATIONS.
 export function phaseNotice(phase: Phase): {title: string; body: string}{
-  return {title:phase==='focus'?'Focus — c’est parti':`${phaseLabel(phase)} — souffle un peu`,body:`${DURATION[phase]/60} minutes avec la salle.`};
+  return {title:phase==='focus'?'Focus — c’est parti':`${phaseLabel(phase)} — souffle un peu`,body:`${DURATIONS[phase]/60} minutes avec la salle.`};
 }
 
 // Qui vient de finir un focus avec toi — pour le chat et le journal. `others` : les autres participants, sans toi.
