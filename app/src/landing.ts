@@ -1,5 +1,5 @@
 // The landing page: what gamitask is, and a playable corner of it. The café itself lives at /app/.
-// The hero is a real room from the app running offline: a pomodoro, notes that become tickets, a character to walk.
+// The hero is a real room from the app running offline: a pomodoro, notes, a character to walk.
 import './style.css';
 import './landing.css';
 import {Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github} from 'lucide';
@@ -159,14 +159,14 @@ $('#lp-reset').onclick=()=>{resetTimer(timer);persist();renderTimer();};
 for(const b of root.querySelectorAll<HTMLElement>('[data-mode]'))b.onclick=()=>{resetTimer(timer,b.dataset.mode as TimerMode);persist();renderTimer();};
 renderSessions();renderTimer();setInterval(renderTimer,250);
 
-// ── Notes: plain tasks, no server; the pending ones stand on the table as tickets. ──
+// ── Notes: plain tasks, no server. ──
 let notes:Task[]=load('gamitask.landing.notes',[]);
 const pendingNotes=()=>notes.filter(n=>!n.done);
 function renderNotes(){
   save('gamitask.landing.notes',notes);
   $('#lp-note-list').innerHTML=notes.map(n=>`<li class="${n.done?'done':''}" data-id="${n.id}"><button class="check-button ${n.done?'done':''}" aria-label="${n.done?'À refaire':'Terminé'}">${icon('check')}</button><span class="task-text">${esc(n.text)}</span><button class="remove-task" aria-label="Retirer">${icon('x')}</button></li>`).join('');
   $('#lp-notes-count').textContent=String(pendingNotes().length);$('#lp-notes-empty').hidden=notes.length>0;
-  drawIcons();cafe?.setTasks(pendingNotes());
+  drawIcons();
 }
 $('#lp-note-form').onsubmit=(e:Event)=>{e.preventDefault();const input=$('#lp-note') as HTMLInputElement,text=cleanText(input.value);if(!text)return;
   notes.unshift({id:crypto.randomUUID(),userId:'landing',text,note:'',kind:'todo',difficulty:'easy',value:0,done:false,createdAt:Date.now(),category:null,up:true,down:false,countUp:0,countDown:0,days:127,streak:0,dueAt:null,checklist:[],completedAt:null});input.value='';renderNotes();};
@@ -186,16 +186,15 @@ $('#lp-waitlist').onsubmit=async(e:Event)=>{e.preventDefault();const form=e.targ
 
 // ── The room: the app's private room, built once the page has painted. Three.js is loaded on demand. ──
 function onSceneState(state:SceneState){
-  if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=($('.lp-demo') as HTMLElement).getBoundingClientRect(),t=state.hover.task;
-    h.innerHTML=t?`<strong>${esc(t.text)}</strong><small>une note, posée sur la table</small>`:`<strong>${esc(state.hover.hotspot?.title??'')}</strong><small>au café, c’est ici que ça se passe</small>`;h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
-  if(state.focusTask){const li=$(`li[data-id="${state.focusTask}"]`);li?.classList.add('flash');setTimeout(()=>li?.classList.remove('flash'),1600);}
+  if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=($('.lp-demo') as HTMLElement).getBoundingClientRect();
+    h.innerHTML=`<strong>${esc(state.hover.hotspot?.title??'')}</strong><small>au café, c’est ici que ça se passe</small>`;h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
   if(state.hotspot)toast(`Ça, c’est dans le vrai café. <a href="/app/" data-enter>Entrer</a>`);
 }
 async function mountRoom(){
   const {createCafe}=await import('./scene.ts');
   const look=loadLook(load('gamitask.look',null),PALETTE[0].hex,[]);
   cafe=createCafe($('#scene'),onSceneState,{room:'private',furniture:{plant:{c:1,r:6},lamp:{c:9,r:1},couch:{c:9,r:7},coffee:{c:1,r:1}},look});
-  $('.loading')?.remove();cafe.setTasks(pendingNotes());
+  $('.loading')?.remove();
   // The stage's centre column is narrower than the app's viewport: step back so the whole room fits.
   const w=($('.lp-demo') as HTMLElement).clientWidth;if(w<1500)cafe.zoomOut();if(w<1000)cafe.zoomOut();
   // The wheel scrolls the page here, it never zooms the room: the scene's own wheel handler is cut off before it runs.

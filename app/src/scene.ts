@@ -10,15 +10,12 @@ import { createDecor } from './decor.ts';
 import type { DecorContext } from './decor.ts';
 import { buildGarden } from './garden.ts';
 import { DIMS } from './coords.ts';
-import { layout, slot, ASPECT } from './pinboard.ts';
 import type { RoomKind } from './coords.ts';
 import { buildAvatar, applyLook, lookFor, type Rig } from './avatar.ts';
 import { hexOf } from './ui.ts';
 import type { Look } from './look.ts';
-import { tint } from '../../server/src/scoring.ts';
-import { decodeEntities } from './chat.ts';
 
-export interface SceneState { board?: boolean; seated?: boolean; walking?: boolean; hover?: {task?: {id: string; text: string; category: string | null; kind: string}; hotspot?: {id: string; title: string; sub: string}; up?: boolean; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; focusTask?: string; zoom?: number; follow?: boolean; editing?: boolean }
+export interface SceneState { seated?: boolean; walking?: boolean; hover?: {hotspot?: {id: string; title: string; sub: string}; x: number; y: number} | null; hotspot?: string; placing?: {id: string; cell: {c: number; r: number} | null; refused?: boolean}; zoom?: number; follow?: boolean; editing?: boolean }
 export interface RemoteInfo { name: string; color: number; hat: string | null; look?: Look; col: number; row: number; state: 'idle'|'walking'|'focus'|'pause'|'collective' }
 interface LightSet { hemi: [string,string,number]; sun: [string,number]; fill: number; lamps: number }
 // Daylight and evening per room: the two ends of the curve `setDaylight` interpolates between.
@@ -320,7 +317,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   function dropSprite(s: THREE.Sprite){const m=s.material as THREE.SpriteMaterial;s.removeFromParent();m.map?.dispose();m.dispose();}
   // Placement mode: the floor shows its free tiles, a ghost of the piece follows the pointer, a click picks a tile.
-  let mode: 'walk'|'place'|'edit'|'board'='walk';// exclusive: walking the room, placing a piece, posing in the editor, or reading the cork board up close
+  let mode: 'walk'|'place'|'edit'='walk';// exclusive: walking the room, placing a piece, or posing in the editor
   let placing: any=null;const gridGroup=new THREE.Group();scene.add(gridGroup);
   const key=(c: number,r: number)=>`${c},${r}`;
   function blockedCells(ignore: Set<number>){
@@ -357,96 +354,18 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   if(npc)ground(npc);
   tick('npc');
   // A small bobbing arrow above the player's head, so they stand out once the café gets busy.
-  // Every task hangs on one cork board per room: a wall reads as a list, a table full of easels read as clutter.
-  const BOARD: Record<RoomKind,{w: number; h: number; x: number; y: number; z: number; ry: number}>={
-    cafe:{w:3.6,h:1.7,x:-HW+.16,y:2.0,z:-2.0,ry:Math.PI/2},
-    private:{w:3.0,h:1.8,x:-HW+.16,y:2.15,z:2.6,ry:Math.PI/2},
-    // la véranda n'a pas de mur plein : le panneau se pose sur le vitrage du fond, comme l'enseigne juste au-dessus
-    garden:{w:3.4,h:1.9,x:-5.5,y:2.0,z:-HD+.24,ry:0},
-  };
-  const B=BOARD[room],pinBoard=D_.corkBoard(B.w,B.h,B.x,B.y,B.z,B.ry);
-  const boardParts=pinBoard.children.filter((o: any)=>o.isMesh);// frame, cork and screws — the cards are groups added later
-  const MIN_CARD=.3;// en dessous, le texte d'une carte n'est plus lisible de loin
-  // Le surplus : un pense-bête crème épinglé par-dessus le coin, devant les cartes.
-  // La barre latérale garde la liste complète — le tableau ne prétend pas la remplacer.
-  const overflowCanvas=document.createElement('canvas');overflowCanvas.width=256;overflowCanvas.height=112;
-  const overflowTexture=new THREE.CanvasTexture(overflowCanvas);overflowTexture.colorSpace=THREE.SRGBColorSpace;overflowTexture.anisotropy=4;
-  const overflow=mesh(new THREE.PlaneGeometry(.58,.25),new THREE.MeshBasicMaterial({map:overflowTexture,transparent:true}),B.w/2-.36,-B.h/2+.17,.1,pinBoard);
-  overflow.castShadow=false;overflow.visible=false;overflow.rotation.z=-.05;
-  function showOverflow(n: number){
-    overflow.visible=n>0;if(n<=0)return;
-    const x=overflowCanvas.getContext('2d') as CanvasRenderingContext2D;
-    x.clearRect(0,0,256,112);x.fillStyle='#fdf3dc';x.fillRect(4,4,248,104);
-    x.fillStyle='#00000018';x.fillRect(4,100,248,8);
-    x.fillStyle='#7a6a4e';x.font='600 62px Georgia';x.textAlign='center';x.textBaseline='middle';
-    x.fillText(`+ ${n}`,128,58);overflowTexture.needsUpdate=true;
-  }
-  const tickets=new Map<string, any>(),cameraYaw=Math.atan2(13,16);let hovered: any=null,lastPointer: any=null;
-  function hoverTicket(g: any){// g: a note group, a hotspot mesh, or null
+  const cameraYaw=Math.atan2(13,16);let hovered: any=null,lastPointer: any=null;
+  function hoverTicket(g: any){// g: a hotspot mesh, or null
     if(hovered&&hovered!==g){if(hovered.userData.material)hovered.userData.material.emissiveIntensity=0;hovered=null;renderer.domElement.style.cursor='';onState?.({hover:null});}
     if(g&&hovered!==g){hovered=g;if(g.userData.material)g.userData.material.emissiveIntensity=.22;renderer.domElement.style.cursor='pointer';}
   }
   function anchor(g: any){
-    const v=(g.userData.card??g).getWorldPosition(new THREE.Vector3());v.y+=g.userData.card?g.userData.size*.7:(g.userData.hotspot.id==='timer'?.7:1.1);v.project(camera);
-    const rect=renderer.domElement.getBoundingClientRect();return {task:g.userData.task,hotspot:g.userData.hotspot,up:mode==='board',x:rect.left+(v.x+1)/2*width,y:rect.top+(1-v.y)/2*height};
+    const v=g.getWorldPosition(new THREE.Vector3());v.y+=g.userData.hotspot.id==='timer'?.7:1.1;v.project(camera);
+    const rect=renderer.domElement.getBoundingClientRect();return {hotspot:g.userData.hotspot,x:rect.left+(v.x+1)/2*width,y:rect.top+(1-v.y)/2*height};
   }
   function ticketAt(e: any){
     const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/width*2-1,-(e.clientY-rect.top)/height*2+1);ray.setFromCamera(pointer,camera);
-    const hit=ray.intersectObjects([...[...tickets.values()].map(g=>g.userData.card),...hotspots])[0];return hit?((hit.object as any).userData.note??hit.object):null;
-  }
-  function boardAt(e: any): boolean{
-    const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/width*2-1,-(e.clientY-rect.top)/height*2+1);ray.setFromCamera(pointer,camera);
-    return ray.intersectObjects(boardParts).length>0;
-  }
-  // A task is a little chalk slate on a wooden easel, the kind cafés put on tables for the day's special.
-  const TINTS=['#3a5040','#3d4a44','#3d4a44','#4a4238','#553a34'];// chalk board: kept → neglected
-  function paintTicket(ctx: CanvasRenderingContext2D,task: any){
-    ctx.clearRect(0,0,256,176);ctx.fillStyle=TINTS[tint(task.value??0)];ctx.fillRect(0,0,256,176);
-    ctx.fillStyle='#ffffff10';for(let i=0;i<40;i++)ctx.fillRect(Math.random()*256,Math.random()*176,Math.random()*30,2);// chalk dust
-    ctx.fillStyle='#f4eedd';ctx.font='500 27px "DM Sans", sans-serif';ctx.textBaseline='alphabetic';
-    const words=decodeEntities(task.text).split(' '),lines=[];let line='';// wrap on three lines, then an ellipsis
-    for(const w of words){const t=line?line+' '+w:w;if(ctx.measureText(t).width>216&&line){lines.push(line);line=w;}else line=t;}
-    if(line)lines.push(line);if(lines.length>3){lines.length=3;lines[2]=lines[2].slice(0,14)+'…';}
-    const top=88-(lines.length-1)*17;lines.forEach((l,i)=>ctx.fillText(l,20,top+i*34));
-    ctx.fillStyle='#f4eedd80';ctx.fillRect(20,top+lines.length*34-18,58,2);// a little chalk underline
-    if(task.kind==='habit'){ctx.fillStyle='#f4eeddb0';ctx.font='600 30px "DM Sans", sans-serif';ctx.fillText('±',214,40);}// habits carry a chalk ± in the corner
-  }
-  function ticket(task: any){
-    const cat=task.category?({work:'#b85530',perso:'#7a8e4a',urgent:'#a04050',study:'#8aa6b8'} as Record<string,string>)[task.category]:null;
-    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=176;const ctx=canvas.getContext('2d') as CanvasRenderingContext2D;
-    paintTicket(ctx,task);
-    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
-    const material=new THREE.MeshStandardMaterial({map:texture,roughness:1,emissive:'#fff1d6',emissiveIntensity:0});
-    // Built one unit tall, whatever the list's length: the grid scales the group, so every card
-    // shares the same geometry however many are pinned up.
-    const g=new THREE.Group();g.rotation.z=(Math.random()-.5)*.07;pinBoard.add(g);
-    box(ASPECT,1,.035,C.oak,0,0,0,.02,g).castShadow=false;// wooden frame
-    const card=mesh(new THREE.PlaneGeometry(ASPECT*.86,.79),material,0,0,.022,g);card.castShadow=false;card.userData.note=g;
-    mesh(new THREE.SphereGeometry(.055,10,8),mat(C.terra,{emissive:C.terra,emissiveIntensity:.25}),0,.42,.04,g).castShadow=false;// the pin
-    if(cat)box(.26,.09,.02,cat,-ASPECT/2+.19,.4,.03,.012,g).castShadow=false;// category tag clipped to the frame
-    if(task.kind==='daily'){const bean=mesh(new THREE.SphereGeometry(.05,10,8),mat(C.gold,{emissive:C.gold,emissiveIntensity:.5}),ASPECT/2-.17,.4,.03,g);bean.scale.set(1,.75,1);bean.castShadow=false;}
-    g.userData={material,texture,canvas,ctx,card,task,size:1};return g;
-  }
-  function setTasks(tasks: any[]){
-    const keep=new Set<string>();
-    for(const [id,g] of tickets)if(!tasks.some(t=>t.id===id)){pinBoard.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(id);}
-    for(const task of tasks){keep.add(task.id);
-      const g=tickets.get(task.id);
-      if(g){const old=g.userData.task;
-        if(old.category!==task.category){pinBoard.remove(g);g.userData.texture.dispose();g.userData.material.dispose();g.traverse((o: any)=>o.geometry?.dispose());if(hovered===g)hoverTicket(null);tickets.delete(task.id);}
-        else{if(old.text!==task.text||old.value!==task.value){paintTicket(g.userData.ctx,task);g.userData.texture.needsUpdate=true;}g.userData.task=task;continue;}
-      }
-      const created=ticket(task);tickets.set(task.id,created);
-    }
-    restage();
-    // La grille décide de la taille : plus il y a de tâches, plus les cartes sont petites, jusqu'au plancher.
-    const grid=layout(tickets.size,B.w-.12,B.h-.12,MIN_CARD);
-    let i=0;for(const g of tickets.values()){
-      const on=i<grid.shown;g.visible=on;
-      if(on){const {x,y}=slot(i,grid);g.position.set(x,y,.035);g.userData.size=grid.cardH;}
-      i++;
-    }
-    showOverflow(grid.hidden);
+    const hit=ray.intersectObjects(hotspots)[0];return hit?hit.object:null;
   }
   // A wall clock whose single hand sweeps through the current pomodoro.
   const clock=new THREE.Group();clock.position.set(room==='private'?-4.2:-1.5,3.15,-HD+(room==='garden'?.38:.03));scene.add(clock);
@@ -682,7 +601,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     glowing=object;glowTime=0;
     object?.traverse((o: any)=>{if(o.isMesh){o.userData.mat=o.material;o.material=o.material.clone();o.material.emissive.set('#ffd595');}});
   }
-  const camTarget=new THREE.Vector3(0,.85,0),pan=new THREE.Vector3(),cameraOffset=new THREE.Vector3(13,12.5,16),viewOffset=cameraOffset.clone();// viewOffset: the live viewing direction — isometric, or face-on to the board up close
+  const camTarget=new THREE.Vector3(0,.85,0),pan=new THREE.Vector3(),cameraOffset=new THREE.Vector3(13,12.5,16),viewOffset=cameraOffset.clone();// viewOffset: the live viewing direction
   const ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),floor=new THREE.Plane(new THREE.Vector3(0,1,0),-.08);
   let width=1,height=1;
   // --- Editor mode: the camera dives onto the avatar, the room behind it goes soft. ---
@@ -712,25 +631,6 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     editAnim={t:0,z0:camera.zoom,z1:savedView.zoom,p0:camTarget.clone(),p1:savedView.target.clone()};
     zoom=savedView.zoom;follow=savedView.follow;pan.copy(savedView.pan);savedView=null;mode='walk';dragging=false;
     onState?.({editing:false,zoom,follow});
-  }
-  // Reading the board up close: the camera glides to it and zooms until the board fills most of the view.
-  // Same tween and saved-view mechanics as the editor; walking is off until you leave.
-  let boardView: null|{zoom:number;follow:boolean;pan:THREE.Vector3;target:THREE.Vector3}=null;const boardTarget=new THREE.Vector3();
-  const boardZoom=()=>{const ppu=Math.min(.82*width/B.w,.8*height/B.h);return THREE.MathUtils.clamp(ppu*(camera.top-camera.bottom)/height,1.6,4);};
-  function focusBoard(){
-    if(mode!=='walk')return;mode='board';
-    boardView={zoom,follow,pan:pan.clone(),target:camTarget.clone()};
-    pinBoard.getWorldPosition(boardTarget);boardTarget.y=B.y;
-    const facing=new THREE.Vector3(Math.sin(B.ry),0,Math.cos(B.ry)).multiplyScalar(cameraOffset.length());// the board's normal, at the usual camera distance
-    me.cancel();hoverTicket(null);dragging=false;// a window opening takes priority over a walk in progress
-    editAnim={t:0,z0:camera.zoom,z1:boardZoom(),p0:camTarget.clone(),p1:boardTarget.clone(),o0:viewOffset.clone(),o1:facing,n0:camera.near,n1:cameraOffset.length()-.6};
-    renderer.domElement.style.cursor='';onState?.({board:true});
-  }
-  function leaveBoard(){
-    if(mode!=='board'||!boardView)return;
-    editAnim={t:0,z0:camera.zoom,z1:boardView.zoom,p0:camTarget.clone(),p1:boardView.target.clone(),o0:viewOffset.clone(),o1:cameraOffset.clone(),n0:camera.near,n1:.1};
-    zoom=boardView.zoom;follow=boardView.follow;pan.copy(boardView.pan);boardView=null;mode='walk';dragging=false;
-    onState?.({board:false,zoom,follow});
   }
   function resetView(){editYaw=cameraYaw;}
   // Backdrop blur: two separable 5-tap gaussians at half resolution. No colour grading — the room only goes soft, never darker.
@@ -772,8 +672,6 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     if(mode==='edit'){// the editor frames a fixed world height, so a resize re-derives the zoom rather than keeping it
       if(editAnim){editAnim.z1=editZoom();editAnim.p1=editTarget();}
       else{camera.zoom=editZoom();camera.updateProjectionMatrix();camTarget.copy(editTarget());}
-    } else if(mode==='board'){// le gros plan aussi se recadre sur la largeur du tableau
-      if(editAnim)editAnim.z1=boardZoom();else{camera.zoom=boardZoom();camera.updateProjectionMatrix();}
     }
     blurSize();
   }
@@ -792,7 +690,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   }
   renderer.domElement.addEventListener('pointerdown',(e: PointerEvent)=>{if(e.button>1)return;dragStart={x:e.clientX,y:e.clientY,pan:pan.clone()};dragging=true;moved=false;try{renderer.domElement.setPointerCapture(e.pointerId);}catch{}});
   renderer.domElement.addEventListener('pointermove',(e: PointerEvent)=>{
-    lastPointer={clientX:e.clientX,clientY:e.clientY};if(mode==='place'&&!dragging){const cell=cellAt(e);if(cell)moveGhost(cell,cell.at);return;}if(!dragging||mode==='board')return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
+    lastPointer={clientX:e.clientX,clientY:e.clientY};if(mode==='place'&&!dragging){const cell=cellAt(e);if(cell)moveGhost(cell,cell.at);return;}if(!dragging)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
     if(Math.hypot(dx,dy)>5)moved=true;
     if(mode==='edit'){editYaw-=dx*.012;dragStart.x=e.clientX;dragStart.y=e.clientY;return;}// dragging turns the avatar instead of the view
     if(moved){if(follow){pan.copy(camTarget).sub(new THREE.Vector3(0,.85,0));dragStart.pan.copy(pan);follow=false;onState?.({zoom,follow});}
@@ -805,8 +703,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   renderer.domElement.addEventListener('pointerup',(e: PointerEvent)=>{
     if(mode==='edit'){dragging=false;return;}
     if(mode==='place'){if(!moved&&e.button===0){const cell=cellAt(e);if(cell&&!pickCell(cell))onState?.({placing:{id:placing.id,cell:null,refused:true}});}dragging=false;return;}
-    if(mode==='board'){if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked?.userData.task)onState?.({focusTask:picked.userData.task.id});else leaveBoard();}dragging=false;return;}
-    if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked?.userData.hotspot){onState?.({hotspot:picked.userData.hotspot.id});dragging=false;return;}if(picked||boardAt(e)){focusBoard();dragging=false;return;}/* une carte ou le liège : d'abord le gros plan, la carte se lit là */const p=point(e),target=seatAt();if(target&&target!==me.seated){if(target.taken&&target.taken!==me){target.taken.standUp();target.taken.cancel();target.taken.wait=0;restage();}moveTo(target,target);}else if(!target)moveTo(p);}
+    if(dragging&&!moved&&e.button===0){const picked=ticketAt(e);if(picked?.userData.hotspot){onState?.({hotspot:picked.userData.hotspot.id});dragging=false;return;}const p=point(e),target=seatAt();if(target&&target!==me.seated){if(target.taken&&target.taken!==me){target.taken.standUp();target.taken.cancel();target.taken.wait=0;restage();}moveTo(target,target);}else if(!target)moveTo(p);}
     dragging=false;
   });
   renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
@@ -883,10 +780,8 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     }
     for(const [k,b] of bubbles)if(k.endsWith(':emote'))fitBubble(b,tops.get(k.slice(0,-6))??0);
     fitFeedback();
-    for(const g of tickets.values()){if(!g.visible)continue;const on=g===hovered;
-      g.scale.setScalar(g.userData.size*(on?1.12:1));g.position.z=on?.09:.035;}
-    if(!dragging&&(mode==='walk'||mode==='board'))hoverTicket(lastPointer?(ticketAt(lastPointer)??(mode==='walk'&&boardAt(lastPointer)?pinBoard:null)):null);
-    if(hovered&&hovered!==pinBoard)onState?.({hover:anchor(hovered)});
+    if(!dragging&&mode==='walk')hoverTicket(lastPointer?ticketAt(lastPointer):null);
+    if(hovered)onState?.({hover:anchor(hovered)});
     hand.rotation.z+=(-clockTarget*Math.PI*2-hand.rotation.z)*Math.min(1,dt*4);clockRing.scale.setScalar(clockRunning&&!reducedMotion?1+Math.sin(time*2)*.015:1);
     if(player.parts.hat?.userData.float)player.parts.hat.position.y=(reducedMotion?0:Math.sin(time*2.2)*.03);
     cursor.position.y=1.95+(reducedMotion?0:Math.sin(time*3)*.06)-(me.seated?.47*me.sitBlend:0);cursor.rotation.y=time*1.2;
@@ -899,7 +794,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
       if(editAnim.t>=1)editAnim=null;
     } else if(mode!=='edit'){
       // At 100% the whole room fits, so the camera only leans toward the player; the more you zoom in, the more it locks onto them.
-      const k=Math.min(1,.7+(zoom-1)*.3),desired=mode==='board'?boardTarget.clone():follow?new THREE.Vector3(avatar.position.x*k,.85,avatar.position.z*k-.5*(1-k)):new THREE.Vector3(0,.85,0).add(pan);
+      const k=Math.min(1,.7+(zoom-1)*.3),desired=follow?new THREE.Vector3(avatar.position.x*k,.85,avatar.position.z*k-.5*(1-k)):new THREE.Vector3(0,.85,0).add(pan);
       camTarget.lerp(desired,1-Math.exp(-dt*(reducedMotion?20:3.5)));
     }
     camera.position.copy(camTarget).add(viewOffset);camera.lookAt(camTarget);
@@ -910,7 +805,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
   tick('ready');// the whole construction, phase by phase, is readable in DevTools → Performance → Timings (and logged once in dev)
   camera.position.copy(camTarget).add(cameraOffset);camera.lookAt(camTarget);raf=requestAnimationFrame(animate);
   if(import.meta.env.DEV)(window as any).__cafe={scene,renderer,camera};// dev only: lets a console profile the live scene
-  return {setTasks,setClock,setEnergy,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,setDaylight,takeSeat,leaveSeat,focusBoard,leaveBoard,isViewingBoard:()=>mode==='board',debug:()=>({mode,zoom:camera.zoom,target:camTarget.toArray().map(v=>+v.toFixed(2)),avatar:[+avatar.position.x.toFixed(2),+avatar.position.z.toFixed(2)],seated:!!me.seated,route:me.route.length}),dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
+  return {setClock,setEnergy,setLook,startPlacing,stopPlacing,enterEditor,exitEditor,resetView,isEditing:()=>mode==='edit',playerPosition:()=>({x:avatar.position.x,z:avatar.position.z}),addRemote,moveRemote,setRemoteState,setRemoteHat,setRemoteLook,removeRemote,clearRemotes,say,sayMe,emote,emoteMe,float,setTodo,onCell(cb: (col: number,row: number,arrived: boolean)=>void){cellListener=cb;},zoomIn:()=>setZoom(zoom*1.18),zoomOut:()=>setZoom(zoom/1.18),recenter,setFollow,setDaylight,takeSeat,leaveSeat,debug:()=>({mode,zoom:camera.zoom,target:camTarget.toArray().map(v=>+v.toFixed(2)),avatar:[+avatar.position.x.toFixed(2),+avatar.position.z.toFixed(2)],seated:!!me.seated,route:me.route.length}),dispose(){cancelAnimationFrame(raf);observer.disconnect();clearRemotes();for(const b of bubbles.values())dropSprite(b.s);bubbles.clear();for(const stack of chatStacks.values())for(const b of stack.items)dropSprite(b.s);chatStacks.clear();for(const f of floats)dropSprite(f.s);floats.length=0;scene.traverse((o: any)=>{o.geometry?.dispose();});materials.forEach(m=>m.dispose());for(const m of extras)m.dispose();extras.length=0;
     blur.rtA.dispose();blur.rtB.dispose();blur.mat.dispose();blur.quad.geometry.dispose();studio?.dispose();
     P.disposeGeometries();renderer.dispose();renderer.forceContextLoss();/* free the GL context, else a few room switches exhaust the browser's context budget */}};
 }

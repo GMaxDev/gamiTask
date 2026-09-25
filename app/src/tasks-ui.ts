@@ -1,12 +1,11 @@
-// Le tiroir des tâches : formulaire, liste, filtres, catégories, et le miroir de la liste dans la scène.
+// Le tiroir des tâches : formulaire, liste, filtres, catégories.
 // Le balisage vit dans le HUD de main.ts ; ce module possède le comportement. Le serveur garde la liste.
 import {$,icon,drawIcons,load,save,toast,esc} from './ui.ts';
 import {decodeEntities} from './chat.ts';
-import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
+import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
 import {tint,isDue} from '../../server/src/scoring.ts';
 
 export interface TasksDeps{
-  cafe(): any;// la scène courante, ou null avant le premier montage
   socket(): any;// la socket du café
 }
 export type TasksUi=ReturnType<typeof createTasksUi>;
@@ -18,7 +17,6 @@ export function createTasksUi(deps: TasksDeps){
   const catOf=(id: string|null)=>CATEGORIES.find(c=>c.id===id);
   const pips=(n: number)=>`<span class="pips" aria-hidden="true">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
   const dueLabel=(ts: number)=>new Date(ts).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
-  function syncScene(){deps.cafe()?.setTasks(pending(tasks));}
   function renderTaskForm(){
     const k=tasks.tab;($('#task-text') as HTMLInputElement).placeholder=KIND_LABELS[k].placeholder;
     $('#task-days-opt').hidden=k!=='daily';$('#task-dirs-opt').hidden=k!=='habit';$('#task-due-opt').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
@@ -91,7 +89,7 @@ export function createTasksUi(deps: TasksDeps){
   renderTasks();
 
 
-  // Ce que main.ts relaie du serveur, et ce que la scène demande.
+  // Ce que main.ts relaie du serveur.
   function setList(list: any[]){setTasks(tasks,list);}
   function added(t: any){taskAdded(tasks,t);}
   function scored(t: any){taskScored(tasks,t);}
@@ -100,5 +98,5 @@ export function createTasksUi(deps: TasksDeps){
   // La liste ne montre qu'un genre à la fois : pour retrouver une tâche, on bascule d'abord sur le sien.
   function revealKind(id: string){const t=tasks.list.find(t=>t.id===id);if(t&&t.kind!==tasks.tab){tasks.tab=t.kind;renderTasks();}}
 
-  return {render:renderTasks,sync:syncScene,setList,added,scored,updated,deleted,revealKind,catOf};
+  return {render:renderTasks,setList,added,scored,updated,deleted,revealKind};
 }

@@ -41,15 +41,6 @@ export function createDecor(ctx: DecorContext){
     const m=mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:texture,roughness:1}),x,y,z);m.castShadow=false;
     if(opts.ry)m.rotation.y=opts.ry;return m;
   }
-  // A cork board screwed to a wall. Returns the group tasks pin themselves to: its local
-  // XY plane is the cork face, so a card at (x, y, small z) sits flat on it.
-  function corkBoard(w: number,h: number,x: number,y: number,z: number,ry=0){
-    const g=group(x,y,z,ry);
-    const frame=box(w+.16,h+.16,.06,OAK,0,0,-.02,.02,g);frame.castShadow=false;
-    const cork=box(w,h,.03,mat('#c9a97b',{roughness:1}),0,0,.01,.006,g);cork.castShadow=false;
-    for(const dx of [-1,1])for(const dy of [-1,1])cyl(.022,.022,.025,TRIM,dx*(w/2+.045),dy*(h/2+.045),.03,g,8).rotation.x=Math.PI/2;
-    return g;
-  }
   function plant(x: number,z: number,size=1,y=0,parent: any=root()){
     const g=local(x,y,z,0,parent);g.scale.setScalar(size);
     return piece('plant',g,()=>{
@@ -134,5 +125,5 @@ export function createDecor(ctx: DecorContext){
   function windowLight(x: number,y: number,z: number,w: number,h: number,lookAt: [number,number,number]){
     const l=new THREE.RectAreaLight('#eaf1ff',3.6,w,h);l.position.set(x,y,z);l.lookAt(...lookAt);scene.add(l);windows.push(l);
   }
-  return {label,corkBoard,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow};
+  return {label,plant,mug,book,chair,sofa,rug,coffeeTable,bookcase,shelfWall,backWindow,lamp,squareTable,armchair,cactus,coffeeCorner,roundTable,pool,windowLight,OAK,TRIM,SHADE,BULB,windowGlow};
 }
