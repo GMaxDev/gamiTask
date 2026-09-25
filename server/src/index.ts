@@ -1505,9 +1505,12 @@ function emitToUsersRoom<E extends keyof ServerToClientEvents>(
   }
 }
 
-function buildRoomSummaries(): RoomSummary[] {
+// A private room's id is its invite: it is listed only to its owner and to whoever is already inside.
+// The link `?room=<id>` still works for anyone who was given it — the id is a UUID, nobody guesses it.
+function buildRoomSummaries(forUserId?: string, inRoom?: RoomId): RoomSummary[] {
   const out: RoomSummary[] = [];
   for (const r of rooms.values()) {
+    if (r.isPrivate && r.ownerId !== forUserId && r.id !== inRoom) continue;
     out.push({
       id: r.id,
       name: r.name,
@@ -1529,7 +1532,7 @@ function buildRoomSummaries(): RoomSummary[] {
 function broadcastRoomsList(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
 ): void {
-  io.emit("rooms:list", { rooms: buildRoomSummaries() });
+  for (const [sid, s] of io.sockets.sockets) s.emit("rooms:list", { rooms: buildRoomSummaries(socketToUserId.get(sid), socketToRoom.get(sid)) });
 }
 
 io.on("connection", (socket) => {
