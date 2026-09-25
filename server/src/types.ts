@@ -306,8 +306,6 @@ export interface ClientToServerEvents {
   join: (payload: {
     name: string;
     color: number;
-    col: number;
-    row: number;
     userId: string;
     roomId: RoomId;
     token?: string;
@@ -342,10 +340,6 @@ export interface ClientToServerEvents {
   "pomodoro:complete": () => void;
   "pomo:join": () => void;
   "pomo:leave": () => void;
-  "position:save": (payload: {
-    col: number;
-    row: number;
-  }) => void;
   "shop:buy": (payload: { itemId: string }) => void;
   "cosmetic:equip": (payload: { hatId: string | null }) => void;
   "look:update": (payload: { look: Look }) => void;
@@ -417,7 +411,6 @@ export interface ServerToClientEvents {
   "task:deleted": (payload: { taskId: string }) => void;
   "coins:update": (payload: { coins: number }) => void;
   "streak:update": (payload: { streak: number; bonus: number }) => void;
-  "position:saved": (payload: { col: number; row: number }) => void;
   "pomo:state": (state: SharedPomoState) => void;
   "pomo:tick": (payload: {
     remaining: number;

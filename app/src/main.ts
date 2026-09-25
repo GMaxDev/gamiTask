@@ -231,7 +231,7 @@ function mountRoom(){
   if(placingId)endPlacing();cafe?.dispose();$('#scene').innerHTML='';
   document.querySelectorAll('[data-room]').forEach((b: any)=>b.setAttribute('aria-pressed',String(roomKind(b.dataset.room)===room)));
   cafe=createCafe($('#scene'),onSceneState,{room,furniture:shop.placed,look:editing?previewLook??look:look});builtFurniture=JSON.stringify(shop.placed);
-  cafe.onCell((col: number,row: number,arrived: boolean)=>{net?.socket.emit('move',{col,row});if(arrived)net?.socket.emit('position:save',{col,row});});
+  cafe.onCell((col: number,row: number)=>{net?.socket.emit('move',{col,row});});
   ambience.applyLight();// la nouvelle scène naît à l'heure qu'il est, pas en plein midi
   if(editing)cafe.enterEditor();// a remount mid-edit must come back to the mirror, not to walking mode
   drawIcons();$('#move-hint-room').textContent=ROOM_UI[room].hint;renderCounts();
@@ -484,7 +484,7 @@ function bindServerEvents(){
   s.on('profile:data',d=>{setAchievements(progress,d.achievements);setStreak(progress,d.streak);renderProgress();});
   s.on('room:full',()=>{if(ready.room){if(room!==prevRoom)enterRoom(prevRoom);// the iris already moved us: the server kept us where we were
       toast('Cette pièce est pleine pour le moment.');return;}// a refused switch leaves us where we are, no veil
-    showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,col:0,row:0,userId:identity.userId,roomId:net.roomId(),tzOffsetMinutes:new Date().getTimezoneOffset()}),5000);});
+    showVeil('Le café est plein pour le moment, on réessaie dans un instant…');setTimeout(()=>net.socket.emit('join',{name:identity.name,color:identity.color,userId:identity.userId,roomId:net.roomId(),tzOffsetMinutes:new Date().getTimezoneOffset()}),5000);});
   // `cosmetics:state` may carry the hat we owned before the purchase, so the equip waits for the state that lists the new one.
   s.on('cosmetics:state',u=>{setCosmetics(shop,u);
     if(wearNext&&shop.hats.includes(wearNext)){shop.hat=wearNext;net.socket.emit('cosmetic:equip',{hatId:wearNext});wearNext=null;}

@@ -85,8 +85,6 @@ app.use(express.json());
 interface UserRow {
   id: string;
   coins: number;
-  col: number;
-  row: number;
   streak: number;
   lastPomoAt: number;
   xp: number;
@@ -345,7 +343,7 @@ const sql = {
     "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
   ),
   getUser: db.prepare(
-    "SELECT id, coins, col, row, streak, lastPomoAt, xp, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName, energy, exhaustedUntil, tzOffset FROM users WHERE id = ?",
+    "SELECT id, coins, streak, lastPomoAt, xp, lastDailyResetAt, ownedItems, equippedHat, ownedFurniture, furniturePositions, placedFurniture, displayName, avatarColor, isAdmin, role, look, email, googleId, twitchId, twitchLogin, twitchDisplayName, energy, exhaustedUntil, tzOffset FROM users WHERE id = ?",
   ),
   setLook: db.prepare("UPDATE users SET look = ? WHERE id = ?"),
   getStreak: db.prepare("SELECT streak, lastPomoAt FROM users WHERE id = ?"),
@@ -368,7 +366,6 @@ const sql = {
   getEnergy: db.prepare("SELECT energy, exhaustedUntil FROM users WHERE id = ?"),
   setEnergy: db.prepare("UPDATE users SET energy = ?, exhaustedUntil = ? WHERE id = ?"),
   deleteTask: db.prepare("DELETE FROM tasks WHERE id = ? AND userId = ?"),
-  savePosition: db.prepare("UPDATE users SET col = ?, row = ? WHERE id = ?"),
   getXp: db.prepare("SELECT xp FROM users WHERE id = ?"),
   addXp: db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?"),
   countDoneTasks: db.prepare(
@@ -1856,13 +1853,6 @@ io.on("connection", (socket) => {
       broadcastToOwnRoom(socket, "tasks:public-update", { socketId: socket.id, taskIds: p.pendingTaskIds });
     }
     broadcastLeaderboardForSocket(io, socket.id);
-  });
-
-  socket.on("position:save", ({ col, row }) => {
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    sql.upsertUser.run(userId);
-    sql.savePosition.run(col, row, userId);
   });
 
   // ── Acheter un meuble (Feng Shui) ────────────────────────────────────────────────────
