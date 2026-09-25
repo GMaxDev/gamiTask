@@ -11,7 +11,7 @@ const mixInto=(target: any,from: string,to: THREE.Color,t: number)=>{target.set(
 export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,{W,D,HW,HD}: {W: number;D: number;HW: number;HD: number}){
   const {mat,box,cyl,ball,group}=ctx.p;
   const {label,plant,mug,book,chair,squareTable,roundTable,pool,windowLight}=d;
-  const {obstacle,seat,hotspot,shadow}=ctx;
+  const {obstacle,seat,taskSpot,hotspot,shadow}=ctx;
   const root=()=>ctx.root();
   const glass=mat(GLASS,{transparent:true,opacity:.55,depthWrite:false,roughness:.3,emissive:GLASS,emissiveIntensity:.12});
   const near=mat(NEAR,{roughness:1}),far=mat(FAR,{roughness:1});
@@ -66,7 +66,7 @@ export function buildGarden(d: ReturnType<typeof createDecor>,ctx: DecorContext,
   for(const [x,z] of [[-5.5,-6],[-5.5,4],[-1,-1],[-1.5,8]]){
     roundTable(x,z);chair(x-1.1,z,Math.PI/2,C.cream);chair(x+1.1,z,-Math.PI/2,C.sage);}
   // --- The communal table. ---
-  box(4.4,.16,1.4,WOOD,6.5,1.05,2.5,.09);
+  box(4.4,.16,1.4,WOOD,6.5,1.05,2.5,.09);for(const x of [5,6.5,8])taskSpot(x,1.14,2.25);
   for(const x of [4.5,8.5])for(const z of [1.95,3.05])box(.1,.98,.1,C.edge,x,.52,z,.02);
   obstacle(6.5,2.5,4.45,1.45);shadow(6.5,2.5,2.3,.9);
   for(const x of [5.1,6.5,7.9]){chair(x,1.35,0,x===6.5?C.cream:C.sage);chair(x,3.65,Math.PI,x===6.5?C.sage:C.cream);}

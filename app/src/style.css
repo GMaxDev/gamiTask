@@ -213,6 +213,7 @@ dialog.card[open]{display:flex;flex-direction:column;max-height:calc(100vh - 40p
 .due-field{display:flex;align-items:center;gap:4px;font-size:13px;color:#8d9482}.due-field svg{width:12px;height:12px}.due-field input{border:1px solid #e3e6d8;border-radius:6px;padding:3px 6px;font-size:12px;color:#55624a;background:#fbfbf5}
 .task-list li{background:var(--tint,transparent)}.task-list li.tint-0{--tint:var(--tint-0)}.task-list li.tint-1{--tint:var(--tint-1)}.task-list li.tint-3{--tint:var(--tint-3)}.task-list li.tint-4{--tint:var(--tint-4)}.task-list li:hover{filter:brightness(.98)}
 .task-list li.not-due{opacity:.55}
+.task-list li.flash{animation:flash 1.6s ease-out}@keyframes flash{0%{background:#e9eedb}100%{background:var(--tint,transparent)}}
 .score-button{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;padding:0}.score-button svg{width:13px;height:13px}.score-button.up{background:#e8eedf;color:#5b6b4e}.score-button.down{background:#f3e3dc;color:#a04050}.score-button:disabled{opacity:.4}.score-spacer{width:24px;flex-shrink:0}.counts{font-size:11px;color:#a0a595;font-variant-numeric:tabular-nums}
 .streak-count{display:inline-flex;align-items:center;gap:2px;font-size:12px;color:#c9764f}.streak-count svg{width:11px;height:11px}.days-mini{display:inline-flex;gap:1px}.days-mini b{font-weight:600;font-size:9px;color:#d2d6c6}.days-mini b.on{color:#8f9b79}
 .due{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#a98a3e}.due svg{width:11px;height:11px}

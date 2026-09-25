@@ -20,6 +20,7 @@ import {createChat,decodeEntities} from './chat.ts';
 import {createAmbience} from './ambience.ts';
 import {createPomodoro} from './pomodoro-ui.ts';
 import {createTasksUi} from './tasks-ui.ts';
+import {CATEGORIES} from './tasks.ts';
 import {createJournal,record,summaryLine,timeLabel} from './journal.ts';
 import {focusDoneLine,focusWithLine} from './pomo.ts';
 import {hudMarkup} from './hud.ts';
@@ -269,7 +270,7 @@ function switchServerRoom(next:RoomKind){
   else if(!homeAsked){pendingHome=true;homeAsked=true;net.socket.emit('room:create-private',{name:`Chez ${identity.name}`});
     homeTimer=setTimeout(()=>{if(!myPrivateRoom(rooms,identity.userId))abandonHome();},4000);}
 }
-function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);($('#guests-button') as HTMLElement).hidden=next!=='private';try{mountRoom();renderShop();}catch(error){console.error(error);}}
+function enterRoom(next: RoomKind){room=next;save('gamitask.room',room);($('#guests-button') as HTMLElement).hidden=next!=='private';try{mountRoom();tasksUi.sync();renderShop();}catch(error){console.error(error);}}
 function abandonHome(){
   clearTimeout(homeTimer);pendingHome=false;homeAsked=false;toast('Ta pièce n’a pas pu être créée.');
   if(room==='private')enterRoom('cafe');
@@ -286,9 +287,10 @@ document.querySelectorAll('[data-room]').forEach((b: any)=>b.onclick=async()=>{
 function onSceneState(state: SceneState){
     if(state.walking&&firstSteps){firstSteps=false;$('#recap').hidden=true;}// le premier pas vaut « compris »
     if(state.seated)toast('Tu t’installes. Prends le temps qu’il faut.');
-    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect();
-      h.innerHTML=`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
+    if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&CATEGORIES.find(c=>c.id===t.category);
+      h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
+    if(state.focusTask){openDrawer(true);tasksUi.revealKind(state.focusTask);const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as HTMLElement|null;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
     if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
     if(state.hotspot==='timer')$('#settings').click();
@@ -367,7 +369,7 @@ function endPlacing(){cafe?.stopPlacing();placingId=null;placingCell=null;$('#pl
 $('#place-cancel').onclick=()=>{endPlacing();openDrawer(true,'shop');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&placingId){endPlacing();openDrawer(true,'shop');}});
 // furniture is part of the baked room, so a change rebuilds your room in place, no iris
-function rearrange(message: string){if(switching)return;try{mountRoom();}catch(error){console.error(error);}toast(message);renderShop();}
+function rearrange(message: string){if(switching)return;try{mountRoom();tasksUi.sync();}catch(error){console.error(error);}toast(message);renderShop();}
 let toastQueue=Promise.resolve();
 const later=(fn: () => void,ms: number)=>{toastQueue=toastQueue.then(()=>new Promise<void>(r=>setTimeout(()=>{fn();r();},ms)));};// one toast at a time
 function renderProgress(){
@@ -422,9 +424,9 @@ function bindServerEvents(){
   s.on('pomo:phase',p=>pomo.onRoomPhase(p));
   s.on('me:state',u=>{role=u.role;renderIdentity();});
   s.on('catalog:state',({items})=>{catalog=items;setCatalog(items);renderShop();workshop.refresh();// a changed recipe rebuilds the room; the server then resends who is in it
-    if(furnitureSeen){try{mountRoom();net.socket.emit('room:refresh');}catch(error){console.error(error);}}
+    if(furnitureSeen){try{mountRoom();tasksUi.sync();net.socket.emit('room:refresh');}catch(error){console.error(error);}}
     // Carved pieces need the boolean toolkit: fetch it once, then rebuild so the cuts show (they rendered solid meanwhile).
-    if(!csgReady()&&items.some(i=>needsCsg(i.parts)))ensureCsg().then(()=>{if(cafe){try{mountRoom();}catch(error){console.error(error);}}});});
+    if(!csgReady()&&items.some(i=>needsCsg(i.parts)))ensureCsg().then(()=>{if(cafe){try{mountRoom();tasksUi.sync();}catch(error){console.error(error);}}});});
   s.on('catalog:error',({message})=>toast(message));
   s.on('auth:invalid',logout);// a Google account without a valid token starts over as a guest
   s.on('room:info',({roomId})=>{pomo.resetRoom();// une autre salle, un autre pomodoro : on repart de zéro et la participation s'arrête
@@ -467,7 +469,7 @@ function bindServerEvents(){
   s.on('furniture:bought',({itemId})=>{const it=shopItem(itemId);if(it)toast(`${it.emoji} ${it.name} t’attend chez toi.`);});
   s.on('furniture:state',u=>{const before=JSON.stringify(shop.placed);setFurniture(shop,u);renderShop();const now=JSON.stringify(shop.placed);
     // the first snapshot after a (re)connect is not a move: rebuild silently if the room was baked without it, never toast
-    if(!furnitureSeen){furnitureSeen=true;if(room==='private'&&now!==builtFurniture){try{mountRoom();}catch(error){console.error(error);}}return;}
+    if(!furnitureSeen){furnitureSeen=true;if(room==='private'&&now!==builtFurniture){try{mountRoom();tasksUi.sync();}catch(error){console.error(error);}}return;}
     if(room==='private'&&now!==before)rearrange('C’est posé.');});
 }
 
@@ -480,4 +482,4 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>po
 // Sonde de développement : l'état de la scène et du pomodoro, lisibles depuis la console. Jamais en production.
 if(import.meta.env.DEV)(window as any).gamitask={scene:()=>cafe,pomo,canMove};
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
-const tasksUi=createTasksUi({socket:()=>net.socket});
+const tasksUi=createTasksUi({socket:()=>net.socket,cafe:()=>cafe});

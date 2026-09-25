@@ -20,7 +20,7 @@ export function createVignettes(){
   const floor=new THREE.Mesh(new THREE.CircleGeometry(3.2,48),new THREE.MeshStandardMaterial({color:'#e8d5b0',roughness:.95}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
   const materials=new Map<string,any>(),extras:any[]=[];let root=new THREE.Group();scene.add(root);
   const P=createPrimitives(()=>root,materials,extras);
-  const D=createDecor({p:P,scene,root:()=>root,previewing:()=>true,HD:0,obstacle(){},seat(){},hotspot:(o:any)=>o,shadow(){},steam:[],pendants:[],windows:[]});
+  const D=createDecor({p:P,scene,root:()=>root,previewing:()=>true,HD:0,obstacle(){},seat(){},taskSpot(){},hotspot:(o:any)=>o,shadow(){},steam:[],pendants:[],windows:[],taskSpots:[]});
   const camera=new THREE.OrthographicCamera(-2*W/H,2*W/H,2,-2,.1,100);
   const aim=(y:number,zoom:number)=>{camera.position.set(13,12.5,16).normalize().multiplyScalar(30).add(new THREE.Vector3(0,y,0));camera.lookAt(0,y,0);camera.zoom=zoom;camera.updateProjectionMatrix();};
   const person=(x:number,z:number,seed:number,hat:string|null=null,rot=0)=>{const rig=buildAvatar(P,x,z,{...randomLook(PALETTE.map(p=>p.hex),seeded(seed)),hat});rig.g.rotation.y=rot;return rig;};

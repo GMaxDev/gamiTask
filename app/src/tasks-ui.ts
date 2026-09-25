@@ -2,11 +2,12 @@
 // Le balisage vit dans le HUD de main.ts ; ce module possède le comportement. Le serveur garde la liste.
 import {$,icon,drawIcons,load,save,toast,esc} from './ui.ts';
 import {decodeEntities} from './chat.ts';
-import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
+import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
 import {tint,isDue} from '../../server/src/scoring.ts';
 
 export interface TasksDeps{
   socket(): any;// la socket du café
+  cafe(): any;// la scène 3D du moment, ou undefined avant le premier montage
 }
 export type TasksUi=ReturnType<typeof createTasksUi>;
 
@@ -66,7 +67,7 @@ export function createTasksUi(deps: TasksDeps){
     $('#tasks-empty').hidden=visible(tasks,today).length>0;const left=remaining(tasks,today);$('#tasks-count').textContent=left?`${left} à faire`:tasks.list.length?'Tout est fait':'Mes tâches';
     for(const k of ['habit','daily','todo'] as const){const n=k==='habit'?tasks.list.filter(t=>t.kind==='habit').length:tasks.list.filter(t=>t.kind===k&&!t.done&&(k==='todo'||isDue(t,today))).length;($(`[data-count=${k}]`) as HTMLElement).textContent=n?String(n):'';}
     document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
-    renderTaskForm();drawIcons();
+    renderTaskForm();drawIcons();syncScene();
   }
   const emitUpdate=(id: string,patch: any)=>deps.socket().emit('task:update',{taskId:id,patch});
   $('#task-tabs').onclick=(e: any)=>{const b=e.target.closest('[data-kind]');if(!b)return;tasks.tab=b.dataset.kind;renderTasks();$('#task-text').focus();};
@@ -107,6 +108,8 @@ export function createTasksUi(deps: TasksDeps){
   renderTasks();
 
 
+  // Chaque tâche en cours devient un petit chevalet sur une table ; la scène rejoue la liste après chaque rendu et chaque remontage.
+  function syncScene(){deps.cafe()?.setTasks(pending(tasks));}
   // Ce que main.ts relaie du serveur.
   function setList(list: any[]){setTasks(tasks,list);}
   function added(t: any){taskAdded(tasks,t);}
@@ -116,5 +119,5 @@ export function createTasksUi(deps: TasksDeps){
   // La liste ne montre qu'un genre à la fois : pour retrouver une tâche, on bascule d'abord sur le sien.
   function revealKind(id: string){const t=tasks.list.find(t=>t.id===id);if(t&&t.kind!==tasks.tab){tasks.tab=t.kind;renderTasks();}}
 
-  return {render:renderTasks,setList,added,scored,updated,deleted,revealKind};
+  return {render:renderTasks,setList,added,scored,updated,deleted,revealKind,sync:syncScene};
 }
