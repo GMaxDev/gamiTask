@@ -15,7 +15,7 @@ export const loginWithGoogle=(apiUrl:string,credential:string)=>post(apiUrl,'/au
 // Resolves to the authorize URL, or to the HTTP status that refused it (0 when the server was unreachable), so the caller can say why.
 export async function startTwitchLink(apiUrl:string,token:string):Promise<{url:string}|{status:number}>{
   try{
-    const res=await fetch(`${apiUrl}/auth/twitch/start`,{headers:{Authorization:`Bearer ${token}`}});
+    const res=await fetch(`${apiUrl}/auth/twitch/start`,{headers:{Authorization:`Bearer ${token}`},credentials:'include'});// the server sets a cookie the callback must see
     if(!res.ok)return {status:res.status};
     return {url:(await res.json()).url as string};
   }catch{return {status:0};}

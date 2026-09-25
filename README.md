@@ -16,7 +16,7 @@ Variables utiles :
 | app | `VITE_API_URL` | `http://localhost:3001` | URL du serveur. **En production, obligatoire et non vide** : la valeur est figée dans le bundle au build (`docker compose build`). |
 | server | `PORT` | `3001` | Port HTTP / socket |
 | server | `APP_URL` | `http://localhost:5173` | Origine publique du front ; les retours OAuth Twitch renvoient vers `${APP_URL}/app/`. |
-| server | `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Origines autorisées (séparées par des virgules). **En production, doit lister l'origine publique du front** (ex. `https://gamitask.gmaxdev.com`), sinon la connexion socket est refusée. |
+| server | `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Origines autorisées (séparées par des virgules), pour Socket.IO **et** les routes HTTP. **En production, doit lister l'origine publique du front** (ex. `https://gamitask.gmaxdev.com`), sinon la connexion socket est refusée. |
 | server | `ALLOW_GUEST_PRIVATE_ROOMS` | `true` | Rooms privées pour les invités (à passer à `false` avec l'auth) |
 | server | `GOOGLE_CLIENT_ID` | — | Client OAuth Google ; sans lui, `/auth/google` refuse et l'app reste en mode invité. |
 | server | `ADMIN_EMAIL` | — | Le compte Google qui porte cette adresse obtient `role = 'admin'` à la connexion. |
