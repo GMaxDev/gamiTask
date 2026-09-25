@@ -7,7 +7,8 @@
 > - **Tiroir des tâches** : variante A (titre + ligne de méta, grande case, menu ⋯), sans bouton ▶ sur les lignes.
 > - **Onboarding 75-81** (sauf 80, passage pseudo gardé), **copy 82-92**, **réglages 93-100** (un dialogue, onglet Rythme), **101** classement retiré, **102** énergie active dès le niveau 1, **103-106** gelés, **mobile 107-110**.
 > - **68-71** : focus lié à une tâche depuis la carte pomodoro (sélecteur), compteur de focus par tâche.
-> - **Non fait** : 111 découpage d'`index.ts` (en cours ou à suivre), 112 mesure FPS (à faire à la main, onglet au premier plan).
+> - **111** : `index.ts` découpé en `config`, `db`, `http`, `rooms`, `pomo`, `rewards`, `handlers/*` (66 lignes restantes).
+> - **Non fait** : 112 mesure FPS (à faire à la main, onglet au premier plan).
 
 Base : `main` @ 42fd61c. Quatre passes : sécurité (lecture intégrale du serveur), pertinence produit/UX, sur‑ingénierie/code mort, et un test en direct du tableau de liège dans le navigateur (desktop 1544 px). Aucun fichier modifié.
 
