@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createTasks,setTasks,taskAdded,taskScored,taskUpdated,taskDeleted,visible,pending,remaining,cleanText,categoryId,toggleDay,newTaskPayload,DIFFICULTIES} from '../src/tasks.ts';
 import type {Task} from '@shared/types';
 
-const t=(id:string,extra:Partial<Task>={}):Task=>({id,userId:'u',text:'Tâche '+id,note:'',kind:'todo',difficulty:'easy',value:0,category:null,createdAt:Number(id.replace(/\D/g,''))||1,done:false,up:true,down:false,countUp:0,countDown:0,days:127,streak:0,dueAt:null,checklist:[],completedAt:null,...extra});
+const t=(id:string,extra:Partial<Task>={}):Task=>({id,userId:'u',text:'Tâche '+id,note:'',kind:'todo',difficulty:'easy',value:0,category:null,createdAt:Number(id.replace(/\D/g,''))||1,done:false,up:true,down:false,countUp:0,countDown:0,days:127,streak:0,dueAt:null,checklist:[],completedAt:null,focusCount:0,...extra});
 const WED=new Date(2026,8,23);// mercredi
 
 test('server state replaces the list; pending keeps open todos, unticked dailies and every habit',()=>{

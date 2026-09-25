@@ -1,6 +1,7 @@
 // Le pomodoro tel qu'on le voit : le minuteur solo, la session de la salle, les réglages du rythme, et le personnage
 // qui s'assoit ou se lève avec les phases. Le balisage vit dans le HUD de main.ts ; ce module possède le comportement.
-import {$,icon,drawIcons,load,save,today,toast} from './ui.ts';
+import {$,icon,drawIcons,load,save,today,toast,esc} from './ui.ts';
+import {decodeEntities} from './chat.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,advance,PER_CYCLE} from './timer.ts';
 import type {TimerMode} from './timer.ts';
 import {createRoomPomo,applyState,applyTick,remainingAt,subtitle,format,phaseNotice} from './pomo.ts';
@@ -16,6 +17,7 @@ export interface PomodoroDeps{
   canMove(): boolean;// faux tant qu'une fenêtre est ouverte : le personnage patiente
   onRoomFocusDone(others: string[]): void;// un focus de la salle vient de finir, avec ces autres participants : le serveur paie, le chat et le journal notent
   myName(): string;// pour ne pas se compter parmi « les autres »
+  onFocusDone(taskId: string): void;// un focus consacré à cette tâche vient de finir : main.ts la montre dans le tiroir
 }
 export type Pomodoro=ReturnType<typeof createPomodoro>;
 
@@ -32,7 +34,15 @@ export function createPomodoro(deps: PomodoroDeps){
   function standForBreak(){if(deps.canMove())deps.cafe()?.leaveSeat?.();else pendingMove='stand';}
   function resumeMove(){if(!pendingMove||!deps.canMove())return;const m=pendingMove;pendingMove=null;if(m==='seat')deps.cafe()?.takeSeat?.();else deps.cafe()?.leaveSeat?.();}
   // The server clocks every focus from its start: a completion it did not see begin earns nothing. Resuming after a pause is not a new start.
-  const announceFocus=()=>deps.socket()?.emit('pomodoro:start',{minutes:timer.durations.focus});
+  const announceFocus=()=>deps.socket()?.emit('pomodoro:start',{minutes:timer.durations.focus,taskId:timer.taskId??undefined});
+  // Un focus peut porter sur un à-faire : le sélecteur suit la liste du tiroir (setTodos à chaque rendu) et le choix vit dans l'état du minuteur.
+  let todos: {id: string; text: string}[]=[];
+  const focusSelect=$('#focus-task') as HTMLSelectElement;
+  const focusedTask=()=>timer.taskId?todos.find(t=>t.id===timer.taskId):undefined;
+  function setTodos(list: {id: string; text: string}[]){todos=list;
+    focusSelect.innerHTML='<option value="">Sur rien de précis</option>'+todos.map(t=>`<option value="${esc(t.id)}">${esc(decodeEntities(t.text))}</option>`).join('');
+    focusSelect.value=focusedTask()?timer.taskId!:'';lastMode=null;renderTimer();}// the label may name the task now that its title is known
+  focusSelect.onchange=()=>{timer.taskId=focusSelect.value||null;persistTimer();};
   const MODE_LABEL: Record<TimerMode,string>={focus:'Focus',short:'Petite pause',long:'Longue pause'};
   function persistTimer(){save('gamitask.timer',timer);}
   let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
@@ -41,8 +51,10 @@ export function createPomodoro(deps: PomodoroDeps){
     const remaining=remainingSeconds(timer),running=timer.endAt!==null;
     if(running&&remaining===0){
       if(stats.date!==today())stats={date:today(),sessions:0,minutes:0};
+      const focused=timer.mode==='focus'?timer.taskId:null;
       if(timer.mode==='focus'){stats.sessions++;stats.minutes+=timer.durations.focus;save('gamitask.stats',stats);deps.onComplete();}
       const {from,to,started}=advance(timer,stats.sessions);
+      if(focused&&!focusedTask())timer.taskId=null;// the task is gone or done: the next focus starts from « Sur rien de précis »
       persistTimer();deps.ambience.chime('end');
       const next=`${MODE_LABEL[to]} de ${timer.durations[to]} min`;
       toast(from==='focus'
@@ -50,6 +62,7 @@ export function createPomodoro(deps: PomodoroDeps){
         : started?`${from==='long'?'Cycle bouclé, on repart pour un tour.':'Pause terminée.'} ${next}, c’est parti.`:`Pause terminée. ${next} quand tu veux.`);
       deps.ambience.notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
       if(started){if(to==='focus'){announceFocus();seatForFocus();}else standForBreak();}
+      if(focused){deps.onFocusDone(focused);focusSelect.value=timer.taskId??'';}
       return renderTimer();
     }
     const text=format(remaining);
@@ -61,7 +74,9 @@ export function createPomodoro(deps: PomodoroDeps){
     if(lastRunning!==running||lastMode!==timer.mode){
       $('#start').innerHTML=icon(running?'pause':'play')+`<span>${running?'Faire une pause':remaining<timer.durations[timer.mode]*60?'Reprendre':timer.mode==='focus'?'C’est parti':'Prendre une pause'}</span>`;
       $('#timer-kicker').textContent=running?(timer.mode==='focus'?'UN PETIT PAS À LA FOIS':'PRENDS UNE RESPIRATION'):'ON Y VA DOUCEMENT';
-      $('#session-label').textContent=timer.mode==='focus'?'Session de concentration':timer.mode==='short'?'Une petite respiration':'Une pause bien méritée';
+      const task=running&&timer.mode==='focus'?focusedTask():undefined;
+      $('#session-label').textContent=task?`Focus · ${decodeEntities(task.text)}`:timer.mode==='focus'?'Session de concentration':timer.mode==='short'?'Une petite respiration':'Une pause bien méritée';
+      focusSelect.disabled=running;
       document.querySelectorAll('[data-mode]').forEach((b: any)=>{b.classList.toggle('selected',b.dataset.mode===timer.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===timer.mode));});
       $('.timer-card').classList.toggle('running',running);drawIcons();lastRunning=running;lastMode=timer.mode;
       deps.socket()?.emit('avatar-state',{state:avatarState()});
@@ -94,7 +109,7 @@ export function createPomodoro(deps: PomodoroDeps){
   $('#settings-form').onsubmit=(e: any)=>{e.preventDefault();const f=$('#settings-form').elements;
     const durations={...timer.durations};for(const key of Object.keys(durations) as TimerMode[])durations[key]=Number(f[key].value);
     // createTimer borne tout : c'est lui qui valide, pas le formulaire
-    timer=createTimer({durations,mode:timer.mode,autoChain:f.autoChain.checked});
+    timer=createTimer({durations,mode:timer.mode,autoChain:f.autoChain.checked,taskId:timer.taskId});
     resetTimer(timer);persistTimer();lastRunning=null;renderTimer();$('#panel-dialog').close();toast('Ton nouveau rythme est prêt.');};
 
   // Pomodoro de la salle : le serveur tient l'horloge, on l'affiche et on extrapole entre deux ticks.
@@ -153,5 +168,5 @@ export function createPomodoro(deps: PomodoroDeps){
   function leaveRoom(){roomPomo.joined=false;renderRoomPomo();}
   function adoptDurations(d: Partial<Record<TimerMode,number>>){Object.assign(timer.durations,d);resetTimer(timer);persistTimer();}
 
-  return {avatarState,onRoomState,onRoomTick,onRoomPhase,resetRoom,leaveRoom,adoptDurations,resumeMove,fillRhythmForm};
+  return {avatarState,onRoomState,onRoomTick,onRoomPhase,resetRoom,leaveRoom,adoptDurations,resumeMove,fillRhythmForm,setTodos};
 }

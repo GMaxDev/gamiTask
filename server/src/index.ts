@@ -114,6 +114,7 @@ interface TaskRow {
   dueAt: number | null;
   checklist: string;
   completedAt: number | null;
+  focusCount: number;
 }
 
 const db = new Database(process.env.DB_PATH ?? "./data.db");
@@ -181,6 +182,7 @@ for (const col of [
   "users ADD COLUMN twitchAccessToken TEXT",
   "users ADD COLUMN twitchRefreshToken TEXT",
   "users ADD COLUMN twitchTokenExpiresAt INTEGER NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN focusCount INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(`ALTER TABLE ${col}`);
@@ -280,6 +282,7 @@ const sql = {
     "INSERT INTO tasks (id, userId, text, note, kind, difficulty, value, done, createdAt, category, up, down, countUp, countDown, days, streak, dueAt, checklist, completedAt) VALUES (@id, @userId, @text, @note, @kind, @difficulty, @value, @done, @createdAt, @category, @up, @down, @countUp, @countDown, @days, @streak, @dueAt, @checklist, @completedAt)",
   ),
   getTaskRow: db.prepare("SELECT * FROM tasks WHERE id = ? AND userId = ?"),
+  bumpFocusCount: db.prepare("UPDATE tasks SET focusCount = focusCount + 1 WHERE id = ? AND userId = ?"),
   updateTask: db.prepare(
     "UPDATE tasks SET text = @text, note = @note, difficulty = @difficulty, value = @value, done = @done, category = @category, up = @up, down = @down, countUp = @countUp, countDown = @countDown, days = @days, streak = @streak, dueAt = @dueAt, checklist = @checklist, completedAt = @completedAt WHERE id = @id AND userId = @userId",
   ),
@@ -388,6 +391,7 @@ function rowToTask(r: TaskRow): Task {
     dueAt: r.dueAt ?? null,
     checklist,
     completedAt: r.completedAt ?? null,
+    focusCount: r.focusCount ?? 0,
   };
 }
 function taskToRow(t: Task): TaskRow {
@@ -769,7 +773,7 @@ const VALID_CATEGORIES = new Set(["work", "perso", "urgent", "study"]);
 const rateLimits = new Map<string, Map<string, number[]>>();
 // Solo focuses the server saw start, by userId. ponytail: in memory — a server restart forgets a running
 // focus and its reward is refused once; move to a users column if that ever bites.
-const focusStarts = new Map<string, { at: number; minutes: number }>();
+const focusStarts = new Map<string, { at: number; minutes: number; taskId?: string }>();
 
 function allow(
   socketId: string,
@@ -1439,6 +1443,7 @@ io.on("connection", (socket) => {
       dueAt: kind === "todo" && Number.isFinite(payload.dueAt) ? Math.floor(payload.dueAt as number) : null,
       checklist: kind === "todo" ? cleanChecklist(payload.checklist) : [],
       completedAt: null,
+      focusCount: 0,
     };
     if (task.kind === "habit" && !task.up && !task.down) task.up = true;
     sql.insertTask.run(taskToRow(task));
@@ -1742,11 +1747,11 @@ io.on("connection", (socket) => {
     });
   });
   // ── Pomodoro personnel complété ──────────────────────────────────────────
-  socket.on("pomodoro:start", ({ minutes }) => {
+  socket.on("pomodoro:start", ({ minutes, taskId }) => {
     if (!allow(socket.id, "pomodoro:start", 10, 60000)) return;
     const userId = socketToUserId.get(socket.id);
     if (!userId) return;
-    focusStarts.set(userId, { at: Date.now(), minutes: cleanFocusMinutes(minutes) });
+    focusStarts.set(userId, { at: Date.now(), minutes: cleanFocusMinutes(minutes), taskId: typeof taskId === "string" ? taskId.slice(0, 64) : undefined });
   });
 
   socket.on("pomodoro:complete", () => {
@@ -1754,8 +1759,15 @@ io.on("connection", (socket) => {
     const userId = socketToUserId.get(socket.id);
     if (!userId) return;
     const now = Date.now();
-    if (!focusEarned(focusStarts.get(userId), now)) return; // no start seen, or not long enough ago: nothing to pay
+    const started = focusStarts.get(userId);
+    if (!focusEarned(started, now)) return; // no start seen, or not long enough ago: nothing to pay
     focusStarts.delete(userId);
+    // A focus spent on one task is counted on it — only if it is still this user's task.
+    if (started?.taskId) {
+      sql.bumpFocusCount.run(started.taskId, userId);
+      const row = sql.getTaskRow.get(started.taskId, userId) as TaskRow | undefined;
+      if (row) socket.emit("task:updated", rowToTask(row));
+    }
     sql.upsertUser.run(userId);
     const STREAK_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 heures
     const streakRow = sql.getStreak.get(userId) as Pick<

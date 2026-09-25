@@ -288,7 +288,7 @@ function onSceneState(state: SceneState){
     if('hover' in state){const h=$('#hint');if(!state.hover)h.hidden=true;else{const r=$('.world').getBoundingClientRect(),t=state.hover.task,cat=t&&CATEGORIES.find(c=>c.id===t.category);
       h.innerHTML=t?`<span class="cat-dot" style="--cat:${cat?cat.color:'#d8d3c3'}"></span><strong>${esc(decodeEntities(t.text))}</strong><small>${cat?cat.label:'Sans catégorie'}${t.kind==='daily'?' · chaque jour':t.kind==='habit'?' · habitude':''} · cliquer pour la retrouver</small>`:`<span class="cat-dot" style="--cat:#d2a754"></span><strong>${state.hover.hotspot!.title}</strong><small>${state.hover.hotspot!.sub}</small>`;
       h.hidden=false;h.style.left=`${state.hover.x-r.left}px`;h.style.top=`${state.hover.y-r.top}px`;}}
-    if(state.focusTask){openDrawer(true);tasksUi.revealKind(state.focusTask);const li=document.querySelector(`#task-list li[data-id="${state.focusTask}"]`) as HTMLElement|null;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
+    if(state.focusTask)revealTask(state.focusTask);
     if(state.hotspot==='mirror')openEditor();
     if(state.hotspot==='tasks')openDrawer(true);
     if(state.hotspot==='timer')ambience.openPanel('rythme');
@@ -296,6 +296,8 @@ function onSceneState(state: SceneState){
     if(state.placing){placingCell=state.placing.cell;$('#place-ok').disabled=!placingCell;if(state.placing.refused)toast('Pas la place ici.');}
     if(state.zoom){$('#zoom-value').textContent=`${Math.round(state.zoom*100)}%`;$('#follow').classList.toggle('active',state.follow);$('#follow').setAttribute('aria-pressed',String(state.follow));}
 }
+// Open the drawer on one task and make it blink: a slate click, or the end of a focus spent on it.
+function revealTask(id: string){openDrawer(true);tasksUi.revealKind(id);const li=document.querySelector(`#task-list li[data-id="${id}"]`) as HTMLElement|null;if(li){li.scrollIntoView({block:'nearest',behavior:'smooth'});li.classList.remove('flash');void li.offsetWidth;li.classList.add('flash');}}
 try{
   performance.mark('app:mount-start');// static imports (three, scene…) are all evaluated by now: this minus timeOrigin is the module cost
   mountRoom();performance.mark('app:mount-end');$('.loading')?.remove();($('#guests-button') as HTMLElement).hidden=room!=='private';
@@ -473,10 +475,10 @@ function bindServerEvents(){
 
 // « Fenêtre » : un dialogue ouvert. Tant qu'il y en a une, le personnage ne bouge pas.
 const canMove=()=>!document.querySelector('dialog[open]');
-const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove,myName:()=>identity.name,
+const pomo=createPomodoro({cafe:()=>cafe,socket:()=>net?.socket,ambience,onComplete:rewardPomodoro,canMove,myName:()=>identity.name,onFocusDone:revealTask,
   onRoomFocusDone:others=>{chat.system(focusDoneLine(others));note({kind:'pomo',text:focusWithLine(others)});}});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>pomo.resumeMove()));
 // Sonde de développement : l'état de la scène et du pomodoro, lisibles depuis la console. Jamais en production.
 if(import.meta.env.DEV)(window as any).gamitask={scene:()=>cafe,pomo,canMove};
 // Tasks: the server holds the list, the client mirrors it as little order slips in the café.
-const tasksUi=createTasksUi({socket:()=>net.socket,cafe:()=>cafe});
+const tasksUi=createTasksUi({socket:()=>net.socket,cafe:()=>cafe,onRender:pomo.setTodos});// pomo exists already: the first render feeds the focus picker

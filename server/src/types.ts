@@ -120,6 +120,8 @@ export interface Task {
   dueAt: number | null;
   checklist: ChecklistItem[];
   completedAt: number | null;
+  /** Focus solo achevés sur cette tâche. */
+  focusCount: number;
 }
 
 export type PomodoroPhase = "focus" | "short-break" | "long-break";
@@ -208,7 +210,7 @@ export interface ClientToServerEvents {
     patch: Partial<Pick<Task, "text" | "note" | "difficulty" | "category" | "up" | "down" | "days" | "dueAt" | "checklist">>;
   }) => void;
   "task:delete": (payload: { taskId: string }) => void;
-  "pomodoro:start": (payload: { minutes: number }) => void;
+  "pomodoro:start": (payload: { minutes: number; taskId?: string }) => void;
   "pomodoro:complete": () => void;
   "pomo:join": () => void;
   "pomo:leave": () => void;

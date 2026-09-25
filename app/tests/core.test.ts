@@ -28,6 +28,13 @@ test('pause, resume and reload preserve remaining time',()=>{
  toggleTimer(state,91000);state=createTimer(JSON.parse(JSON.stringify(state)));
  assert.equal(remainingSeconds(state,121000),1440);
 });
+test('the focused task survives a reload, anything else reads as none',()=>{
+ assert.equal(createTimer().taskId,null);
+ assert.equal(createTimer({taskId:'t1'}).taskId,'t1');
+ assert.equal(createTimer({taskId:42 as any}).taskId,null);
+ assert.equal(createTimer({taskId:''}).taskId,null);
+ const state=createTimer({taskId:'t1'});resetTimer(state,'short');advance(state,1);assert.equal(state.taskId,'t1');// pauses and mode switches keep it: the next focus is likely the same task
+});
 test('switching mode resets the running timer',()=>{
  const state=createTimer();toggleTimer(state,1000);resetTimer(state,'short');
  assert.equal(state.remaining,300);assert.equal(state.endAt,null);assert.equal(state.mode,'short');

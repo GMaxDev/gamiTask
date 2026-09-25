@@ -11,7 +11,7 @@ export const task = (extra: Partial<Task> = {}): Task => ({
   id: "t", userId: "u", text: "Tâche", note: "", kind: "todo", difficulty: "easy",
   value: 0, category: null, createdAt: 1, done: false, up: true, down: false,
   countUp: 0, countDown: 0, days: 127, streak: 0, dueAt: null, checklist: [],
-  completedAt: null, ...extra,
+  completedAt: null, focusCount: 0, ...extra,
 });
 
 test("delta is 1 for a fresh easy task and follows the difficulty", () => {
@@ -180,6 +180,7 @@ test("focusEarned: paid only once the focus duration has really elapsed", async 
   assert.equal(focusEarned({ at, minutes: 25 }, at + 25 * 60_000 - 4_000), true);
   assert.equal(focusEarned({ at, minutes: 25 }, at + 25 * 60_000 - 6_000), false);
   assert.equal(focusEarned({ at, minutes: 25 }, at + 40 * 60_000), true);
+  assert.equal(focusEarned({ at, minutes: 25, taskId: "t1" }, at + 25 * 60_000), true); // a focus about one task pays the same
   assert.equal(cleanFocusMinutes("abc"), 1);
   assert.equal(cleanFocusMinutes(500), 90);
   assert.equal(cleanFocusMinutes(25.4), 25);

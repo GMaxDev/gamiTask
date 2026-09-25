@@ -4,10 +4,12 @@ import {$,icon,drawIcons,load,save,toast,esc} from './ui.ts';
 import {decodeEntities} from './chat.ts';
 import {createTasks,setTasks,taskAdded,taskUpdated,taskDeleted,pending,cleanText,CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,TINT_LABELS,DAY_LABELS,DIFFICULTIES,visible,remaining,toggleDay,newTaskPayload,taskScored,cleanChecklistItem} from './tasks.ts';
 import {tint,isDue} from '../../server/src/scoring.ts';
+import type {Task} from '@shared/types';
 
 export interface TasksDeps{
   socket(): any;// la socket du café
   cafe(): any;// la scène 3D du moment, ou undefined avant le premier montage
+  onRender?(todos: Task[]): void;// la liste vient d'être redessinée : voici les à-faire encore ouverts (le sélecteur de focus les suit)
 }
 export type TasksUi=ReturnType<typeof createTasksUi>;
 
@@ -48,6 +50,7 @@ export function createTasksUi(deps: TasksDeps){
       let checklist='';
       if(t.kind==='todo'){const n=t.checklist.length,k=t.checklist.filter(i=>i.done).length;
         if(t.dueAt)meta.push(`<span class="due" title="Date butoir">${icon('calendar')}${dueLabel(t.dueAt)}</span>`);
+        if(t.focusCount>0)meta.push(`<span title="Focus passés dessus">${t.focusCount} focus</span>`);
         meta.push(`<button class="toggle-list" aria-expanded="false" aria-label="Étapes">${icon('list-checks')}${n?`${k}/${n}`:'étapes'}</button>`);
         checklist=`<ul class="checklist" hidden>${t.checklist.map((i,idx)=>`<li data-idx="${idx}"><button class="check-button mini${i.done?' done':''}" aria-pressed="${i.done}">${icon('check')}</button><span>${esc(decodeEntities(i.text))}</span><button class="icon-button remove-item" aria-label="Retirer">${icon('x')}</button></li>`).join('')}<li class="add-item"><input placeholder="Une étape…" maxlength="80" aria-label="Nouvelle étape" /></li></ul>`;}
       const body=`<div class="task-body">${text}<div class="task-meta">${meta.join('<i class="sep">·</i>')}</div></div>`;
@@ -67,8 +70,9 @@ export function createTasksUi(deps: TasksDeps){
     $('#tasks-empty').hidden=visible(tasks,today).length>0;const left=remaining(tasks,today);$('#tasks-count').textContent=left?`${left} à faire`:tasks.list.length?'Tout est fait':'Mes tâches';
     for(const k of ['habit','daily','todo'] as const){const n=k==='habit'?tasks.list.filter(t=>t.kind==='habit').length:tasks.list.filter(t=>t.kind===k&&!t.done&&(k==='todo'||isDue(t,today))).length;($(`[data-count=${k}]`) as HTMLElement).textContent=n?String(n):'';}
     document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
-    renderTaskForm();drawIcons();syncScene();
+    renderTaskForm();drawIcons();syncScene();deps.onRender?.(pendingTodos());
   }
+  const pendingTodos=()=>tasks.list.filter(t=>t.kind==='todo'&&!t.done);
   const emitUpdate=(id: string,patch: any)=>deps.socket().emit('task:update',{taskId:id,patch});
   $('#task-tabs').onclick=(e: any)=>{const b=e.target.closest('[data-kind]');if(!b)return;tasks.tab=b.dataset.kind;renderTasks();$('#task-text').focus();};
   $('#task-filter').onclick=(e: any)=>{const b=e.target.closest('[data-filter]');if(!b)return;tasks.filter=b.dataset.filter;renderTasks();};
@@ -119,5 +123,5 @@ export function createTasksUi(deps: TasksDeps){
   // La liste ne montre qu'un genre à la fois : pour retrouver une tâche, on bascule d'abord sur le sien.
   function revealKind(id: string){const t=tasks.list.find(t=>t.id===id);if(t&&t.kind!==tasks.tab){tasks.tab=t.kind;renderTasks();}}
 
-  return {render:renderTasks,setList,added,scored,updated,deleted,revealKind,sync:syncScene};
+  return {render:renderTasks,setList,added,scored,updated,deleted,revealKind,sync:syncScene,pendingTodos};
 }
