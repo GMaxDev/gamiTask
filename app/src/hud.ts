@@ -1,6 +1,6 @@
 // Le HUD du café, en un seul gabarit : les zones, les chips, le minuteur, les dialogues. Pure fonction —
 // il ne lit aucun état, tout ce qui bouge est posé ensuite par les modules qui possèdent chaque zone.
-import {icon} from './ui.ts';
+import {icon,hexOf} from './ui.ts';
 import {PALETTE} from './identity.ts';
 import {CATEGORIES,KIND_LABELS,DIFFICULTY_HINT,DAY_LABELS} from './tasks.ts';
 
@@ -101,7 +101,7 @@ export function hudMarkup(): string{return `
   <dialog id="identity-dialog" class="card card-sage"><form id="identity-form" method="dialog"><header class="card-head"><span class="card-icon">${icon('smile')}</span><span class="card-eyebrow">ON SE PRÉSENTE ?</span><h2>Un pseudo, une couleur.</h2></header><div class="card-body">
     <p>Un pseudo et une couleur, c’est tout ce qu’il faut pour entrer au café.</p>
     <label>Pseudo<input name="name" type="text" minlength="2" maxlength="20" required autocomplete="nickname" /></label>
-    <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:#${p.hex.toString(16).padStart(6,'0')}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
+    <div class="palette" role="radiogroup" aria-label="Couleur">${PALETTE.map((p,i)=>`<label class="swatch" style="--swatch:${hexOf(p.hex)}" title="${p.label}"><input type="radio" name="color" value="${p.hex}" ${i===0?'checked':''}/></label>`).join('')}</div>
     <button class="primary" type="submit">${icon('coffee')}<span>Entrer au café</span></button>
   </div></form></dialog>
   <dialog id="panel-dialog" class="card card-sky"><header class="card-head"><span class="card-icon">${icon('settings-2')}</span><span class="card-eyebrow">PARAMÈTRES</span><h2>Le café, à ta main.</h2><button type="button" class="icon-button close-dialog" aria-label="Fermer">${icon('x')}</button></header>

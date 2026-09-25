@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {$,icon,drawIcons,registerIcons,load,save,toast,showRecap,esc,today} from './ui.ts';
+import {$,icon,hexOf,drawIcons,registerIcons,load,save,toast,showRecap,esc,today} from './ui.ts';
 import {Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn} from 'lucide';
 import {createCafe} from './scene.ts';
 import type {SceneState} from './scene.ts';
@@ -38,7 +38,7 @@ const {identity,fresh:initialFresh}=loadIdentity(load('gamitask.identity',null),
 let fresh=initialFresh;
 function saveIdentity(){save('gamitask.identity',{...identity,token:null});renderIdentity();}// the token lives under its own key only
 let role:'user'|'moderator'|'admin'='user';
-function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);
+function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',hexOf(identity.color));
   $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#workshop-btn').hidden=role==='user';}
 function askIdentity():Promise<void>{
   const dialog=$('#identity-dialog') as HTMLDialogElement,form=$('#identity-form') as HTMLFormElement;
@@ -168,7 +168,7 @@ const members=new Map<string,{name: string; color: number}>();
 function renderGuests(){
   const list=$('#guests-list') as HTMLElement;
   const others=[...members].filter(([id])=>id!==net?.socket.id);
-  list.innerHTML=others.map(([id,m])=>`<li data-id="${esc(id)}"><span class="guest-name" style="--swatch:#${((Number(m.color)||0)>>>0).toString(16).padStart(6,'0').slice(-6)}">${esc(String(m.name))}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
+  list.innerHTML=others.map(([id,m])=>`<li data-id="${esc(id)}"><span class="guest-name" style="--swatch:${hexOf(Number(m.color)||0)}">${esc(String(m.name))}</span><div class="kick-actions"><button data-kick="600000">10 min</button><button data-kick="3600000">1 h</button><button data-kick="86400000">24 h</button><button data-kick="" class="danger">Définitif</button></div></li>`).join('');
   ($('#guests-empty') as HTMLElement).hidden=others.length>0;($('#guests-count') as HTMLElement).textContent=String(others.length);
 }
 ($('#guests-button') as HTMLButtonElement).onclick=()=>{renderGuests();($('#guests-dialog') as HTMLDialogElement).showModal();};

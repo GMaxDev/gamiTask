@@ -12,7 +12,8 @@ import { buildGarden } from './garden.ts';
 import { DIMS } from './coords.ts';
 import { layout, slot, ASPECT } from './pinboard.ts';
 import type { RoomKind } from './coords.ts';
-import { buildAvatar, applyLook, lookFor, hexOf, type Rig } from './avatar.ts';
+import { buildAvatar, applyLook, lookFor, type Rig } from './avatar.ts';
+import { hexOf } from './ui.ts';
 import type { Look } from './look.ts';
 import { tint } from '../../server/src/scoring.ts';
 import { decodeEntities } from './chat.ts';
@@ -307,7 +308,7 @@ export function createCafe(container: HTMLElement, onState: (state: SceneState) 
     const LEFT=16,DOT=16,GAP=10,RIGHT=16,textWidth=ctx.measureText(text).width;
     const w=Math.min(240,LEFT+DOT+GAP+textWidth+RIGHT);
     ctx.fillStyle='#fffdf6e6';ctx.beginPath();ctx.roundRect((256-w)/2,8,w,48,24);ctx.fill();
-    ctx.fillStyle='#'+color.toString(16).padStart(6,'0');ctx.beginPath();ctx.arc((256-w)/2+LEFT+DOT/2,32,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=hexOf(color);ctx.beginPath();ctx.arc((256-w)/2+LEFT+DOT/2,32,8,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#000';ctx.textBaseline='middle';ctx.fillText(text,(256-w)/2+LEFT+DOT+GAP,33,w-LEFT-DOT-GAP-RIGHT);
     const k=NAME_TAG_PX/30;return sprite(c,1.6,.4,0,2.15,256*k,64*k);
   }

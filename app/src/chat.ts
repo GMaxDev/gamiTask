@@ -1,5 +1,6 @@
 // The room chat: a discreet panel bottom-left, plus the pure helpers the panel and the tests share.
 // The server escapes <>&"' before echoing a message, so every text goes through decodeEntities() and lands via textContent — never innerHTML.
+import {hexOf} from './ui.ts';
 export interface ChatMsg{id: string; name: string; color: number; text: string; ts: number; mine: boolean}
 export interface Member{id: string; name: string; color: number}
 export interface ChatDeps{send(text: string): boolean; typing(): void; emote(emoji: string): void; members(): Member[]; myName(): string; onMention?(): void}
@@ -38,7 +39,6 @@ export function createThread(){
 }
 
 export const EMOTES=['👋','😄','❤️','👍','☕','🍅','🎉','😴'];
-const hex=(c: number)=>'#'+(c>>>0).toString(16).padStart(6,'0').slice(-6);
 const hhmm=(ts: number)=>new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
 const SEPARATORS: Record<string,string>={'CHEZ TOI':'Tu es chez toi','AU JARDIN':'Tu es au jardin'};
 
@@ -75,7 +75,7 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
     const li=document.createElement('li');
     if(msg.mine)li.classList.add('mine');
     if(mentioned)li.classList.add('mention-me');
-    const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hex(msg.color));
+    const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hexOf(msg.color));
     const who=document.createElement('strong');who.textContent=msg.name;
     const body=document.createElement('span');body.className='chat-text';
     for(const s of segments(text)){const e=document.createElement('span');if(s.kind==='mention')e.className='chat-at';e.textContent=s.value;body.append(e);}
@@ -110,7 +110,7 @@ export function createChat(host: HTMLElement,deps: ChatDeps): Chat{
     if(!found.length){mentionStart=-1;return;}
     picked=Math.min(picked,found.length-1);
     found.forEach((m,i)=>{const li=document.createElement('li');li.setAttribute('role','option');li.setAttribute('aria-selected',String(i===picked));if(i===picked)li.classList.add('on');
-      const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hex(m.color));
+      const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hexOf(m.color));
       const label=document.createElement('span');label.textContent=m.name;li.append(dot,label);
       li.onmousedown=e=>{e.preventDefault();pick(i);};mentionsEl.append(li);});
   }

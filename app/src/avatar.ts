@@ -4,9 +4,9 @@ import {C,type Primitives} from './primitives.ts';
 import {type Look,defaultLook,skinHex,hairHex,trousersHex,shoesHex} from './look.ts';
 import {custom} from './shop.ts';
 import {buildRecipe} from './recipe.ts';
+import {hexOf} from './ui.ts';
 export interface Rig{g:any;body:any;head:any;legL:any;legR:any;armL:any;armR:any;phase:number;look:Look;parts:{skull:any;hair:any;hat:any;hands:any[];torso:any;arms:any[];legParts:any[];skirt:any;collar:any}}
 export interface AvatarOpts{apron?:string|null}
-export const hexOf=(n:number)=>'#'+n.toString(16).padStart(6,'0');
 export const lookFor=(color:number,hat:string|null):Look=>({...defaultLook(color),hat});
 const HEAD_SCALE:Record<'round'|'oval',[number,number,number]>={round:[1,1.1,.91],oval:[.94,1.18,.9]};// the square head is a fixed box, it never reads a scale
 const BODY_SCALE:Record<Look['body'],[number,number]>={slim:[.9,.9],regular:[1,1],round:[1.18,1.15]};

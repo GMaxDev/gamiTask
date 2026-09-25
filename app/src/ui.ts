@@ -5,6 +5,7 @@ import {createIcons,type IconNode} from 'lucide';
 // Every screen registers the lucide icons its markup uses; drawIcons then resolves each <i data-lucide> on the page.
 const icons: Record<string,IconNode>={};
 export const registerIcons=(set: Record<string,IconNode>)=>{Object.assign(icons,set);};
+export const hexOf=(n: number): string=>'#'+n.toString(16).padStart(6,'0');
 export const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout the UI modules.
 export const $=(s: string): any=>document.querySelector(s);

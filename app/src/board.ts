@@ -1,5 +1,6 @@
 // The room leaderboard: who earns coins here, live. The server sorts and sends the whole room, we only pick what fits the card.
 
+import {hexOf} from './ui.ts';
 export interface Entry{id: string; name: string; color: number; coins: number; state: string}
 export interface BoardDeps{meId(): string}
 export interface Board{update(entries: Entry[]): void; open(): void; close(): void; toggle(): void; isOpen(): boolean; dispose(): void}
@@ -23,7 +24,6 @@ export function delta(prev: Entry[]|null,next: Entry[],meId: string): 'up'|'down
   return b<a?'up':'down';
 }
 
-const hex=(c: number)=>'#'+(c>>>0).toString(16).padStart(6,'0').slice(-6);
 const STATES: Record<string,{icon: string; title: string}>={focus:{icon:'flame',title:'En concentration'},collective:{icon:'flame',title:'En concentration avec la salle'},pause:{icon:'coffee',title:'En pause'}};
 
 export function createBoard(host: HTMLElement,deps: BoardDeps): Board{
@@ -47,7 +47,7 @@ export function createBoard(host: HTMLElement,deps: BoardDeps): Board{
     for(const e of top(entries,5,me)){
       const li=document.createElement('li');if(e.id===me)li.classList.add('me');
       const pos=document.createElement('span');pos.className='board-pos';pos.textContent=String(rankOf(entries,e.id)??'');
-      const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hex(e.color));
+      const dot=document.createElement('span');dot.className='chat-dot';dot.style.setProperty('--c',hexOf(e.color));
       const name=document.createElement('span');name.className='board-name';name.textContent=e.name;
       const st=document.createElement('span');st.className='board-state';
       const shown=STATES[e.state];
