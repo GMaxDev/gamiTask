@@ -34,7 +34,7 @@ drawIcons();
 const uuid=()=>crypto.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const {identity,fresh:initialFresh}=loadIdentity(load('gamitask.identity',null),uuid);
 let fresh=initialFresh;
-function saveIdentity(){save('gamitask.identity',identity);renderIdentity();}
+function saveIdentity(){save('gamitask.identity',{...identity,token:null});renderIdentity();}// the token lives under its own key only
 let role:'user'|'moderator'|'admin'='user';
 function renderIdentity(){$('#identity-name').textContent=identity.name||'Invité';($('#identity-dot') as HTMLElement).style.setProperty('--swatch',`#${identity.color.toString(16).padStart(6,'0')}`);
   $('#role-badge').hidden=role==='user';$('#role-badge').textContent=role==='admin'?'admin':'modo';$('#workshop-btn').hidden=role==='user';}
@@ -92,7 +92,7 @@ function applyAuthUser(u:{userId:string;token:string;name:string;color:number;tw
   else toast('La déconnexion Twitch a échoué.');
 };
 async function resolveAuth(){
-  const savedToken=load('gamitask.token',null)??identity.token;// sessions opened before the token moved to its own key
+  const savedToken=load('gamitask.token',null);
   if(savedToken){const user=await verifyToken(API_URL,savedToken);if(user){applyAuthUser(user);return;}save('gamitask.token',null);identity.token=null;saveIdentity();}
   if(load('gamitask.guest',false))return;// chose « invité » before: walk straight back in, like the identity dialog does for a returning guest
   const screen=$('#login-screen') as HTMLElement;
@@ -302,21 +302,6 @@ try{
 }catch(error){console.error(error);$('.loading').innerHTML='Le café 3D n’a pas pu démarrer.<br>Vérifie que l’accélération graphique est activée dans ton navigateur.';}
 start();// the room is built behind the veil, then the server fills it
 
-// Prototype: spawn as many random-looking characters as a Twitch channel's live viewers, purely local (not synced to other clients).
-(window as any).spawnTwitchViewers=async(channel: string)=>{
-  const res=await fetch(`${API_URL}/twitch/viewers?channel=${encodeURIComponent(channel)}`);
-  if(!res.ok){console.error('[twitch] lookup failed',await res.text());return;}
-  const {live,viewerCount}=await res.json();
-  if(!live){console.log(`[twitch] ${channel} is offline`);return;}
-  const {w,d}=DIMS[room];
-  console.log(`[twitch] ${channel}: ${viewerCount} viewers, spawning…`);
-  for(let i=0;i<viewerCount;i++){
-    cafe.addRemote(`twitch-${channel}-${i}`,{
-      name:`viewer${i+1}`,color:PALETTE[Math.floor(Math.random()*PALETTE.length)].hex,hat:null,
-      look:randomLook(PALETTE.map(p=>p.hex)),col:Math.floor(Math.random()*w),row:Math.floor(Math.random()*d),state:'idle',wander:true,
-    });
-  }
-};
 // Prototype: spawn the real chatters of MY OWN linked Twitch channel — Twitch only lets a broadcaster read their own chat list.
 // Still random-looking (a chatter's real gamitask look only exists once they link their own account too), but tagged with their real name.
 (window as any).spawnMyChatters=async()=>{

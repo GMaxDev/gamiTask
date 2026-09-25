@@ -67,7 +67,7 @@ import { userIdFromToken, canEdit, type Role } from "./auth.js";
 import { sanitizeItem, type CatalogItem } from "./catalog.js";
 import { cleanEmail } from "./waitlist.js";
 import { parseKey, seal, open, isSealed } from "./secretbox.js";
-import { getViewerCount, buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
+import { buildAuthorizeUrl, exchangeCodeForToken, refreshUserToken, getTwitchUser, getChatters } from "./twitch.js";
 import { connectChat as connectTwitchChat, disconnectChat as disconnectTwitchChat } from "./twitchChat.js";
 import { startTwitchNpcs, stopTwitchNpcs, roomNpcSnapshot, configureTwitchNpcs } from "./twitchNpcs.js";
 
@@ -78,7 +78,8 @@ const ALLOW_GUEST_PRIVATE_ROOMS = process.env.ALLOW_GUEST_PRIVATE_ROOMS !== "fal
 const CORS_ORIGINS = (process.env.CORS_ORIGIN ?? "http://localhost:5173,http://127.0.0.1:5173").split(",");
 
 const app = express();
-app.set("trust proxy", 1); // one nginx in front: req.ip is the client's, not the proxy's
+app.set("trust proxy", 1);
+app.disable("x-powered-by"); // one nginx in front: req.ip is the client's, not the proxy's
 app.use(cors({ origin: CORS_ORIGINS, credentials: true })); // the same origins as socket.io; credentials for the Twitch-link cookie
 app.use(express.json());
 
@@ -701,7 +702,7 @@ app.post("/auth/google", async (req, res): Promise<void> => {
     const googleId = payload.sub;
     const email = payload.email ?? null;
     const googleName = payload.name ?? email ?? "User";
-    const isAdminLogin = !!ADMIN_EMAIL && email === ADMIN_EMAIL;
+    const isAdminLogin = !!ADMIN_EMAIL && email === ADMIN_EMAIL && payload.email_verified === true;
     let user = sql.getUserByGoogleId.get(googleId) as UserRow | undefined;
     let userId: string;
     if (!user) {
@@ -755,22 +756,6 @@ app.post("/api/waitlist", (req, res): void => {
 
 app.get("/api/rooms", (_req, res): void => {
   res.json({ rooms: buildRoomSummaries() });
-});
-
-// Prototype: how many people are watching a live Twitch channel right now, to test spawning that many characters.
-app.get("/twitch/viewers", async (req, res): Promise<void> => {
-  const channel = (req.query.channel as string | undefined)?.trim();
-  if (!channel) {
-    res.status(400).json({ error: "Missing channel" });
-    return;
-  }
-  try {
-    const viewerCount = await getViewerCount(channel);
-    res.json({ channel, live: viewerCount !== null, viewerCount: viewerCount ?? 0 });
-  } catch (err) {
-    console.error("[twitch/viewers]", err);
-    res.status(502).json({ error: "Twitch lookup failed" });
-  }
 });
 
 app.post("/auth/token", (req, res): void => {
@@ -2837,6 +2822,13 @@ io.on("connection", (socket) => {
     if (!guild) return;
     emitGuildState(io, socketToUserId, guild.id);
   });
+});
+
+// Last: a route or the JSON body parser that throws answers with a plain status, never Express's HTML page and stack.
+app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error("[http]", err);
+  res.status(status).json({ error: status >= 500 ? "server error" : "bad request" });
 });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;

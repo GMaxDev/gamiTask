@@ -14,6 +14,5 @@ export function loadIdentity(saved:unknown,uuid:()=>string):{identity:Identity;f
   const userId=typeof s.userId==='string'&&s.userId?s.userId:uuid();
   const name=cleanName(s.name)??'';
   const color=PALETTE.some(p=>p.hex===s.color)?s.color as number:PALETTE[0].hex;
-  const token=typeof s.token==='string'&&s.token?s.token:null;
-  return {identity:{userId,name,color,token},fresh:!name};
+  return {identity:{userId,name,color,token:null},fresh:!name};// the session token is never read from here: it lives under gamitask.token
 }

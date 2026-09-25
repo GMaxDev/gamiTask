@@ -19,8 +19,6 @@ test('corrupt fields fall back without losing the user id',()=>{
 test('names are trimmed, squeezed and bounded',()=>{
  assert.equal(cleanName('  Max   G '),'Max G');assert.equal(cleanName('x'),null);assert.equal(cleanName('a'.repeat(30))?.length,20);assert.equal(cleanName(42),null);
 });
-test('a session token is kept, anything else is dropped',()=>{
- assert.equal(loadIdentity({userId:'abc',name:'Max',color:PALETTE[0].hex,token:'jwt.here'},uuid).identity.token,'jwt.here');
- assert.equal(loadIdentity({userId:'abc',name:'Max',color:PALETTE[0].hex,token:42},uuid).identity.token,null);
- assert.equal(loadIdentity(null,uuid).identity.token,null);
+test('a token saved alongside the identity is ignored — it only lives under its own key',()=>{
+ assert.equal(loadIdentity({userId:'abc',name:'Max',color:PALETTE[0].hex,token:'jwt.here'},uuid).identity.token,null);
 });
