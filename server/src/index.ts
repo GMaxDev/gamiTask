@@ -139,33 +139,12 @@ db.exec(`
   );
 `);
 // Migrations
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN col INTEGER NOT NULL DEFAULT 6`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN row INTEGER NOT NULL DEFAULT 6`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN streak INTEGER NOT NULL DEFAULT 0`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN lastPomoAt INTEGER NOT NULL DEFAULT 0`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE tasks ADD COLUMN category TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE tasks ADD COLUMN type TEXT NOT NULL DEFAULT 'task'`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0`);
-} catch {}
-try {
-  db.exec(
-    `ALTER TABLE users ADD COLUMN degradation INTEGER NOT NULL DEFAULT 0`,
-  );
-} catch {}
 for (const col of [
+  "users ADD COLUMN streak INTEGER NOT NULL DEFAULT 0",
+  "users ADD COLUMN lastPomoAt INTEGER NOT NULL DEFAULT 0",
+  "tasks ADD COLUMN category TEXT",
+  "tasks ADD COLUMN type TEXT NOT NULL DEFAULT 'task'",
+  "users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0",
   "tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'todo'",
   "tasks ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'easy'",
   "tasks ADD COLUMN value REAL NOT NULL DEFAULT 0",
@@ -182,6 +161,23 @@ for (const col of [
   "users ADD COLUMN energy INTEGER NOT NULL DEFAULT 50",
   "users ADD COLUMN exhaustedUntil INTEGER NOT NULL DEFAULT 0",
   "users ADD COLUMN tzOffset INTEGER NOT NULL DEFAULT 0",
+  "users ADD COLUMN lastDailyResetAt INTEGER NOT NULL DEFAULT 0",
+  "users ADD COLUMN ownedItems TEXT NOT NULL DEFAULT ''",
+  "users ADD COLUMN equippedHat TEXT",
+  "users ADD COLUMN ownedFurniture TEXT NOT NULL DEFAULT ''",
+  "users ADD COLUMN furniturePositions TEXT NOT NULL DEFAULT '{}'",
+  "users ADD COLUMN email TEXT",
+  "users ADD COLUMN googleId TEXT",
+  "users ADD COLUMN displayName TEXT",
+  "users ADD COLUMN look TEXT",
+  "users ADD COLUMN avatarColor INTEGER NOT NULL DEFAULT 0",
+  "users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0",
+  "users ADD COLUMN twitchId TEXT",
+  "users ADD COLUMN twitchLogin TEXT",
+  "users ADD COLUMN twitchDisplayName TEXT",
+  "users ADD COLUMN twitchAccessToken TEXT",
+  "users ADD COLUMN twitchRefreshToken TEXT",
+  "users ADD COLUMN twitchTokenExpiresAt INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(`ALTER TABLE ${col}`);
@@ -193,47 +189,6 @@ db.exec(`UPDATE tasks SET kind = 'daily' WHERE type = 'daily' AND kind = 'todo'`
 db.exec(`CREATE INDEX IF NOT EXISTS tasks_user_created ON tasks(userId, createdAt)`);
 db.exec(`UPDATE tasks SET completedAt = createdAt WHERE kind = 'todo' AND done = 1 AND completedAt IS NULL`);
 try {
-  db.exec(
-    `ALTER TABLE users ADD COLUMN lastDailyResetAt INTEGER NOT NULL DEFAULT 0`,
-  );
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN ownedItems TEXT NOT NULL DEFAULT ''`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN equippedHat TEXT`);
-} catch {}
-try {
-  db.exec(
-    `ALTER TABLE users ADD COLUMN ownedFurniture TEXT NOT NULL DEFAULT ''`,
-  );
-} catch {}
-try {
-  db.exec(
-    `ALTER TABLE users ADD COLUMN furniturePositions TEXT NOT NULL DEFAULT '{}'`,
-  );
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN email TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN googleId TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN displayName TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN look TEXT`);
-} catch {}
-try {
-  db.exec(
-    `ALTER TABLE users ADD COLUMN avatarColor INTEGER NOT NULL DEFAULT 0`,
-  );
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0`);
-} catch {}
-try {
   db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
   db.exec(`UPDATE users SET role = 'admin' WHERE isAdmin = 1`);
 } catch {}
@@ -244,24 +199,6 @@ try {
   db.exec(
     `UPDATE users SET placedFurniture = ownedFurniture WHERE placedFurniture = '' AND ownedFurniture != ''`,
   );
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN twitchId TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN twitchLogin TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN twitchDisplayName TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN twitchAccessToken TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN twitchRefreshToken TEXT`);
-} catch {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN twitchTokenExpiresAt INTEGER NOT NULL DEFAULT 0`);
 } catch {}
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_googleId ON users(googleId) WHERE googleId IS NOT NULL`,
