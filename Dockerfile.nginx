@@ -1,7 +1,9 @@
 # ── Étape 1 : Build du frontend React/Vite ──────────────────────────────────
 FROM node:20-slim AS frontend-builder
 
-WORKDIR /app
+# Pas /app : quand ce dossier a le même nom que app/app/ (le café), Rollup perd
+# l'entrée HTML racine (landing) en silence — index.html n'apparaît plus dans dist/.
+WORKDIR /build
 
 COPY app/package*.json ./
 RUN npm ci
@@ -22,7 +24,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Copier les fichiers buildés à la racine de nginx (servi depuis gamitask.gmaxdev.com)
-COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+COPY --from=frontend-builder /build/dist /usr/share/nginx/html
 
 # Copier la config nginx
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
