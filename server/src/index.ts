@@ -62,7 +62,7 @@ import {
   cleanFocusMinutes,
   focusEarned,
 } from "./scoring.js";
-import { sanitizeLook } from "./look.js";
+import { sanitizeLook, cleanName, cleanColor } from "./look.js";
 import { userIdFromToken, canEdit, type Role } from "./auth.js";
 import { sanitizeItem, type CatalogItem } from "./catalog.js";
 import { cleanEmail } from "./waitlist.js";
@@ -1516,7 +1516,8 @@ io.on("connection", (socket) => {
   // Envoi initial de la liste des rooms (utile pour l'écran de sélection avant join)
   socket.emit("rooms:list", { rooms: buildRoomSummaries() });
 
-  socket.on("join", ({ name, color, userId: claimedId, roomId, token, tzOffsetMinutes }) => {
+  socket.on("join", ({ name: rawName, color: rawColor, userId: claimedId, roomId, token, tzOffsetMinutes }) => {
+    const name = cleanName(rawName), color = cleanColor(rawColor);
     // A Google account is only ever joined through its token; the bare userId is trusted for guests alone.
     const tokenId = userIdFromToken(token, JWT_SECRET);
     const userId = tokenId ?? claimedId;

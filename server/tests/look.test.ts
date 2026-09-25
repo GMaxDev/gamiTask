@@ -114,3 +114,17 @@ test("strings are capped at 16 chars and booleans kept", () => {
   assert.equal(sanitizeLook({ headphones: "yes" }, null, 0).headphones, true);
   assert.equal(sanitizeLook({ head: "square" }, null, 0).head, "square");
 });
+
+test("cleanName / cleanColor: the join payload is never trusted as-is", async () => {
+  const { cleanName, cleanColor } = await import("../src/look.ts");
+  assert.equal(cleanName('<b>Léa</b> & co'), "bLéa/b co");
+  assert.equal(cleanName("  Max   G  "), "Max G");
+  assert.equal(cleanName("a".repeat(50)).length, 20);
+  assert.equal(cleanName(null), "Anonyme");
+  assert.equal(cleanName({}), "[object Object]");
+  assert.equal(cleanColor(0xabcdef), 0xabcdef);
+  assert.equal(cleanColor('"><b>'), 0x336699);
+  assert.equal(cleanColor(-1), 0x336699);
+  assert.equal(cleanColor(0x1000000), 0x336699);
+  assert.equal(cleanColor(1.5), 0x336699);
+});

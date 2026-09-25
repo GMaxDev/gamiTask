@@ -66,3 +66,14 @@ export function sanitizeLook(
     shoes: str(o.shoes, "brown"),
   };
 }
+
+// What a player calls themself and the colour they picked, as the join payload claims them.
+// Tags and control characters go, the length matches the form's maxlength, and an empty name gets a stand-in.
+export const NAME_MAX = 20;
+export function cleanName(v: unknown): string {
+  const s = String(v ?? "").replace(/[<>&"'\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, NAME_MAX);
+  return s || "Anonyme";
+}
+export function cleanColor(v: unknown, fallback = 0x336699): number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : fallback;
+}
