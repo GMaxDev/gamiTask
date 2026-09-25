@@ -184,3 +184,14 @@ export const cleanChecklist = (v: unknown): ChecklistItem[] =>
     .slice(0, 20);
 export const cleanNote = (v: unknown): string =>
   escapeHtml(String(v ?? "").replace(/\s+/g, " ").trim().slice(0, 200));
+
+// A solo focus is paid only if the server saw it start long enough ago. Pauses stretch the wall
+// clock, never shrink it, so elapsed time is a floor on time spent focused. The tolerance absorbs the
+// client's second rounding and a little network lag.
+export const FOCUS_MIN = 1;
+export const FOCUS_MAX = 90;
+export const cleanFocusMinutes = (v: unknown): number =>
+  Math.min(FOCUS_MAX, Math.max(FOCUS_MIN, Math.round(Number(v) || 0)));
+export function focusEarned(started: { at: number; minutes: number } | undefined, now: number, toleranceMs = 5_000): boolean {
+  return !!started && now - started.at >= started.minutes * 60_000 - toleranceMs;
+}

@@ -172,3 +172,16 @@ test("cleanNote truncates the raw string before escaping, never leaving a dangli
   assert.ok(result.endsWith("&lt;"));
   assert.equal(result, "z".repeat(199) + "&lt;");
 });
+
+test("focusEarned: paid only once the focus duration has really elapsed", async () => {
+  const { focusEarned, cleanFocusMinutes } = await import("../src/scoring.ts");
+  const at = 1_000_000;
+  assert.equal(focusEarned(undefined, at), false);
+  assert.equal(focusEarned({ at, minutes: 25 }, at + 10 * 60_000), false);
+  assert.equal(focusEarned({ at, minutes: 25 }, at + 25 * 60_000 - 4_000), true);
+  assert.equal(focusEarned({ at, minutes: 25 }, at + 25 * 60_000 - 6_000), false);
+  assert.equal(focusEarned({ at, minutes: 25 }, at + 40 * 60_000), true);
+  assert.equal(cleanFocusMinutes("abc"), 1);
+  assert.equal(cleanFocusMinutes(500), 90);
+  assert.equal(cleanFocusMinutes(25.4), 25);
+});

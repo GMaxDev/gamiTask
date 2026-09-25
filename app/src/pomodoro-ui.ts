@@ -30,6 +30,8 @@ export function createPomodoro(deps: PomodoroDeps){
   function seatForFocus(){if(!timer.seatOnFocus)return;if(deps.canMove())deps.cafe()?.takeSeat?.();else pendingMove='seat';}
   function standForBreak(){if(!timer.seatOnFocus)return;if(deps.canMove())deps.cafe()?.leaveSeat?.();else pendingMove='stand';}
   function resumeMove(){if(!pendingMove||!deps.canMove())return;const m=pendingMove;pendingMove=null;if(m==='seat')deps.cafe()?.takeSeat?.();else deps.cafe()?.leaveSeat?.();}
+  // The server clocks every focus from its start: a completion it did not see begin earns nothing. Resuming after a pause is not a new start.
+  const announceFocus=()=>deps.socket()?.emit('pomodoro:start',{minutes:timer.durations.focus});
   const MODE_LABEL: Record<TimerMode,string>={focus:'Focus',short:'Petite pause',long:'Longue pause'};
   function persistTimer(){save('gamitask.timer',timer);}
   let lastRunning: boolean|null=null,lastMode: string|null=null,lastShown: string|null=null;
@@ -46,7 +48,7 @@ export function createPomodoro(deps: PomodoroDeps){
         ? started?`Focus terminé. ${next}, ça démarre.`:`Focus terminé. ${next} quand tu veux.`
         : started?`${from==='long'?'Cycle bouclé, on repart pour un tour.':'Pause terminée.'} ${next}, c’est parti.`:`Pause terminée. ${next} quand tu veux.`);
       deps.ambience.notify(from==='focus'?'Focus terminé':'Pause terminée',started?`${next} en cours.`:'À toi de relancer.');
-      if(started)to==='focus'?seatForFocus():standForBreak();
+      if(started){if(to==='focus'){announceFocus();seatForFocus();}else standForBreak();}
       return renderTimer();
     }
     const text=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
@@ -70,8 +72,10 @@ export function createPomodoro(deps: PomodoroDeps){
     dots.querySelectorAll('span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
     $('#cycle-label').textContent=stats.sessions?`${stats.sessions} petite${stats.sessions>1?'s':''} victoire${stats.sessions>1?'s':''}`:'Un pas après l’autre';
   }
-  $('#start').onclick=()=>{deps.ambience.ensureAudio();deps.ambience.askNotify();toggleTimer(timer);persistTimer();
-    if(timer.endAt!==null){deps.ambience.chime('start');deps.ambience.notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
+  $('#start').onclick=()=>{deps.ambience.ensureAudio();deps.ambience.askNotify();
+    const fresh=timer.endAt===null&&timer.remaining>=timer.durations[timer.mode]*60;// starting from the top, not resuming
+    toggleTimer(timer);persistTimer();
+    if(timer.endAt!==null){if(fresh&&timer.mode==='focus')announceFocus();deps.ambience.chime('start');deps.ambience.notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
       if(timer.mode==='focus')seatForFocus();else standForBreak();}
     renderTimer();};
   $('#reset').onclick=()=>{resetTimer(timer);persistTimer();lastRunning=null;renderTimer();};

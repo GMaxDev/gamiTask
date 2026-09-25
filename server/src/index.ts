@@ -59,6 +59,8 @@ import {
   MAX_ROLLOVER_DAYS,
   KINDS,
   DIFFICULTIES,
+  cleanFocusMinutes,
+  focusEarned,
 } from "./scoring.js";
 import { sanitizeLook } from "./look.js";
 import { userIdFromToken, canEdit, type Role } from "./auth.js";
@@ -1022,6 +1024,9 @@ const VALID_CATEGORIES = new Set(["work", "perso", "urgent", "study"]);
 // ── Rate limiting par socket ─────────────────────────────────────────────────
 // Compteur glissant : { timestamps des appels récents }
 const rateLimits = new Map<string, Map<string, number[]>>();
+// Solo focuses the server saw start, by userId. ponytail: in memory — a server restart forgets a running
+// focus and its reward is refused once; move to a users column if that ever bites.
+const focusStarts = new Map<string, { at: number; minutes: number }>();
 
 function allow(
   socketId: string,
@@ -2411,13 +2416,22 @@ io.on("connection", (socket) => {
     });
   });
   // ── Pomodoro personnel complété ──────────────────────────────────────────
+  socket.on("pomodoro:start", ({ minutes }) => {
+    if (!allow(socket.id, "pomodoro:start", 10, 60000)) return;
+    const userId = socketToUserId.get(socket.id);
+    if (!userId) return;
+    focusStarts.set(userId, { at: Date.now(), minutes: cleanFocusMinutes(minutes) });
+  });
+
   socket.on("pomodoro:complete", () => {
     if (!allow(socket.id, "pomodoro:complete", 2, 30000)) return;
     const userId = socketToUserId.get(socket.id);
     if (!userId) return;
+    const now = Date.now();
+    if (!focusEarned(focusStarts.get(userId), now)) return; // no start seen, or not long enough ago: nothing to pay
+    focusStarts.delete(userId);
     sql.upsertUser.run(userId);
     const STREAK_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 heures
-    const now = Date.now();
     const streakRow = sql.getStreak.get(userId) as Pick<
       UserRow,
       "streak" | "lastPomoAt"
