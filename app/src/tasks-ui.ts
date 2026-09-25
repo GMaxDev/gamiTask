@@ -63,7 +63,7 @@ export function createTasksUi(deps: TasksDeps){
       if(!open.has(li.dataset.id))continue;
       li.classList.add('open');(li.querySelector('.checklist') as HTMLElement).hidden=false;li.querySelector('.toggle-list')!.setAttribute('aria-expanded','true');
     }
-    $('#tasks-empty').hidden=visible(tasks,today).length>0;const left=remaining(tasks,today);$('#tasks-count').textContent=left?`${left} à faire`:tasks.list.length?'Tout est fait':'';
+    $('#tasks-empty').hidden=visible(tasks,today).length>0;const left=remaining(tasks,today);$('#tasks-count').textContent=left?`${left} à faire`:tasks.list.length?'Tout est fait':'Mes tâches';
     for(const k of ['habit','daily','todo'] as const){const n=k==='habit'?tasks.list.filter(t=>t.kind==='habit').length:tasks.list.filter(t=>t.kind===k&&!t.done&&(k==='todo'||isDue(t,today))).length;($(`[data-count=${k}]`) as HTMLElement).textContent=n?String(n):'';}
     document.querySelectorAll('#task-cats button').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.cat===newCategory)));
     renderTaskForm();drawIcons();

@@ -73,7 +73,7 @@ export function createPomodoro(deps: PomodoroDeps){
     dots.querySelectorAll('span').forEach((s: any,i: number)=>s.classList.toggle('filled',i<=cycle));
     $('#cycle-label').textContent=stats.sessions?`${stats.sessions} petite${stats.sessions>1?'s':''} victoire${stats.sessions>1?'s':''}`:'Un pas après l’autre';
   }
-  $('#start').onclick=()=>{deps.ambience.ensureAudio();deps.ambience.askNotify();
+  $('#start').onclick=()=>{deps.ambience.ensureAudio();if(stats.sessions>0)deps.ambience.askNotify();// the permission prompt waits until one focus has been completed: a gesture is still needed, so it rides on the next start
     const fresh=timer.endAt===null&&timer.remaining>=timer.durations[timer.mode]*60;// starting from the top, not resuming
     toggleTimer(timer);persistTimer();
     if(timer.endAt!==null){if(fresh&&timer.mode==='focus')announceFocus();deps.ambience.chime('start');deps.ambience.notify(timer.mode==='focus'?'Focus — c’est parti':'Pause — souffle un peu',`${timer.durations[timer.mode]} minutes.`);
@@ -128,7 +128,7 @@ export function createPomodoro(deps: PomodoroDeps){
   $('#room-join').onclick=()=>{
     const sock=deps.socket();if(!sock)return;// sans serveur il n'y a pas de session de salle : ne rien promettre à l'écran
     if(!roomPomo.joined){
-      sock.emit('pomo:join');roomPomo.joined=true;deps.ambience.ensureAudio();deps.ambience.askNotify();deps.ambience.chime('start');
+      sock.emit('pomo:join');roomPomo.joined=true;deps.ambience.ensureAudio();if(stats.sessions>0)deps.ambience.askNotify();deps.ambience.chime('start');
       if(roomPomo.phase==='focus')seatForFocus();
       if(timer.endAt!==null){toggleTimer(timer);persistTimer();lastRunning=null;renderTimer();}// une seule session à la fois : le solo se met en pause
     } else {sock.emit('pomo:leave');roomPomo.joined=false;}

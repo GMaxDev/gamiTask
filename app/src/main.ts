@@ -64,7 +64,7 @@ function showVeil(text:string|null){veil.hidden=text===null;if(text)veilText.tex
 let ready={room:false,tasks:false};
 let firstSteps=!load('gamitask.firstSteps',false);
 function maybeReady(){if(!(ready.room&&ready.tasks)||pendingHome)return;showVeil(null);
-  if(firstSteps){save('gamitask.firstSteps',true);showRecap('Bienvenue au café.','Clique au sol pour marcher, sur une chaise pour t’asseoir. Glisse pour regarder autour.');}}
+  if(firstSteps){save('gamitask.firstSteps',true);showRecap('Bienvenue au café.','Commence par noter une chose à faire : le bouton « Mes tâches », en bas à droite. Ensuite, clique au sol pour marcher, sur une chaise pour t’asseoir.');}}
 const GOOGLE_CLIENT_ID=(import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined)??'';
 let twitch:{login:string|null;displayName:string|null}={login:null,displayName:null};
 function renderAccount(){
@@ -97,6 +97,7 @@ async function resolveAuth(){
   const savedToken=load('gamitask.token',null);
   if(savedToken){const user=await verifyToken(API_URL,savedToken);if(user){applyAuthUser(user);return;}save('gamitask.token',null);identity.token=null;saveIdentity();}
   if(load('gamitask.guest',false))return;// chose « invité » before: walk straight back in, like the identity dialog does for a returning guest
+  if(!GOOGLE_CLIENT_ID){save('gamitask.guest',true);return;}// nothing to choose from: a one-button screen is a step for nothing
   const screen=$('#login-screen') as HTMLElement;
   screen.hidden=false;
   await new Promise<void>(resolve=>{
@@ -198,7 +199,7 @@ const chat=createChat($('.world-left') as HTMLElement,{
   onMention:ambience.mentionChime,
 });
 const board=createBoard($('.hud-top') as HTMLElement,{meId:()=>net?.socket.id??''});drawIcons();
-if(matchMedia('(min-width:501px)').matches)chat.open();// visible d'emblée sur grand écran ; sur téléphone il couvrirait la scène, le bouton rond l'ouvre
+// the chat stays closed until asked for: an empty thread is noise on the first screen of a focus tool
 let chatRoomKnown=false;
 const roomLabel=()=>ROOM_UI[room].chat;
 // `T` opens the chat from anywhere in the room, never while typing, editing the character or placing a piece.

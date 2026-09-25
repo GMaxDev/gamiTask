@@ -71,7 +71,7 @@ export function createAmbience(deps: AmbienceDeps){
   // Un gain arrive souvent en deux messages (pièces puis XP) : une seule récompense sonore par salve.
   let lastReward=0;
   function rewardChime(){const now=Date.now();if(now-lastReward<600)return;lastReward=now;chime('reward');}
-  // Notifications système : la permission est demandée au premier geste (démarrage ou entrée en salle), jamais avant.
+  // Notifications système : la permission est demandée au démarrage d'un focus, une fois qu'un premier a été mené au bout — jamais au premier clic.
   function askNotify(){try{if(notifs&&typeof Notification!=='undefined'&&Notification.permission==='default'){toast('Le café peut te prévenir quand un focus se termine — ton navigateur va te le demander.');Notification.requestPermission().catch(()=>{});}}catch{}}
   function notify(title: string,body: string){if(notifs)showNotify(title,body);}
   function showNotify(title: string,body: string){try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,icon:'/favicon.svg',tag:'gamitask-pomo'});}catch{}}
