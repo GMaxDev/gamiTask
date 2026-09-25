@@ -32,6 +32,7 @@ import {
   score,
   rollover,
   levelOf,
+  escapeHtml,
   startOfDay,
   cleanKind,
   cleanDifficulty,
@@ -761,21 +762,7 @@ function emitXpUpdate(
   }
 }
 
-function sanitize(text: string): string {
-  return text
-    .replace(
-      /[<>&"']/g,
-      (c) =>
-        ({
-          "<": "&lt;",
-          ">": "&gt;",
-          "&": "&amp;",
-          '"': "&quot;",
-          "'": "&#39;",
-        })[c] ?? c,
-    )
-    .slice(0, 200);
-}
+const sanitize = (text: string): string => escapeHtml(text).slice(0, 200);
 
 const VALID_CATEGORIES = new Set(["work", "perso", "urgent", "study"]);
 

@@ -168,7 +168,7 @@ export const cleanDays = (v: unknown): number => {
   return n === 0 ? 127 : n;
 };
 const ENTITIES: Record<string, string> = { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" };
-const escapeHtml = (s: string): string => s.replace(/[<>&"']/g, (c) => ENTITIES[c] ?? c);
+export const escapeHtml = (s: string): string => s.replace(/[<>&"']/g, (c) => ENTITIES[c] ?? c);
 const unescapeHtml = (s: string): string =>
   s.replace(/&(?:lt|gt|amp|quot|#39);/g, (m) => ({ "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&#39;": "'" })[m] ?? m);
 export const cleanChecklist = (v: unknown): ChecklistItem[] =>
