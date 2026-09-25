@@ -216,7 +216,7 @@ export interface SharedPomoState {
 // `RoomId` peut être un id public fixe OU un UUID de room privée.
 export type RoomId = string;
 
-export const PUBLIC_ROOM_IDS = ["ocean", "forest", "sunset"] as const;
+export const PUBLIC_ROOM_IDS = ["ocean", "forest"] as const;
 export type PublicRoomId = (typeof PUBLIC_ROOM_IDS)[number];
 export const DEFAULT_ROOM_ID: PublicRoomId = "ocean";
 
@@ -233,52 +233,9 @@ export interface TwitchNpc {
 export const MAX_PUBLIC_ROOM = 20;
 export const MAX_PRIVATE_ROOM = 10;
 
-export interface RoomMeta {
-  id: PublicRoomId;
-  name: string;
-  emoji: string;
-  accent: number;
-  floorTint: number;
-  background: number;
-  description: string;
-}
-
-export const PUBLIC_ROOMS_META: Record<PublicRoomId, RoomMeta> = {
-  ocean: {
-    id: "ocean",
-    name: "Bookshop cozy",
-    emoji: "📖",
-    accent: 0xb85530,
-    floorTint: 0xb89466,
-    background: 0xe6d3ad,
-    description: "Librairie-café, murs de livres, tapis terracotta",
-  },
-  forest: {
-    id: "forest",
-    name: "Café-jardin",
-    emoji: "🌿",
-    accent: 0x7a8e4a,
-    floorTint: 0xc8b888,
-    background: 0xe8e0c8,
-    description: "Véranda lumineuse, plantes suspendues, banquettes sauge",
-  },
-  sunset: {
-    id: "sunset",
-    name: "Salon honey",
-    emoji: "🍯",
-    accent: 0xc89a3a,
-    floorTint: 0xd8b878,
-    background: 0xf0dba0,
-    description: "Lumière chaude de fin d'après-midi, tasse fumante",
-  },
-};
-
-/** Palette utilisée pour les rooms privées (même thème pour toutes pour cette v1) */
-export const PRIVATE_ROOM_THEME = {
-  emoji: "🏠",
-  accent: 0xa04050,
-  floorTint: 0xc8a888,
-  background: 0xf0e0c0,
+export const PUBLIC_ROOM_NAMES: Record<PublicRoomId, string> = {
+  ocean: "Bookshop cozy",
+  forest: "Café-jardin",
 };
 
 export function isPublicRoomId(v: unknown): v is PublicRoomId {
@@ -288,17 +245,9 @@ export function isPublicRoomId(v: unknown): v is PublicRoomId {
 /** Résumé d'une room envoyé par le serveur aux clients pour l'écran de sélection */
 export interface RoomSummary {
   id: RoomId;
-  name: string;
-  emoji: string;
-  accent: number;
-  floorTint: number;
-  background: number;
-  description: string;
-  capacity: number;
   count: number;
   isPrivate: boolean;
   ownerId: string | null;
-  ownerName: string | null;
 }
 
 // Événements Client → Serveur

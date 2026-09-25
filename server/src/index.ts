@@ -12,8 +12,7 @@ import {
   FURNITURE_ITEMS,
   FURNITURE_SETS,
   PUBLIC_ROOM_IDS,
-  PUBLIC_ROOMS_META,
-  PRIVATE_ROOM_THEME,
+  PUBLIC_ROOM_NAMES,
   MAX_PUBLIC_ROOM,
   MAX_PRIVATE_ROOM,
   DEFAULT_ROOM_ID,
@@ -1024,15 +1023,9 @@ const DURATIONS: Record<PomodoroPhase, number> = {
 interface RoomState {
   id: RoomId;
   name: string;
-  emoji: string;
-  accent: number;
-  floorTint: number;
-  background: number;
-  description: string;
   capacity: number;
   isPrivate: boolean;
   ownerId: string | null;
-  ownerName: string | null;
   players: Map<string, Player>;
   sharedPomo: SharedPomoState & {
     intervalId: ReturnType<typeof setInterval> | null;
@@ -1041,19 +1034,12 @@ interface RoomState {
 }
 
 function createPublicRoomState(id: PublicRoomId): RoomState {
-  const meta = PUBLIC_ROOMS_META[id];
   return {
     id,
-    name: meta.name,
-    emoji: meta.emoji,
-    accent: meta.accent,
-    floorTint: meta.floorTint,
-    background: meta.background,
-    description: meta.description,
+    name: PUBLIC_ROOM_NAMES[id],
     capacity: MAX_PUBLIC_ROOM,
     isPrivate: false,
     ownerId: null,
-    ownerName: null,
     players: new Map(),
     sharedPomo: {
       phase: "focus",
@@ -1072,20 +1058,13 @@ function createPrivateRoomState(
   id: RoomId,
   name: string,
   ownerId: string,
-  ownerName: string,
 ): RoomState {
   return {
     id,
     name,
-    emoji: PRIVATE_ROOM_THEME.emoji,
-    accent: PRIVATE_ROOM_THEME.accent,
-    floorTint: PRIVATE_ROOM_THEME.floorTint,
-    background: PRIVATE_ROOM_THEME.background,
-    description: `Room privée de ${ownerName}`,
     capacity: MAX_PRIVATE_ROOM,
     isPrivate: true,
     ownerId,
-    ownerName,
     players: new Map(),
     sharedPomo: {
       phase: "focus",
@@ -1105,9 +1084,7 @@ for (const id of PUBLIC_ROOM_IDS) rooms.set(id, createPublicRoomState(id));
 
 // Load private rooms from DB at boot
 for (const row of sql.getAllPrivateRooms.all() as PrivateRoomRow[]) {
-  const owner = sql.getUser.get(row.ownerId) as UserRow | undefined;
-  const ownerName = owner?.displayName ?? "Invité";
-  rooms.set(row.id, createPrivateRoomState(row.id, row.name, row.ownerId, ownerName));
+  rooms.set(row.id, createPrivateRoomState(row.id, row.name, row.ownerId));
 }
 
 // Mapping socket → room pour les lookups rapides
@@ -1339,17 +1316,9 @@ function buildRoomSummaries(forUserId?: string, inRoom?: RoomId): RoomSummary[] 
     if (r.isPrivate && r.ownerId !== forUserId && r.id !== inRoom) continue;
     out.push({
       id: r.id,
-      name: r.name,
-      emoji: r.emoji,
-      accent: r.accent,
-      floorTint: r.floorTint,
-      background: r.background,
-      description: r.description,
-      capacity: r.capacity,
       count: r.players.size,
       isPrivate: r.isPrivate,
       ownerId: r.ownerId,
-      ownerName: r.ownerName,
     });
   }
   return out;
@@ -1615,10 +1584,9 @@ io.on("connection", (socket) => {
     if (!trimmed) return;
     const roomId = randomUUID();
     sql.insertPrivateRoom.run(roomId, trimmed, userId, Date.now());
-    const ownerName = user.displayName ?? "Invité";
-    rooms.set(roomId, createPrivateRoomState(roomId, trimmed, userId, ownerName));
+    rooms.set(roomId, createPrivateRoomState(roomId, trimmed, userId));
     broadcastRoomsList(io);
-    console.log(`[room:create-private] ${ownerName} → ${roomId} (${trimmed})`);
+    console.log(`[room:create-private] ${user.displayName ?? "Invité"} → ${roomId} (${trimmed})`);
   });
 
   // Owner-only: throw someone out of this private room right now, and (optionally) keep them out for a while.
