@@ -317,7 +317,6 @@ export interface ClientToServerEvents {
   }) => void;
   "room:switch": (payload: { roomId: RoomId }) => void;
   "room:create-private": (payload: { name: string }) => void;
-  "room:delete-private": () => void;
   // Owner-only: exclude someone from this private room, right now and (optionally) for a while longer.
   "room:kick": (payload: { targetSocketId: string; durationMs: number | null }) => void;
   move: (payload: { col: number; row: number }) => void;
@@ -510,8 +509,4 @@ export interface ServerToClientEvents {
   "room:info": (payload: { roomId: RoomId }) => void;
   "rooms:list": (payload: { rooms: RoomSummary[] }) => void;
   "room:full": (payload: { roomId: RoomId }) => void;
-  "private-room:deleted": (payload: {
-    roomId: RoomId;
-    fallbackRoomId: RoomId;
-  }) => void;
 }

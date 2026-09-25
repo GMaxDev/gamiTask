@@ -437,7 +437,6 @@ const sql = {
   insertPrivateRoom: db.prepare(
     "INSERT INTO private_rooms (id, name, ownerId, createdAt) VALUES (?, ?, ?, ?)",
   ),
-  deletePrivateRoom: db.prepare("DELETE FROM private_rooms WHERE id = ?"),
   banFromRoom: db.prepare(
     "INSERT INTO room_bans (roomId, userId, expiresAt, bannedAt) VALUES (?, ?, ?, ?) ON CONFLICT(roomId, userId) DO UPDATE SET expiresAt = excluded.expiresAt, bannedAt = excluded.bannedAt",
   ),
@@ -1640,56 +1639,6 @@ io.on("connection", (socket) => {
     rooms.set(roomId, createPrivateRoomState(roomId, trimmed, userId, ownerName));
     broadcastRoomsList(io);
     console.log(`[room:create-private] ${ownerName} → ${roomId} (${trimmed})`);
-  });
-
-  // ── Rooms privées : suppression (owner uniquement) ────────────────────────
-  socket.on("room:delete-private", () => {
-    if (!allow(socket.id, "room:delete-private", 3, 60000)) return;
-    const userId = socketToUserId.get(socket.id);
-    if (!userId) return;
-    const existing = sql.getPrivateRoomByOwner.get(userId) as
-      | PrivateRoomRow
-      | undefined;
-    if (!existing) return;
-    const room = rooms.get(existing.id);
-    if (!room) return;
-    // Déplacer tous les occupants vers la room par défaut
-    const occupants = Array.from(room.players.keys());
-    const fallback = rooms.get(DEFAULT_ROOM_ID)!;
-    for (const sid of occupants) {
-      const sock = io.sockets.sockets.get(sid);
-      const p = room.players.get(sid);
-      room.players.delete(sid);
-      socket.to(room.id).emit("player-left", { id: sid });
-      sock?.leave(room.id);
-      if (!p || !sock) continue;
-      // Ré-inscrire dans la room par défaut
-      const movedPlayer: Player = {
-        ...p,
-        col: 1,
-        row: 10,
-        state: "idle",
-        // meubles préservés puisque la room par défaut est publique
-      };
-      fallback.players.set(sid, movedPlayer);
-      socketToRoom.set(sid, fallback.id);
-      sock.join(fallback.id);
-      sock.emit("private-room:deleted", {
-        roomId: room.id,
-        fallbackRoomId: fallback.id,
-      });
-      sock.emit("room:info", { roomId: fallback.id });
-      sock.to(fallback.id).emit("player-joined", movedPlayer);
-      const others = Array.from(fallback.players.values()).filter(
-        (op) => op.id !== sid,
-      );
-      sock.emit("room-state", others);
-    }
-    rooms.delete(existing.id);
-    sql.deletePrivateRoom.run(existing.id);
-    broadcastLeaderboard(io, fallback);
-    broadcastRoomsList(io);
-    console.log(`[room:delete-private] ${existing.id}`);
   });
 
   // Owner-only: throw someone out of this private room right now, and (optionally) keep them out for a while.
