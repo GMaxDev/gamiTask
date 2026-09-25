@@ -18,7 +18,6 @@ import {
   DEFAULT_ROOM_ID,
   type RoomSummary,
   type RoomId,
-  type PublicRoomId,
   type Player,
   type Task,
   type ChecklistItem,
@@ -908,37 +907,12 @@ interface RoomState {
   pomoParticipants: Set<string>;
 }
 
-function createPublicRoomState(id: PublicRoomId): RoomState {
-  return {
-    id,
-    name: PUBLIC_ROOM_NAMES[id],
-    capacity: MAX_PUBLIC_ROOM,
-    isPrivate: false,
-    ownerId: null,
-    players: new Map(),
-    sharedPomo: {
-      phase: "focus",
-      remaining: DURATIONS["focus"],
-      running: false,
-      participants: 0,
-      session: 0,
-      names: [],
-      intervalId: null,
-    },
-    pomoParticipants: new Set(),
-  };
-}
-
-function createPrivateRoomState(
-  id: RoomId,
-  name: string,
-  ownerId: string,
-): RoomState {
+function createRoomState(id: RoomId, name: string, ownerId: string | null): RoomState {
   return {
     id,
     name,
-    capacity: MAX_PRIVATE_ROOM,
-    isPrivate: true,
+    capacity: ownerId ? MAX_PRIVATE_ROOM : MAX_PUBLIC_ROOM,
+    isPrivate: ownerId !== null,
     ownerId,
     players: new Map(),
     sharedPomo: {
@@ -955,11 +929,11 @@ function createPrivateRoomState(
 }
 
 const rooms: Map<RoomId, RoomState> = new Map();
-for (const id of PUBLIC_ROOM_IDS) rooms.set(id, createPublicRoomState(id));
+for (const id of PUBLIC_ROOM_IDS) rooms.set(id, createRoomState(id, PUBLIC_ROOM_NAMES[id], null));
 
 // Load private rooms from DB at boot
 for (const row of sql.getAllPrivateRooms.all() as PrivateRoomRow[]) {
-  rooms.set(row.id, createPrivateRoomState(row.id, row.name, row.ownerId));
+  rooms.set(row.id, createRoomState(row.id, row.name, row.ownerId));
 }
 
 // Mapping socket → room pour les lookups rapides
@@ -1447,7 +1421,7 @@ io.on("connection", (socket) => {
     if (!trimmed) return;
     const roomId = randomUUID();
     sql.insertPrivateRoom.run(roomId, trimmed, userId, Date.now());
-    rooms.set(roomId, createPrivateRoomState(roomId, trimmed, userId));
+    rooms.set(roomId, createRoomState(roomId, trimmed, userId));
     broadcastRoomsList(io);
     console.log(`[room:create-private] ${user.displayName ?? "Invité"} → ${roomId} (${trimmed})`);
   });
