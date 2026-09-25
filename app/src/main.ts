@@ -33,7 +33,7 @@ registerIcons({Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,
 $('#app').innerHTML=hudMarkup();
 drawIcons();
 // Who you are: kept locally, sent to the server at every `join`.
-const uuid=()=>crypto.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+const uuid=()=>crypto.randomUUID();
 const {identity,fresh:initialFresh}=loadIdentity(load('gamitask.identity',null),uuid);
 let fresh=initialFresh;
 function saveIdentity(){save('gamitask.identity',{...identity,token:null});renderIdentity();}// the token lives under its own key only

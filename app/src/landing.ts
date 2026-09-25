@@ -6,6 +6,7 @@ import {Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Use
 import {icon,drawIcons,registerIcons,load,save,today,esc} from './ui.ts';
 import type {Vignette} from './vignettes.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,type TimerMode} from './timer.ts';
+import {format} from './pomo.ts';
 import {loadLook} from './look.ts';
 import {PALETTE} from './identity.ts';
 import {cleanText} from './tasks.ts';
@@ -144,7 +145,7 @@ function renderTimer(){
     else resetTimer(timer,'focus');
     persist();chime();renderSessions();return renderTimer();
   }
-  const text=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
+  const text=format(remaining);
   if(text!==lastText){$('#lp-time').textContent=text;lastText=text;document.title=running?`${text} · gamitask`:'gamitask — Le café des petites victoires';}
   cafe?.setClock(1-remaining/(timer.durations[timer.mode]*60),running);
   if(running!==lastRunning||timer.mode!==lastMode){
@@ -168,7 +169,7 @@ function renderNotes(){
   drawIcons();cafe?.setTasks(pendingNotes());
 }
 $('#lp-note-form').onsubmit=(e:Event)=>{e.preventDefault();const input=$('#lp-note') as HTMLInputElement,text=cleanText(input.value);if(!text)return;
-  notes.unshift({id:crypto.randomUUID?.()??String(Date.now()),userId:'landing',text,note:'',kind:'todo',difficulty:'easy',value:0,done:false,createdAt:Date.now(),category:null,up:true,down:false,countUp:0,countDown:0,days:127,streak:0,dueAt:null,checklist:[],completedAt:null});input.value='';renderNotes();};
+  notes.unshift({id:crypto.randomUUID(),userId:'landing',text,note:'',kind:'todo',difficulty:'easy',value:0,done:false,createdAt:Date.now(),category:null,up:true,down:false,countUp:0,countDown:0,days:127,streak:0,dueAt:null,checklist:[],completedAt:null});input.value='';renderNotes();};
 $('#lp-note-list').onclick=(e:Event)=>{const li=(e.target as HTMLElement).closest('li');if(!li)return;const id=li.getAttribute('data-id');const n=notes.find(x=>x.id===id);if(!n)return;
   if((e.target as HTMLElement).closest('.remove-task'))notes=notes.filter(x=>x.id!==id);else if((e.target as HTMLElement).closest('.check-button'))n.done=!n.done;else return;renderNotes();};
 renderNotes();

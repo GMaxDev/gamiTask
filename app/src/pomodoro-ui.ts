@@ -52,7 +52,7 @@ export function createPomodoro(deps: PomodoroDeps){
       if(started){if(to==='focus'){announceFocus();seatForFocus();}else standForBreak();}
       return renderTimer();
     }
-    const text=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
+    const text=format(remaining);
     if(text!==lastShown){$('#timer-value').textContent=text;lastShown=text;}
     const title=running?`${text} · ${timer.mode==='focus'?'Focus':'Pause'} — gamitask`:'gamitask — Le café des petites victoires';
     // while we sit in the room's session it owns the wall clock and the tab title: one source per tick, never both

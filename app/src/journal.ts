@@ -42,4 +42,4 @@ export function summaryLine(j: Journal): string{
   return parts.join(' · ');
 }
 
-export const timeLabel=(at: number): string=>{const d=new Date(at);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+export const timeLabel=(at: number): string=>new Date(at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
