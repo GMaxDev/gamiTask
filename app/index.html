@@ -8,10 +8,7 @@
     <title>gamitask — Le café des petites victoires</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="canonical" href="https://gamitask.gmaxdev.com/" />
-    <script>
-      // Déjà connecté (compte ou invité) : direct au café, pas de passage par la landing.
-      try{if(JSON.parse(localStorage.getItem('gamitask.token')||'null')||JSON.parse(localStorage.getItem('gamitask.guest')||'null'))location.replace('/app/');}catch(e){}
-    </script>
+    <script src="/boot.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="gamitask" />
