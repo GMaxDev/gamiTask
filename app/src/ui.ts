@@ -1,10 +1,10 @@
 // The small things every screen module shares: DOM lookup, local storage, icons, the toast queue and the banner.
 // Pure helpers over the document — no state of the café lives here.
-import {createIcons,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn} from 'lucide';
-import {EDITOR_ICONS} from './editor.ts';
-import {WORKSHOP_ICONS} from './workshop.ts';
+import {createIcons,type IconNode} from 'lucide';
 
-const icons={...EDITOR_ICONS,...WORKSHOP_ICONS,Coffee,Sun,Moon,Plus,Minus,LocateFixed,Volume2,VolumeX,Settings2,RotateCcw,Play,Pause,Check,MousePointer2,Move,Leaf,Headphones,X,HelpCircle,Clock3,ArrowUpRight,ListChecks,Repeat,Coins,Trophy,Flame,Home,ShoppingBag,MessageCircle,ChevronDown,Send,Users,Smile,LogOut,UserCog,Twitch,Link2,Unlink,UserX,Calendar,Bell,BellOff,Music2,SunMoon,LogIn};
+// Every screen registers the lucide icons its markup uses; drawIcons then resolves each <i data-lucide> on the page.
+const icons: Record<string,IconNode>={};
+export const registerIcons=(set: Record<string,IconNode>)=>{Object.assign(icons,set);};
 export const icon=(name: string,cls=''): string=>`<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
 // ponytail: `any` here saves typing every dataset/onclick/style access on raw DOM elements throughout the UI modules.
 export const $=(s: string): any=>document.querySelector(s);

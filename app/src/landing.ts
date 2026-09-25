@@ -2,7 +2,8 @@
 // The hero is a real room from the app running offline: a pomodoro, notes that become tickets, a character to walk.
 import './style.css';
 import './landing.css';
-import {createIcons,Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github} from 'lucide';
+import {Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github} from 'lucide';
+import {icon,drawIcons,registerIcons,load,save,today,esc} from './ui.ts';
 import type {Vignette} from './vignettes.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,type TimerMode} from './timer.ts';
 import {loadLook} from './look.ts';
@@ -11,8 +12,7 @@ import {cleanText} from './tasks.ts';
 import type {Task} from '@shared/types';
 import type {SceneState} from './scene.ts';
 
-const icon=(name:string):string=>`<i data-lucide="${name}" aria-hidden="true"></i>`;
-const drawIcons=()=>createIcons({icons:{Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github},attrs:{'stroke-width':1.65}});
+registerIcons({Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github});
 const FEATURES:{v:Vignette;ic:string;title:string;text:string}[]=[
   {v:'timer',ic:'timer',title:'Un pomodoro, seul ou avec la salle',text:'Vingt-cinq minutes de concentration, une vraie pause, et toute la salle peut suivre le même tempo. L’horloge au mur avance avec toi.'},
   {v:'tasks',ic:'list-checks',title:'Des tâches qui deviennent des tickets',text:'Chaque chose à faire est un petit ticket posé sur ta table. Tu la coches, il disparaît. Les tâches du jour reviennent chaque matin.'},
@@ -21,10 +21,6 @@ const FEATURES:{v:Vignette;ic:string;title:string;text:string}[]=[
   {v:'twitch',ic:'twitch',title:'Twitch dans la salle',text:'Lie ta chaîne : tes viewers entrent dans ta pièce, leur chat s’affiche au-dessus de leur tête, et ils travaillent avec toi.'},
   {v:'workshop',ic:'hammer',title:'L’atelier d’objets',text:'De nouveaux meubles et chapeaux s’assemblent dans l’app, cube par cube, et arrivent en boutique sans redéploiement.'},
 ];
-function load(key:string,fallback:any):any{try{return JSON.parse(localStorage.getItem(key) as string)??fallback;}catch{return fallback;}}
-function save(key:string,value:any){try{localStorage.setItem(key,JSON.stringify(value));}catch{}}
-const today=()=>new Date().toLocaleDateString('sv-SE');
-const esc=(v:string)=>v.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'} as Record<string,string>)[c]);
 
 const root=document.getElementById('landing') as HTMLElement;
 root.innerHTML=`

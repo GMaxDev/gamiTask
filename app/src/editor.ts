@@ -6,10 +6,11 @@ import {HATS} from './shop.ts';
 import {createPrimitives} from './primitives.ts';
 import {buildAvatar,hexOf} from './avatar.ts';
 import {Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt,PersonStanding,Dices} from 'lucide';
+import {registerIcons} from './ui.ts';
 
 export interface EditorDeps{onPreview(look:Look):void;onDone(look:Look,name:string):void;onExit():void;resetView():void}
 export interface Editor{open(initial:Look,name:string,ownedHats:string[]):void;close():void;isOpen():boolean;dispose():void}
-export const EDITOR_ICONS={Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt,PersonStanding,Dices};// the sheet's markup, registered by whoever calls lucide's createIcons
+registerIcons({Rotate3d,LocateFixed,Undo2,X,Check,Smile,Scissors,Shirt,PersonStanding,Dices});// the sheet's markup
 
 type Cat='face'|'hair'|'outfit'|'body';
 type Sub='skin'|'head'|'eyes'|'brows'|'nose'|'mouth'|'sets'|'bangs'|'back'|'top'|'pattern'|'bottom'|'shoes'|'acc'|'shape';

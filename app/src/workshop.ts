@@ -9,12 +9,12 @@ import {createDecor,DECOR_PIECES} from './decor.ts';
 import {defaultLook,createHistory} from './look.ts';
 import {PALETTE} from './identity.ts';
 import {newItem,addPart,slugId,duplicate,setFunction} from './workshop-model.ts';
-import {esc} from './ui.ts';
-import {createIcons,Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2,Eye,EyeOff,FlipHorizontal2,Eraser} from 'lucide';
+import {esc,drawIcons,registerIcons} from './ui.ts';
+import {Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2,Eye,EyeOff,FlipHorizontal2,Eraser} from 'lucide';
 
 export interface WorkshopDeps{items():CatalogItem[];save(item:CatalogItem):void;remove(id:string):void;onExit():void}
 export interface Workshop{open():void;close():void;isOpen():boolean;refresh():void;dispose():void}
-export const WORKSHOP_ICONS={Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2,Eye,EyeOff,FlipHorizontal2,Eraser};
+registerIcons({Hammer,Box,Cylinder,Circle,Torus,PackageOpen,Copy,Trash2,Plus,Save,X,LocateFixed,Undo2,Eye,EyeOff,FlipHorizontal2,Eraser});
 
 type Field=[string,string,number,number,number];// key, label, min, max, step
 const POSE:Field[]=[['x','X',-4,4,.01],['y','Y',-2,4,.01],['z','Z',-4,4,.01],['rx','Rot X',-3.14,3.14,.01],['ry','Rot Y',-3.14,3.14,.01],['rz','Rot Z',-3.14,3.14,.01]];
@@ -164,7 +164,6 @@ export function createWorkshop(host:HTMLElement,deps:WorkshopDeps):Workshop{
     const title=document.createElement('h3');title.textContent=anchor?`${ANCHOR[p.kind as AnchorKind].label} ${selA+1}`:`${KIND_LABEL[p.kind as PartKind]} ${sel+1}`;
     insp.replaceChildren(title,...(anchor?[]:[color,tools]),...rows);drawIcons();
   }
-  const drawIcons=()=>createIcons({icons:WORKSHOP_ICONS,attrs:{'stroke-width':1.65}});
   function load(it:CatalogItem){draft=it;sel=0;selA=-1;hidden.clear();saved=snap();history=createHistory(saved);undoBtn.disabled=true;resetView();rebuild();renderItems();renderMeta();renderParts();renderFunctions();renderInspector();}
   // Leaving a dirty draft (exit, another item, a new one) first asks what to do with it; the action waits in `pending`.
   function guard(action:()=>void){if(!dirty()){action();return;}pending=action;(q('#ws-guard') as HTMLElement).hidden=false;}
