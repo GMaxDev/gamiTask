@@ -1,15 +1,6 @@
-// Progression state fed by the server: coins, XP, streak and achievements. Labels live here, rules live server-side.
+// Progression state fed by the server: coins, XP, streak and achievements. Rules live server-side.
+import {ACHIEVEMENTS} from '@shared/types';
 export interface Progress{coins:number;xp:number;level:number;xpToNext:number;streak:number;achievements:string[];energy:number;exhausted:boolean}
-export const ACHIEVEMENTS=[
-  {key:'first-task',label:'1ère tâche !',desc:'Première tâche complétée',icon:'✅'},
-  {key:'task-10',label:'10 tâches !',desc:'10 tâches complétées',icon:'🔟'},
-  {key:'task-50',label:'50 tâches !',desc:'50 tâches complétées',icon:'🏆'},
-  {key:'first-pomo',label:'1er Pomodoro !',desc:'Premier pomodoro terminé',icon:'🍅'},
-  {key:'streak-5',label:'Streak ×5 !',desc:'5 pomodoros consécutifs',icon:'🔥'},
-  {key:'coins-100',label:'100 pièces !',desc:'100 pièces accumulées',icon:'💰'},
-  {key:'coins-500',label:'500 pièces !',desc:'500 pièces accumulées',icon:'👑'},
-  {key:'first-collective',label:'Pomo collectif !',desc:'Premier pomodoro partagé',icon:'🤝'},
-];
 const KEYS=new Set(ACHIEVEMENTS.map(a=>a.key));
 export const levelOf=(xp:number):number=>Math.floor(Math.sqrt(Math.max(0,xp)/50));
 export const xpForLevel=(level:number):number=>level*level*50;

@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import {
+  ACHIEVEMENTS,
   SHOP_ITEMS,
   FURNITURE_ITEMS,
   FURNITURE_SETS,
@@ -804,63 +805,6 @@ function allow(
 function cleanRateLimit(socketId: string): void {
   rateLimits.delete(socketId);
 }
-
-// ── Achievements ─────────────────────────────────────────────────────────────
-const ACHIEVEMENTS: Array<{
-  key: string;
-  label: string;
-  desc: string;
-  icon: string;
-}> = [
-  {
-    key: "first-task",
-    label: "1ère tâche !",
-    desc: "Première tâche complétée",
-    icon: "✅",
-  },
-  {
-    key: "task-10",
-    label: "10 tâches !",
-    desc: "10 tâches complétées",
-    icon: "🔟",
-  },
-  {
-    key: "task-50",
-    label: "50 tâches !",
-    desc: "50 tâches complétées",
-    icon: "🏆",
-  },
-  {
-    key: "first-pomo",
-    label: "1er Pomodoro !",
-    desc: "Premier pomodoro terminé",
-    icon: "🍅",
-  },
-  {
-    key: "streak-5",
-    label: "Streak ×5 !",
-    desc: "5 pomodoros consécutifs",
-    icon: "🔥",
-  },
-  {
-    key: "coins-100",
-    label: "100 pièces !",
-    desc: "100 pièces accumulées",
-    icon: "💰",
-  },
-  {
-    key: "coins-500",
-    label: "500 pièces !",
-    desc: "500 pièces accumulées",
-    icon: "👑",
-  },
-  {
-    key: "first-collective",
-    label: "Pomo collectif !",
-    desc: "Premier pomo collectif terminé",
-    icon: "🌐",
-  },
-];
 
 function tryUnlock(
   io: Server<ClientToServerEvents, ServerToClientEvents>,

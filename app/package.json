@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.ts",
+    "test": "node --import ./tests/shared-alias.ts --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

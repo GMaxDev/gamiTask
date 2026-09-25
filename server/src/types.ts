@@ -445,3 +445,22 @@ export interface ServerToClientEvents {
   "rooms:list": (payload: { rooms: RoomSummary[] }) => void;
   "room:full": (payload: { roomId: RoomId }) => void;
 }
+
+// ── Achievements (rules live in the server, labels are shared with the client) ──
+export interface Achievement {
+  key: string;
+  label: string;
+  desc: string;
+  icon: string;
+}
+
+export const ACHIEVEMENTS: Achievement[] = [
+  { key: "first-task", label: "1ère tâche !", desc: "Première tâche complétée", icon: "✅" },
+  { key: "task-10", label: "10 tâches !", desc: "10 tâches complétées", icon: "🔟" },
+  { key: "task-50", label: "50 tâches !", desc: "50 tâches complétées", icon: "🏆" },
+  { key: "first-pomo", label: "1er Pomodoro !", desc: "Premier pomodoro terminé", icon: "🍅" },
+  { key: "streak-5", label: "Streak ×5 !", desc: "5 pomodoros consécutifs", icon: "🔥" },
+  { key: "coins-100", label: "100 pièces !", desc: "100 pièces accumulées", icon: "💰" },
+  { key: "coins-500", label: "500 pièces !", desc: "500 pièces accumulées", icon: "👑" },
+  { key: "first-collective", label: "Pomo collectif !", desc: "Premier pomo collectif terminé", icon: "🌐" },
+];
