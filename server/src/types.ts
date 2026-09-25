@@ -39,8 +39,6 @@ export interface Player {
   state: AvatarState;
   coins?: number;
   hat?: string | null;
-  placed?: string[];
-  positions?: Record<string, { col: number; row: number }>;
   pendingTaskIds?: string[];
   look?: Look;
 }
@@ -485,11 +483,6 @@ export interface ServerToClientEvents {
     positions: Record<string, { col: number; row: number }>;
   }) => void;
   "furniture:bought": (payload: { itemId: string; coins: number }) => void;
-  "furniture:player-update": (payload: {
-    id: string;
-    placed: string[];
-    positions: Record<string, { col: number; row: number }>;
-  }) => void;
   "profile:data": (data: {
     userId: string;
     name: string;

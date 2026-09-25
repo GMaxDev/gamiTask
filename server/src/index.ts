@@ -1461,21 +1461,9 @@ io.on("connection", (socket) => {
       state: "idle",
       coins: user.coins,
       hat: user.equippedHat ?? null,
-      placed: placedFurnitureList,
-      positions: furniturePositionsPayload,
       pendingTaskIds,
       look: userLook(user),
     };
-    // Habbo-style : les meubles d'un joueur ne s'affichent QUE dans sa propre
-    // room privée. Dans tout autre contexte (rooms publiques, room privée d'un
-    // autre user), on strip placed/positions.
-    const shouldHideFurniture = !(
-      targetRoom.isPrivate && targetRoom.ownerId === userId
-    );
-    if (shouldHideFurniture) {
-      player.placed = [];
-      player.positions = {};
-    }
     targetRoom.players.set(socket.id, player);
     socketToRoom.set(socket.id, targetRoomId);
     socketToUserId.set(socket.id, userId);
@@ -1582,16 +1570,11 @@ io.on("connection", (socket) => {
     // Re-spawn at entry point
     const spawnCol = 1;
     const spawnRow = 10;
-    const shouldHideFurniture = !(
-      targetRoom.isPrivate && targetRoom.ownerId === userId
-    );
     const rePlayer: Player = {
       ...existing,
       col: spawnCol,
       row: spawnRow,
       state: "idle",
-      placed: shouldHideFurniture ? [] : existing.placed,
-      positions: shouldHideFurniture ? {} : existing.positions,
     };
     targetRoom.players.set(socket.id, rePlayer);
     socketToRoom.set(socket.id, roomId);
@@ -1914,21 +1897,7 @@ io.on("connection", (socket) => {
       positions: buyPositionsPayload,
     });
     const p = getPlayer(socket.id);
-    if (p) {
-      p.coins = newCoins;
-      p.placed = newPlacedList;
-      p.positions = buyPositionsPayload;
-    }
-    // Ne broadcast les meubles que si l'acheteur est dans sa propre room privée
-    // (sinon personne ne doit les voir dans la scène)
-    const r = getRoom(socket.id);
-    if (r?.isPrivate && r.ownerId === userId) {
-      broadcastToOwnRoom(socket, "furniture:player-update", {
-        id: socket.id,
-        placed: newPlacedList,
-        positions: buyPositionsPayload,
-      });
-    }
+    if (p) p.coins = newCoins;
     broadcastLeaderboardForSocket(io, socket.id);
   });
   // ── Déplacer un meuble (Feng Shui) ─────────────────────────────────────────────
@@ -1962,16 +1931,6 @@ io.on("connection", (socket) => {
       placed: movedPlaced,
       positions: movedPositionsPayload,
     });
-    const mp = getPlayer(socket.id);
-    if (mp) {
-      mp.placed = movedPlaced;
-      mp.positions = movedPositionsPayload;
-    }
-    broadcastToOwnRoom(socket,"furniture:player-update", {
-      id: socket.id,
-      placed: movedPlaced,
-      positions: movedPositionsPayload,
-    });
   });
   // ── Ranger / Sortir un meuble de la chambre (toggle-place) ───────────────────
   socket.on("furniture:toggle-place", ({ itemId }) => {
@@ -1997,16 +1956,6 @@ io.on("connection", (socket) => {
     );
     socket.emit("furniture:state", {
       owned,
-      placed: newPlaced,
-      positions: togglePositionsPayload,
-    });
-    const tp = getPlayer(socket.id);
-    if (tp) {
-      tp.placed = newPlaced;
-      tp.positions = togglePositionsPayload;
-    }
-    broadcastToOwnRoom(socket,"furniture:player-update", {
-      id: socket.id,
       placed: newPlaced,
       positions: togglePositionsPayload,
     });
@@ -2052,16 +2001,6 @@ io.on("connection", (socket) => {
     );
     socket.emit("furniture:state", {
       owned,
-      placed: newPlacedAfter,
-      positions: placePositionsPayload,
-    });
-    const pp = getPlayer(socket.id);
-    if (pp) {
-      pp.placed = newPlacedAfter;
-      pp.positions = placePositionsPayload;
-    }
-    broadcastToOwnRoom(socket,"furniture:player-update", {
-      id: socket.id,
       placed: newPlacedAfter,
       positions: placePositionsPayload,
     });
