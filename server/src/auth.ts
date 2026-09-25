@@ -5,7 +5,7 @@ export const canEdit = (role: Role): boolean => role === "moderator" || role ===
 export function userIdFromToken(token: unknown, secret: string): string | null {
   if (typeof token !== "string" || !token) return null;
   try {
-    const d = jwt.verify(token, secret) as { userId?: unknown };
+    const d = jwt.verify(token, secret, { algorithms: ["HS256"] }) as { userId?: unknown };
     return typeof d.userId === "string" ? d.userId : null;
   } catch {
     return null;

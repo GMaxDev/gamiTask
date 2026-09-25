@@ -654,7 +654,13 @@ function getEffectivePlaced(
 }
 
 // ── HTTP Auth endpoints ───────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET ?? "gamitask_dev_secret";
+// No fallback: a guessable secret signs admin sessions. The server refuses to start rather than run with one.
+const JWT_SECRET = process.env.JWT_SECRET ?? "";
+if (JWT_SECRET.length < 32) {
+  console.error("[config] JWT_SECRET must be set and at least 32 characters long (see README, .env.prod.example)");
+  process.exit(1);
+}
+const JWT_ALGS: jwt.Algorithm[] = ["HS256"]; // pin the algorithm on verify: a token may not pick its own
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -759,7 +765,7 @@ app.post("/auth/token", (req, res): void => {
     return;
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: JWT_ALGS }) as { userId: string };
     const user = sql.getUser.get(decoded.userId) as UserRow | undefined;
     if (!user) {
       res.status(404).json({ error: "User not found" });
@@ -794,7 +800,7 @@ function requireAuth(req: express.Request, res: express.Response): string | null
     return null;
   }
   try {
-    return (jwt.verify(token, JWT_SECRET) as { userId: string }).userId;
+    return (jwt.verify(token, JWT_SECRET, { algorithms: JWT_ALGS }) as { userId: string }).userId;
   } catch {
     res.status(401).json({ error: "Token invalide ou expiré" });
     return null;
@@ -820,7 +826,7 @@ app.get("/auth/twitch/callback", async (req, res): Promise<void> => {
   }
   let userId: string;
   try {
-    const decoded = jwt.verify(state, JWT_SECRET) as { userId: string; purpose: string };
+    const decoded = jwt.verify(state, JWT_SECRET, { algorithms: JWT_ALGS }) as { userId: string; purpose: string };
     if (decoded.purpose !== "twitch-link") throw new Error("wrong purpose");
     userId = decoded.userId;
   } catch {
@@ -1513,6 +1519,13 @@ function broadcastRoomsList(
 
 io.on("connection", (socket) => {
   console.log(`[+] connected: ${socket.id}`);
+  // socket.io lets a throwing listener take the whole process down. Every handler below registers
+  // through this guard, so a malformed payload costs one logged error, not every session.
+  const rawOn = socket.on.bind(socket);
+  (socket as { on: unknown }).on = (event: string, fn: (...args: unknown[]) => void) =>
+    rawOn(event as never, ((...args: unknown[]) => {
+      try { fn(...args); } catch (err) { console.error(`[${event}] handler threw`, err); }
+    }) as never);
   // Envoi initial de la liste des rooms (utile pour l'écran de sélection avant join)
   socket.emit("rooms:list", { rooms: buildRoomSummaries() });
 
