@@ -1,4 +1,4 @@
-# ── Étape 1 : Build du frontend React/Vite ──────────────────────────────────
+# ── Étape 1 : Build du frontend Vite ──────────────────────────────────
 FROM node:20-slim AS frontend-builder
 
 # Pas /app : quand ce dossier a le même nom que app/app/ (le café), Rollup perd
