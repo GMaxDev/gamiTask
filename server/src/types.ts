@@ -323,7 +323,6 @@ export interface ClientToServerEvents {
   move: (payload: { col: number; row: number }) => void;
   "avatar-state": (payload: { state: AvatarState }) => void;
   chat: (payload: { text: string }) => void;
-  "private-message": (payload: { to: string; text: string }) => void;
   "task:add": (payload: {
     text: string;
     kind?: TaskKind;
@@ -372,7 +371,6 @@ export interface ClientToServerEvents {
   "room:refresh": () => void;
   "profile:request": (payload: { socketId: string | null }) => void;
   "chat:typing": () => void;
-  "chat:react": (payload: { msgTs: number; emoji: string }) => void;
   "chat:emote": (payload: { emoji: string }) => void;
 }
 
@@ -444,25 +442,12 @@ export interface ServerToClientEvents {
       state: AvatarState;
     }>,
   ) => void;
-  "private-message": (msg: {
-    from: string;
-    fromName: string;
-    fromColor: number;
-    text: string;
-    ts: number;
-  }) => void;
   "task:completed-public": (payload: { socketId: string }) => void;
   "tasks:public-update": (payload: {
     socketId: string;
     taskIds: string[];
   }) => void;
   "chat:typing": (payload: { id: string; name: string; color: number }) => void;
-  "chat:react": (payload: {
-    msgTs: number;
-    emoji: string;
-    fromId: string;
-    fromColor: number;
-  }) => void;
   "chat:emote": (payload: { id: string; emoji: string }) => void;
   "achievement:unlocked": (payload: {
     key: string;

@@ -1782,20 +1782,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  const VALID_EMOJIS = new Set(["👍", "🎉", "🔥", "❤️"]);
-  socket.on("chat:react", ({ msgTs, emoji }) => {
-    if (!allow(socket.id, "chat:react", 10, 5000)) return;
-    if (!VALID_EMOJIS.has(emoji)) return;
-    const p = getPlayer(socket.id);
-    if (!p) return;
-    emitToOwnRoom(io, socket.id, "chat:react", {
-      msgTs,
-      emoji,
-      fromId: socket.id,
-      fromColor: p.color,
-    });
-  });
-
   const VALID_EMOTES = new Set(["👋", "😄", "❤️", "👍", "☕", "🍅", "🎉", "😴"]);
   socket.on("chat:emote", ({ emoji }) => {
     if (!allow(socket.id, "chat:emote", 5, 3000)) return;
@@ -1803,22 +1789,6 @@ io.on("connection", (socket) => {
     const p = getPlayer(socket.id);
     if (!p) return;
     emitToOwnRoom(io, socket.id, "chat:emote", { id: socket.id, emoji });
-  });
-
-  socket.on("private-message", ({ to, text }) => {
-    if (!allow(socket.id, "private-message", 5, 5000)) return;
-    const p = getPlayer(socket.id);
-    if (!p) return;
-    if (!getPlayer(to)) return;
-    const safe = sanitize(text);
-    if (!safe.trim()) return;
-    io.to(to).emit("private-message", {
-      from: socket.id,
-      fromName: p.name,
-      fromColor: p.color,
-      text: safe,
-      ts: Date.now(),
-    });
   });
 
   // ── Tâches ───────────────────────────────────────────────────────────────
