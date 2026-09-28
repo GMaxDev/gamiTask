@@ -1,6 +1,6 @@
 // L'ambiance du café : lumière et horloge, pluie, carillons, notifications système, et le panneau Paramètres qui les règle.
 // Le balisage du panneau et des chips reste dans main.ts avec le reste du HUD ; ce module possède tout leur comportement.
-import {$,load,save,toast} from './ui.ts';
+import {$,icon,drawIcons,load,save,toast} from './ui.ts';
 import {nightness,clockLabel,momentLabel} from './daylight.ts';
 
 export type PanelTab='rythme'|'ambiance'|'compte'|'aide';
@@ -11,6 +11,14 @@ export interface AmbienceDeps{
 export type Ambience=ReturnType<typeof createAmbience>;
 
 export function createAmbience(deps: AmbienceDeps){
+  type LightMode='auto'|'day'|'evening';
+  const LIGHT_UI: Record<LightMode,{icon: string; label: string; toast: string}>={
+    auto:{icon:'sun-moon',label:'Lumière auto',toast:'La lumière suit de nouveau l’heure.'},
+    day:{icon:'sun',label:'Plein jour',toast:'Plein jour, quelle que soit l’heure.'},
+    evening:{icon:'moon',label:'Douce soirée',toast:'Douce soirée, quelle que soit l’heure.'},
+  };
+  let lightMode: LightMode=(LIGHT_UI[load('gamitask.light','auto') as LightMode]?load('gamitask.light','auto'):'auto');
+
   let audio: any,rain: any,rainGain: any,soundOn=false;
 
   // Two short notes when someone calls your name, only if the ambience sound is on (the audio context is already unlocked then).
@@ -27,13 +35,26 @@ export function createAmbience(deps: AmbienceDeps){
   $('#open-panel').onclick=()=>openPanel();
   document.querySelectorAll('.panel-tabs [data-panel]').forEach((b: any)=>b.onclick=()=>openPanel(b.dataset.panel));
 
-  // La lumière de la scène suit l'heure, toujours.
-  function applyLight(){const night=nightness();deps.cafe()?.setDaylight(night);$('.world').classList.toggle('evening',night>.5);}
-  $('#clock').onclick=()=>openPanel('rythme');
-  function renderClock(){$('#clock-time').textContent=clockLabel();$('#clock').setAttribute('title',`Heure locale · ${momentLabel()} — clique pour régler ton rythme`);}
+  // La scène lit une valeur continue : l'heure en mode auto, une extrémité figée sinon.
+  function applyLight(){
+    const night=lightMode==='auto'?nightness():lightMode==='day'?0:1;
+    deps.cafe()?.setDaylight(night);$('.world').classList.toggle('evening',night>.5);
+  }
+  let clockGlyph='';
+  function renderLightChip(){
+    document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.setAttribute('aria-pressed',String(b.dataset.light===lightMode)));
+    $('#light-note').textContent=lightMode==='auto'?`La lumière suit l’heure — en ce moment, ${momentLabel()}.`:'Lumière figée, quelle que soit l’heure.';
+    // Le glyphe de l'horloge ne se redessine que si le mode change : renderClock repasse ici toutes les dix secondes.
+    const glyph=LIGHT_UI[lightMode].icon;
+    if(glyph!==clockGlyph){clockGlyph=glyph;$('#clock-light').innerHTML=icon(glyph);drawIcons();}
+    $('#clock').setAttribute('title',`Heure locale · ${LIGHT_UI[lightMode].label.toLowerCase()}${lightMode==='auto'?` (${momentLabel()})`:''} — clique pour régler`);
+  }
+  $('#clock').onclick=()=>openPanel('ambiance');
+  document.querySelectorAll('#light [data-light]').forEach((b: any)=>b.onclick=()=>{lightMode=b.dataset.light;save('gamitask.light',lightMode);renderLightChip();applyLight();toast(LIGHT_UI[lightMode].toast);});
+  function renderClock(){$('#clock-time').textContent=clockLabel();if(lightMode==='auto')renderLightChip();}
   // Une minute de lumière à la fois : la courbe bouge lentement, inutile de la recalculer à chaque image.
-  setInterval(()=>{renderClock();applyLight();},10000);
-  renderClock();applyLight();
+  setInterval(()=>{renderClock();if(lightMode==='auto')applyLight();},10000);
+  renderClock();renderLightChip();applyLight();
 
   // Optional generated rain: no remote audio, tracking, or autoplay.
   function ensureAudio(){try{audio??=new (window.AudioContext||(window as any).webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{});return audio;}catch{return null;}}

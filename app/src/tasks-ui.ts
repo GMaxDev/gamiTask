@@ -22,7 +22,7 @@ export function createTasksUi(deps: TasksDeps){
   const dueLabel=(ts: number)=>new Date(ts).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
   function renderTaskForm(){
     const k=tasks.tab;($('#task-text') as HTMLInputElement).placeholder=KIND_LABELS[k].placeholder;
-    $('#task-days-opt').hidden=k!=='daily';$('#task-dirs-opt').hidden=k!=='habit';$('#task-due-opt').hidden=k!=='todo';$('#task-filter').hidden=k==='habit';
+    $('#task-days-opt').hidden=k!=='daily';$('#task-dirs-opt').hidden=k!=='habit';$('#task-due-opt').hidden=k!=='todo';$('#task-filter').hidden=k!=='todo';
     $('#task-help').hidden=helpHidden;$('#task-help-text').textContent=KIND_LABELS[k].help;$('#task-help-toggle').hidden=!helpHidden;
     $('#task-options').hidden=!optionsOpen;$('#task-more').setAttribute('aria-expanded',String(optionsOpen));
     const tweaked=newCategory!==null||newDifficulty!==1||(k==='daily'&&newDays!==127)||(k==='habit'&&(newDown||!newUp))||(k==='todo'&&!!($('#task-due') as HTMLInputElement).value);$('#task-more').classList.toggle('tweaked',tweaked);// a dot on the toggle says "something is set in there"

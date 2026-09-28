@@ -14,7 +14,7 @@ test('visible follows the tab and the filter, due dailies first',()=>{
  const s=createTasks();setTasks(s,[t('a1'),t('b2',{done:true}),t('c3',{kind:'daily',days:1}),t('d4',{kind:'daily',days:4}),t('e5',{kind:'daily',days:4,done:true}),t('f6',{kind:'habit'})]);
  s.tab='todo';s.filter='remaining';assert.deepEqual(visible(s,WED).map(x=>x.id),['a1']);
  s.filter='all';assert.deepEqual(visible(s,WED).map(x=>x.id),['b2','a1']);
- s.tab='daily';s.filter='remaining';assert.deepEqual(visible(s,WED).map(x=>x.id),['d4','c3']);// due today first, then not due; ticked hidden
+ s.tab='daily';s.filter='remaining';assert.deepEqual(visible(s,WED).map(x=>x.id),['e5','d4','c3']);// due today first, then not due; ticked stays (barred, not hidden) — a daily comes back every day
  s.filter='all';assert.deepEqual(visible(s,WED).map(x=>x.id),['e5','d4','c3']);
  s.tab='habit';s.filter='remaining';assert.deepEqual(visible(s,WED).map(x=>x.id),['f6']);
 });

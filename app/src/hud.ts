@@ -12,7 +12,7 @@ export function hudMarkup(): string{return `
       <div class="hud-top">
         <div class="hud-zone hud-left">
           <a class="brand chip" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
-          <button class="chip clock-chip" id="clock"><span id="clock-time">--:--</span></button>
+          <button class="chip clock-chip" id="clock"><span id="clock-time">--:--</span><span id="clock-light" class="clock-light"></span></button>
           <div class="chip-group room-switch" role="group" aria-label="Changer de salle"><button class="chip" data-room="cafe" aria-pressed="true">${icon('coffee')}<span>Le café</span><span class="room-count" id="count-cafe" hidden>0</span></button><button class="chip" data-room="garden" aria-pressed="false">${icon('leaf')}<span>Le jardin</span><span class="room-count" id="count-garden" hidden>0</span></button><button class="chip" data-room="private" aria-pressed="false">${icon('home')}<span>Chez moi</span></button></div>
         </div>
         <div class="hud-zone hud-center"><div class="chip-group progress-group">
@@ -112,6 +112,9 @@ export function hudMarkup(): string{return `
       <form id="settings-form"><h3>Ton rythme</h3><p>Choisis la durée de tes sessions, en minutes, et la forme de ton cycle.</p><div class="field-rows"><label><span>Concentration</span><input name="focus" type="number" min="1" max="90" required /></label><label><span>Petite pause</span><input name="short" type="number" min="1" max="90" required /></label><label><span>Longue pause</span><input name="long" type="number" min="1" max="90" required /></label><label><span>Enchaîner les phases</span><input name="autoChain" type="checkbox" /></label></div><p class="form-note" id="cycle-preview"></p><p class="form-note">Enregistrer remet le minuteur au début.</p><button type="submit" class="primary">Enregistrer mon rythme</button></form>
     </section>
     <section class="panel-pane" data-pane="ambiance" hidden>
+      <h3>Lumière</h3>
+      <div class="segmented" id="light" role="radiogroup" aria-label="Lumière de la scène"><button data-light="auto">${icon('sun-moon')}<span>Auto</span></button><button data-light="day">${icon('sun')}<span>Plein jour</span></button><button data-light="evening">${icon('moon')}<span>Soirée</span></button></div>
+      <p class="form-note" id="light-note"></p>
       <h3>Sons</h3>
       <div class="field-rows"><label>${icon('volume-2')}<span>Carillon du minuteur</span><input id="sfx" type="checkbox" /></label><label>${icon('bell')}<span>Notifications système</span><input id="notifs" type="checkbox" /></label></div>
     </section>

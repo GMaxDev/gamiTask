@@ -27,7 +27,8 @@ export function taskDeleted(s:TasksState,id:string):boolean{const i=s.list.findI
 export const pending=(s:TasksState):Task[]=>s.list.filter(t=>t.kind==='habit'||!t.done);
 // The current tab, filtered; dailies due today come first so the morning list reads top-down.
 export function visible(s:TasksState,today:Date):Task[]{
-  const list=s.list.filter(t=>t.kind===s.tab&&(s.filter==='all'||t.kind==='habit'||!t.done));
+  // Les habitudes et quotidiennes reviennent tous les jours : une fois cochées, elles restent visibles (barrées), jamais masquées comme un à-faire terminé.
+  const list=s.list.filter(t=>t.kind===s.tab&&(s.filter==='all'||t.kind!=='todo'||!t.done));
   if(s.tab==='daily')list.sort((a,b)=>Number(isDue(b,today))-Number(isDue(a,today))||b.createdAt-a.createdAt);
   return list;
 }
