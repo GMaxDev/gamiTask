@@ -28,7 +28,6 @@ root.innerHTML=`
   <header class="lp-bar">
     <a class="brand chip" href="/" aria-label="gamitask, accueil"><span class="brand-mark">${icon('coffee')}</span><span>gami<span class="brand-light">task</span></span></a>
     <nav class="lp-nav" aria-label="Sections"><a href="#features">Fonctionnalités</a><a href="#streamers">Streamers</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a></nav>
-    <a class="chip active" href="/app/" data-enter>Entrer au café ${icon('arrow-right')}</a>
   </header>
   <section class="lp-stage" id="demo" aria-label="Essai du café">
     <div class="lp-side lp-side-left">
