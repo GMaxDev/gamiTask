@@ -7,7 +7,7 @@ import {icon,drawIcons,registerIcons,load,save,today,esc} from './ui.ts';
 import type {Vignette} from './vignettes.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,type TimerMode} from './timer.ts';
 import {format} from './pomo.ts';
-import {loadLook} from './look.ts';
+import {loadLook,randomLook} from './look.ts';
 import {PALETTE} from './identity.ts';
 import {cleanText} from './tasks.ts';
 import type {Task} from '@shared/types';
@@ -129,9 +129,9 @@ function renderTimer(){
   const remaining=remainingSeconds(timer),running=timer.endAt!==null;
   if(running&&remaining===0){
     if(stats.date!==today())stats={date:today(),sessions:0};
-    if(timer.mode==='focus'){stats.sessions++;save('gamitask.landing.stats',stats);cafe?.float('','+1 session','#647557');resetTimer(timer,stats.sessions%4===0?'long':'short');
+    if(timer.mode==='focus'){stats.sessions++;save('gamitask.landing.stats',stats);cafe?.float('','+1 session','#647557');resetTimer(timer,stats.sessions%4===0?'long':'short');cafe?.leaveSeat();
       toast(`Session terminée. Au café, ça t’aurait rapporté des pièces. <a href="/app/" data-enter>Entrer au café</a>`);}
-    else resetTimer(timer,'focus');
+    else resetTimer(timer,'focus');// la pause se termine sans ressaseoir : ce n'est qu'en cliquant « C'est parti » qu'on repart
     persist();chime();renderSessions();return renderTimer();
   }
   const text=format(remaining);
@@ -143,7 +143,9 @@ function renderTimer(){
     drawIcons();lastRunning=running;lastMode=timer.mode;
   }
 }
-$('#lp-start').onclick=()=>{toggleTimer(timer);persist();renderTimer();};
+$('#lp-start').onclick=()=>{toggleTimer(timer);persist();
+  if(timer.endAt!==null){if(timer.mode==='focus')cafe?.takeSeat();else cafe?.leaveSeat();}// un focus assoit le personnage, une pause le laisse debout — comme en salle
+  renderTimer();};
 $('#lp-reset').onclick=()=>{resetTimer(timer);persist();renderTimer();};
 for(const b of root.querySelectorAll<HTMLElement>('[data-mode]'))b.onclick=()=>{resetTimer(timer,b.dataset.mode as TimerMode);persist();renderTimer();};
 renderSessions();renderTimer();setInterval(renderTimer,250);
@@ -155,6 +157,7 @@ function renderNotes(){
   save('gamitask.landing.notes',notes);
   $('#lp-note-list').innerHTML=notes.map(n=>`<li class="${n.done?'done':''}" data-id="${n.id}"><button class="check-button ${n.done?'done':''}" aria-label="${n.done?'À refaire':'Terminé'}">${icon('check')}</button><span class="task-text">${esc(n.text)}</span><button class="remove-task" aria-label="Retirer">${icon('x')}</button></li>`).join('');
   $('#lp-notes-count').textContent=String(pendingNotes().length);$('#lp-notes-empty').hidden=notes.length>0;
+  cafe?.setTasks(pendingNotes());// chaque note non cochée devient un ticket sur une table, comme en salle
   drawIcons();
 }
 $('#lp-note-form').onsubmit=(e:Event)=>{e.preventDefault();const input=$('#lp-note') as HTMLInputElement,text=cleanText(input.value);if(!text)return;
@@ -181,11 +184,15 @@ function onSceneState(state:SceneState){
 }
 async function mountRoom(){
   const {createCafe}=await import('./scene.ts');
-  const look=loadLook(load('gamitask.look',null),PALETTE[0].hex,[]);
+  // A visitor who already shaped a character in the real café keeps it here; everyone else gets a fresh face each visit, not the same default every time.
+  const savedLook=load('gamitask.look',null);
+  const look=savedLook?loadLook(savedLook,PALETTE[0].hex,[]):randomLook(PALETTE.map(p=>p.hex));
   cafe=createCafe($('#scene'),onSceneState,{room:'private',furniture:{plant:{c:1,r:6},lamp:{c:9,r:1},couch:{c:9,r:7},coffee:{c:1,r:1}},look});
   $('.loading')?.remove();
   // The stage's centre column is narrower than the app's viewport: step back so the whole room fits.
   const w=($('.lp-demo') as HTMLElement).clientWidth;if(w<1500)cafe.zoomOut();if(w<1000)cafe.zoomOut();
+  cafe.setTasks(pendingNotes());// the notes written before the room finished loading still belong on the tables
+  if(timer.endAt!==null&&timer.mode==='focus')cafe.takeSeat();// arriving mid-focus (e.g. a saved running timer) sits the character straight away
   // The wheel scrolls the page here, it never zooms the room: the scene's own wheel handler is cut off before it runs.
   ($('.lp-demo') as HTMLElement).addEventListener('wheel',e=>e.stopPropagation(),{capture:true,passive:true});
 }
