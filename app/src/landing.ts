@@ -2,7 +2,7 @@
 // The hero is a real room from the app running offline: a pomodoro, notes, a character to walk.
 import './style.css';
 import './landing.css';
-import {Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github} from 'lucide';
+import {Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Minus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github} from 'lucide';
 import {icon,drawIcons,registerIcons,load,save,today,esc} from './ui.ts';
 import type {Vignette} from './vignettes.ts';
 import {createTimer,remainingSeconds,toggleTimer,resetTimer,type TimerMode} from './timer.ts';
@@ -13,7 +13,7 @@ import {cleanText} from './tasks.ts';
 import type {Task} from '@shared/types';
 import type {SceneState} from './scene.ts';
 
-registerIcons({Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github});
+registerIcons({Coffee,ArrowRight,Play,Pause,RotateCcw,Plus,Minus,Check,X,StickyNote,Timer,Users,ListChecks,Smile,Home,Twitch,Hammer,Link2,MessageCircle,Flame,Sparkles,Mail,Github});
 const FEATURES:{v:Vignette;ic:string;title:string;text:string}[]=[
   {v:'timer',ic:'timer',title:'Un pomodoro, seul ou avec la salle',text:'Vingt-cinq minutes de concentration, une vraie pause, et toute la salle peut suivre le même tempo. L’horloge au mur avance avec toi.'},
   {v:'tasks',ic:'list-checks',title:'Des tâches qui deviennent des tickets',text:'Chaque chose à faire est un petit ticket posé sur ta table. Tu la coches, il disparaît. Les tâches du jour reviennent chaque matin.'},
@@ -39,6 +39,7 @@ root.innerHTML=`
     </div>
     <div class="lp-demo world">
       <div class="scene" id="scene"><div class="loading">Le café ouvre ses portes…</div></div>
+      <div class="chip-group lp-zoom" role="group" aria-label="Zoom"><button id="lp-zoom-out" class="chip icon" aria-label="Dézoomer">${icon('minus')}</button><button id="lp-zoom-in" class="chip icon" aria-label="Zoomer">${icon('plus')}</button></div>
       <p class="lp-demo-hint">Clique au sol pour marcher, sur un siège pour t’asseoir · glisse pour tourner</p>
       <div id="hint" class="hint" role="tooltip" hidden></div>
       <div id="toast" class="toast" role="status"></div>
@@ -165,6 +166,10 @@ $('#lp-note-form').onsubmit=(e:Event)=>{e.preventDefault();const input=$('#lp-no
 $('#lp-note-list').onclick=(e:Event)=>{const li=(e.target as HTMLElement).closest('li');if(!li)return;const id=li.getAttribute('data-id');const n=notes.find(x=>x.id===id);if(!n)return;
   if((e.target as HTMLElement).closest('.remove-task'))notes=notes.filter(x=>x.id!==id);else if((e.target as HTMLElement).closest('.check-button'))n.done=!n.done;else return;renderNotes();};
 renderNotes();
+
+// ── The scene's own zoom, once it exists. ──
+$('#lp-zoom-in').onclick=()=>cafe?.zoomIn();
+$('#lp-zoom-out').onclick=()=>cafe?.zoomOut();
 
 // ── Entering the café takes what was started here along: notes and timer durations. ──
 root.addEventListener('click',e=>{if((e.target as HTMLElement).closest('[data-enter]'))save('gamitask.landing.handoff',{notes:pendingNotes().map(n=>n.text),durations:timer.durations});});
