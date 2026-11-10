@@ -94,15 +94,6 @@ root.innerHTML=`
           <p class="lp-plan-note" id="lp-waitlist-note">Pas de paiement pour l’instant : on te prévient à l’ouverture.</p></article>
       </div>
     </section>
-    <section class="lp-section" id="voices">
-      <h2>Des sessions <em>qu’on a envie de refaire</em>.</h2>
-      <div class="lp-quotes">
-        <!-- Exemples à remplacer par de vrais retours. -->
-        <blockquote class="lp-quote reveal"><p>« Je lance une session, mon personnage s’assoit, et bizarrement je m’y mets aussi. »</p><footer><span class="swatch-dot" style="--swatch:#c9764f"></span>Camille · exemple</footer></blockquote>
-        <blockquote class="lp-quote reveal"><p>« Mes viewers arrivent dans ma pièce pendant le stream : on travaille ensemble sans que je quitte l’écran. »</p><footer><span class="swatch-dot" style="--swatch:#819478"></span>Noé · exemple</footer></blockquote>
-        <blockquote class="lp-quote reveal"><p>« Les tickets sur la table, c’est ma to-do préférée depuis des années. »</p><footer><span class="swatch-dot" style="--swatch:#8aa6b8"></span>Inès · exemple</footer></blockquote>
-      </div>
-    </section>
     <section class="lp-section lp-faq" id="faq">
       <h2>Ce qu’on nous <em>demande souvent</em>.</h2>
       <div class="lp-faq-list">
