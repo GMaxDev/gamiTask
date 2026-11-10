@@ -33,7 +33,6 @@ root.innerHTML=`
   <section class="lp-stage" id="demo" aria-label="Essai du café">
     <div class="lp-side lp-side-left">
       <div class="lp-hero">
-        <p class="eyebrow">UN CAFÉ 3D POUR TES SESSIONS DE TRAVAIL</p>
         <h1>Le café des <em>petites victoires</em>.</h1>
         <p class="lp-lead">Un pomodoro, des tâches qui deviennent des tickets sur ta table, et un personnage qui s’installe avec toi. Gratuit, sans compte pour commencer.</p>
         <div class="lp-cta"><a class="primary" href="/app/" data-enter>${icon('coffee')}<span>Entrer au café, c’est gratuit</span></a></div>
@@ -64,11 +63,11 @@ root.innerHTML=`
   </section>
   <main class="lp">
     <section class="lp-section" id="features">
-      <p class="eyebrow">CE QU’ON Y TROUVE</p><h2>Tout ce qu’il faut pour avancer, <em>et rien qui presse</em>.</h2>
+      <h2>Tout ce qu’il faut pour avancer, <em>et rien qui presse</em>.</h2>
       <div class="lp-grid">${FEATURES.map(f=>`<article class="lp-feature reveal"><figure class="lp-figure" data-vignette="${f.v}"></figure><h3>${icon(f.ic)}${f.title}</h3><p>${f.text}</p></article>`).join('')}</div>
     </section>
     <section class="lp-section lp-steps" id="how">
-      <p class="eyebrow">COMMENT ÇA MARCHE</p><h2>Trois pas, <em>et tu es installé</em>.</h2>
+      <h2>Trois pas, <em>et tu es installé</em>.</h2>
       <ol class="lp-step-list">
         <li class="reveal"><span class="lp-step-n">1</span><h3>Entre au café</h3><p>Sans compte pour commencer : un pseudo, une couleur, et tu es dans la salle avec les autres.</p></li>
         <li class="reveal"><span class="lp-step-n">2</span><h3>Lance une session, pose tes tâches</h3><p>Un pomodoro au comptoir, tes tâches en tickets sur la table. Ton personnage s’assoit et se concentre avec toi.</p></li>
@@ -77,14 +76,14 @@ root.innerHTML=`
     </section>
     <section class="lp-section" id="streamers">
       <div class="lp-band reveal">
-        <div class="lp-band-text"><p class="eyebrow">POUR LES STREAMERS</p><h2>Ta communauté, <em>dans ta pièce</em>.</h2>
+        <div class="lp-band-text"><h2>Ta communauté, <em>dans ta pièce</em>.</h2>
           <ul class="lp-band-list"><li>${icon('link-2')}<span>Lie ta chaîne Twitch depuis ton compte, en un clic.</span></li><li>${icon('users')}<span>Tes viewers apparaissent comme des personnages dans ta salle, en direct.</span></li><li>${icon('message-circle')}<span>Leur chat s’affiche au-dessus de leur tête, sans quitter le stream.</span></li><li>${icon('flame')}<span>Un pomodoro collectif : toute la salle se concentre au même rythme.</span></li></ul>
           <a class="primary" href="/app/" data-enter>${icon('twitch')}<span>Lier ma chaîne dans le café</span></a></div>
         <figure class="lp-figure lp-band-figure" data-vignette="twitch"></figure>
       </div>
     </section>
     <section class="lp-section" id="pricing">
-      <p class="eyebrow">TARIFS</p><h2>Gratuit pour travailler, <em>Pro pour recevoir</em>.</h2>
+      <h2>Gratuit pour travailler, <em>Pro pour recevoir</em>.</h2>
       <div class="lp-plans">
         <article class="lp-plan reveal"><h3>Gratuit</h3><p class="lp-price"><strong>0 €</strong><span>pour toujours</span></p>
           <ul>${['Le café et le jardin publics','Pomodoro seul ou avec la salle','Tâches en tickets, tâches du jour','Personnage, boutique et pièces gagnées','Une pièce privée à toi'].map(t=>`<li>${icon('check')}${t}</li>`).join('')}</ul>
@@ -96,7 +95,7 @@ root.innerHTML=`
       </div>
     </section>
     <section class="lp-section" id="voices">
-      <p class="eyebrow">ILS S’Y SONT INSTALLÉS</p><h2>Des sessions <em>qu’on a envie de refaire</em>.</h2>
+      <h2>Des sessions <em>qu’on a envie de refaire</em>.</h2>
       <div class="lp-quotes">
         <!-- Exemples à remplacer par de vrais retours. -->
         <blockquote class="lp-quote reveal"><p>« Je lance une session, mon personnage s’assoit, et bizarrement je m’y mets aussi. »</p><footer><span class="swatch-dot" style="--swatch:#c9764f"></span>Camille · exemple</footer></blockquote>
@@ -105,7 +104,7 @@ root.innerHTML=`
       </div>
     </section>
     <section class="lp-section lp-faq" id="faq">
-      <p class="eyebrow">QUESTIONS</p><h2>Ce qu’on nous <em>demande souvent</em>.</h2>
+      <h2>Ce qu’on nous <em>demande souvent</em>.</h2>
       <div class="lp-faq-list">
         ${[['C’est vraiment gratuit ?','Oui. Le café, le pomodoro, les tâches, le personnage et une pièce privée sont gratuits, sans limite de temps. Le Pro ajoutera ce qui sert à recevoir : invités illimités, Twitch, cosmétiques exclusifs.'],
             ['Ai-je besoin d’un compte ?','Non pour commencer : un pseudo et une couleur suffisent, tout reste dans ton navigateur. Un compte Google permet de retrouver ton personnage et tes pièces sur n’importe quel appareil.'],
