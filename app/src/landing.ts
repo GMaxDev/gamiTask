@@ -36,19 +36,19 @@ root.innerHTML=`
         <p class="lp-lead">Un pomodoro, des tâches qui deviennent des tickets sur ta table, et un personnage qui s’installe avec toi. Gratuit, sans compte pour commencer.</p>
         <div class="lp-cta"><a class="primary" href="/app/" data-enter>${icon('coffee')}<span>Entrer au café, c’est gratuit</span></a></div>
       </div>
-      <div class="lp-card lp-timer" aria-label="Pomodoro">
-        <div class="lp-card-head">${icon('timer')}<span>Pomodoro</span></div>
-        <div class="chip-group lp-modes" role="group" aria-label="Type de session"><button class="chip" data-mode="focus">Focus</button><button class="chip" data-mode="short">Pause</button><button class="chip" data-mode="long">Longue</button></div>
-        <output id="lp-time" class="lp-time" aria-live="off">25:00</output>
-        <div class="lp-timer-actions"><button id="lp-start" class="primary">${icon('play')}<span>C’est parti</span></button><button id="lp-reset" class="chip icon" aria-label="Réinitialiser">${icon('rotate-ccw')}</button></div>
-        <p class="lp-timer-note" id="lp-sessions">Aucune session aujourd’hui, encore.</p>
-      </div>
     </div>
     <div class="lp-demo world">
       <div class="scene" id="scene"><div class="loading">Le café ouvre ses portes…</div></div>
       <p class="lp-demo-hint">Clique au sol pour marcher, sur un siège pour t’asseoir · glisse pour tourner</p>
       <div id="hint" class="hint" role="tooltip" hidden></div>
       <div id="toast" class="toast" role="status"></div>
+    </div>
+    <div class="lp-card lp-timer" aria-label="Pomodoro">
+      <div class="lp-card-head">${icon('timer')}<span>Pomodoro</span></div>
+      <div class="chip-group lp-modes" role="group" aria-label="Type de session"><button class="chip" data-mode="focus">Focus</button><button class="chip" data-mode="short">Pause</button><button class="chip" data-mode="long">Longue</button></div>
+      <output id="lp-time" class="lp-time" aria-live="off">25:00</output>
+      <div class="lp-timer-actions"><button id="lp-start" class="primary">${icon('play')}<span>C’est parti</span></button><button id="lp-reset" class="chip icon" aria-label="Réinitialiser">${icon('rotate-ccw')}</button></div>
+      <p class="lp-timer-note" id="lp-sessions">Aucune session aujourd’hui, encore.</p>
     </div>
     <div class="lp-side lp-side-right">
       <div class="lp-card lp-notes" aria-label="Notes">
